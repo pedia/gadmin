@@ -1,0 +1,45 @@
+<html>
+<br />{{23 -}} < {{- 45}}
+<br />{{23 }} < {{ 45}}
+
+<br />{{"\"output\""}}
+	A string constant.
+<br />{{`"output"`}}
+	A raw string constant.
+<br />{{printf "%q" "output"}}
+	A function call.
+<br />{{"output" | printf "%q"}}
+	A function call whose final argument comes from the previous
+	command.
+<br />{{printf "%q" (print "out" "put")}}
+	A parenthesized argument.
+<br />{{"put" | printf "%s%s" "out" | printf "%q"}}
+	A more elaborate call.
+<br />{{"output" | printf "%s" | printf "%q"}}
+	A longer chain.
+<br />{{with "output"}}{{printf "%q" .}}{{end}}
+	A with action using dot.
+<br />{{with $x := "output" | printf "%q"}}{{$x}}{{end}}
+	A with action that creates and uses a variable.
+<br />{{with $x := "output"}}{{printf "%q" $x}}{{end}}
+	A with action that uses the variable in another action.
+<br />{{with $x := "output"}}{{$x | printf "%q"}}{{end}}
+	The same, but pipelined.
+
+
+<li>define block</li>	
+{{define "body"}}<h1>Title</h1>{{end}}
+
+<li>use block</li>
+{{block "body" $}}{{end}}
+
+{{.foo}}
+{{.Zoo}}
+
+<link href="{{ .admin_static.Url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1" }}" rel="stylesheet">
+
+
+{{ range .List }} <li>{{.}}</li> {{end}}
+
+
+</html>
