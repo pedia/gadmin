@@ -54,9 +54,11 @@ func (a *Admin) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := t.Lookup("test.html").Execute(w, map[string]any{
-		"foo":  "bar",
-		"Zoo":  "Bar",
-		"List": []string{"a", "b"},
+		"foo":   "bar",
+		"Zoo":   "Bar",
+		"List":  []string{"a", "b"},
+		"Conda": true,
+		"Condb": false,
 		// {{ .admin_static.Url x y}}
 		"admin_static": a,
 

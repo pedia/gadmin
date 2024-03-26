@@ -27,11 +27,24 @@
 	The same, but pipelined.
 
 
-<li>define block</li>	
+<li>define block</li>
 {{define "body"}}<h1>Title</h1>{{end}}
 
 <li>use block</li>
-{{block "body" $}}{{end}}
+{{block "body" .}}{{end}}
+not work: {{/*block "body"}}{{end*/}}
+{{template "body"}}
+
+<li>define and execute block</li>
+{{block "footer" .}} the footer {{end}}
+
+
+<li>{{define "T1"}}ONE{{end}}</li>
+<li>{{define "T2"}}TWO{{end}}</li>
+<li>{{define "T3"}}{{template "T1"}} {{template "T2"}}{{end}}</li>
+<li>{{template "T3"}}</li>
+
+
 
 {{.foo}}
 {{.Zoo}}
@@ -41,5 +54,15 @@
 
 {{ range .List }} <li>{{.}}</li> {{end}}
 
+<br />Conda:{{if .Conda}}a{{end}}
+<br />Condb:{{if .Condb}}b{{end}}
+
+<li>range</li>
+{{range $i, $a := .List}}<li>{{$i}}:{{$a}}</li>
+{{end}}
+
+<li>with</li>
+{{with .List}}<li>{{.}}</li>{{end}}
+<li>{{.List}}</li>
 
 </html>
