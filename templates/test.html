@@ -2,6 +2,21 @@
 <br />{{23 -}} < {{- 45}}
 <br />{{23 }} < {{ 45}}
 
+{{template "T2"}}
+{{template "T3"}}
+
+<li>call head</li>
+{{define "test-head"}}<title>index</title>{{end}}
+<li>call bb</li>
+{{define "bb"}}index{{end}}
+
+{{template "base.html" .}}
+
+{{ admin_static_url "a" "b" }}
+
+<li>printf is useful</li>
+{{ admin_static_url (printf "%s%s" "a" .foo) "c" }}
+
 <br />{{"\"output\""}}
 	A string constant.
 <br />{{`"output"`}}
@@ -49,7 +64,9 @@ not work: {{/*block "body"}}{{end*/}}
 {{.foo}}
 {{.Zoo}}
 
+
 <link href="{{ .admin_static.Url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1" }}" rel="stylesheet">
+<link href="{{ admin_static_url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1" }}" rel="stylesheet">
 
 
 {{ range .List }} <li>{{.}}</li> {{end}}
@@ -64,5 +81,8 @@ not work: {{/*block "body"}}{{end*/}}
 <li>with</li>
 {{with .List}}<li>{{.}}</li>{{end}}
 <li>{{.List}}</li>
+
+<li>if .null: {{if .null}}not null{{else}}null{{end}}</li>
+<li>if .empty: {{if .empty}}true{{end}}</li>
 
 </html>

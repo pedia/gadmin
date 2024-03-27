@@ -1,4 +1,7 @@
-{% extends 'admin/master.html' %}
+{{ template "master.html" .}}
 
-{% block body %}
-{% endblock %}
+{{ define "body" }}
+<span id="index-body"></span>
+{{ end }}
+
+{{ define "head" }} <span id="index-head"></span> {{ end }}

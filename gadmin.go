@@ -3,12 +3,13 @@ package gadmin
 import (
 	"fmt"
 	"html/template"
+	"maps"
 	"net"
 	"net/http"
-	"reflect"
 )
 
 type Admin struct {
+	name string
 	*http.Server
 	Views  []View
 	Router *http.ServeMux
@@ -17,6 +18,7 @@ type Admin struct {
 func NewAdmin(name string) *Admin {
 	mux := http.NewServeMux()
 	a := Admin{
+		name: name,
 		Server: &http.Server{
 			Handler: mux,
 		},
@@ -26,35 +28,74 @@ func NewAdmin(name string) *Admin {
 
 	//
 	a.Router.HandleFunc("/admin/", a.Index)
+	a.Router.HandleFunc("/admin/test", a.test)
+
+	// Admin.Url
+	a.Router.Handle("/static/", http.FileServer(http.Dir(".")))
 	return &a
 }
 
 func (a *Admin) AddView(v View) {
-	// a.Views = append(a.Views, v)
-	a.Router.Handle(fmt.Sprintf("/%s/", v.Name()), v)
+	a.Views = append(a.Views, v)
+	if bv, ok := v.(*BaseView); ok {
+		bv.Admin = a
+	}
+
+	// {admin} / {view name} /
+	// {admin} / {view name} / create
+
+	for k, f := range v.Routers() {
+		a.Router.Handle(fmt.Sprintf("/admin/%s%s", v.Name(), k), f)
+	}
 }
 
-func (a *Admin) Index(w http.ResponseWriter, r *http.Request) {
+func (a *Admin) ts() *template.Template {
 	t, err := template.New("all").Funcs(template.FuncMap{
-		"admin_static_url": func(arg0 reflect.Value, arg1 reflect.Value) reflect.Value {
-			return reflect.ValueOf("/admin/static/" + arg0.String() + "?" + arg1.String())
-		},
+		"admin_static_url": a.Url, // used
 	}).ParseFiles(
-		// "templates/base.html",
-		// "templates/index.html",
+		"templates/test.html",
+		"templates/test_base.html",
+
+		// "templates/layout.html",
+		"templates/master.html",
+		"templates/base.html",
+		"templates/index.html",
 		// "templates/layout.html",
 		// "templates/static.html",
 		// "templates/lib.html",
 		// "templates/actions.html",
-		"templates/test.html",
 	)
 	if err != nil {
-		fmt.Print(err)
-		return
+		panic(err)
 	}
 
-	if err := t.Lookup("test.html").Execute(w, map[string]any{
+	fmt.Print(t.DefinedTemplates())
+
+	return t
+}
+
+func (a *Admin) Index(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "text/html; charset=utf-8")
+
+	if err := a.ts().Lookup("index.html").Execute(w, map[string]any{
+		"category":            "ac",
+		"name":                "admin",
+		"admin_base_template": "base.html",
+		"swatch":              "default",
+		// {{ .admin_static_url x y}}
+		"admin_static_url": a.Url,
+	}); err != nil {
+		panic(err)
+	}
+}
+
+func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "text/html; charset=utf-8")
+
+	if err := a.ts().ExecuteTemplate(w, "test.html", map[string]any{
 		"foo":   "bar",
+		"empty": "",
+		"null":  nil,
 		"Zoo":   "Bar",
 		"List":  []string{"a", "b"},
 		"Conda": true,
@@ -62,7 +103,7 @@ func (a *Admin) Index(w http.ResponseWriter, r *http.Request) {
 		// {{ .admin_static.Url x y}}
 		"admin_static": a,
 
-		// {{call .admin_static_url x y}}
+		// {{ .admin_static_url x y}}
 		"admin_static_url": a.Url,
 	}); err != nil {
 		fmt.Print(err)
@@ -71,7 +112,23 @@ func (a *Admin) Index(w http.ResponseWriter, r *http.Request) {
 
 // template function
 func (*Admin) Url(filename, ver string) string {
-	return filename + "?" + ver
+	// TODO: hash
+	s := "/static/" + filename
+	if ver == "" {
+		return s
+	}
+	return s + "?ver=" + ver
+}
+
+func (a *Admin) dict() map[string]any {
+	return map[string]any{
+		"name":                a.name,
+		"url":                 "/admin/",
+		"admin_base_template": "base.html",
+		"swatch":              "default",
+		// {{ .admin_static_url x y }}
+		"admin_static_url": a.Url,
+	}
 }
 
 func (a *Admin) Run() {
@@ -83,11 +140,11 @@ func (a *Admin) Run() {
 type View interface {
 	Name() string
 	Category() string
-	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	Routers() map[string]http.HandlerFunc
 }
 
 type BaseView struct {
-	*http.ServeMux
+	*Admin
 	name     string
 	category string
 }
@@ -95,10 +152,43 @@ type BaseView struct {
 func (bv *BaseView) Name() string     { return bv.name }
 func (bv *BaseView) Category() string { return bv.category }
 
+func (bv *BaseView) Routers() map[string]http.HandlerFunc {
+	return map[string]http.HandlerFunc{
+		"/": bv.Index,
+	}
+}
+
+func (bv *BaseView) dict() map[string]any {
+	ad := bv.Admin.dict()
+	d := maps.Clone(ad)
+
+	update(d, map[string]any{
+		"category":  bv.category,
+		"name":      bv.name,
+		"admin":     ad,
+		"extra_css": []string{},
+		"extra_js":  []string{}, // "a.js", "b.js"}
+	})
+	return d
+}
+
+func update(a, b map[string]any) {
+	for k, v := range b {
+		a[k] = v
+	}
+}
+
+func (bv *BaseView) Index(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "text/html; charset=utf-8")
+
+	if err := bv.ts().Lookup("index.html").Execute(w, bv.dict()); err != nil {
+		panic(err)
+	}
+}
+
 // TODO: NewModelView NewBaseView
 func NewView(name, category string) View {
 	return &BaseView{
-		ServeMux: http.NewServeMux(),
 		name:     name,
 		category: category,
 	}
