@@ -97,13 +97,13 @@
 
 {/* (cancel_url, extra=None, is_modal=False) */}
 {{ define "render_form_buttons" }}
-  {{ if .is_modal }}
+  {{ if .form.is_modal }}
         <input type="submit" class="btn btn-primary" value="{{ gettext "Save" }}" />
         {{ if .extra }}
-        {{ .extra }}
+        {{ template "extra" .form }}
         {{ end }}
-        {{ if .cancel_url }}
-          <a href="{{ .cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
+        {{ if .form.cancel_url }}
+          <a href="{{ .form.cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
         {{ end }}
   {{ else }}
     <hr>
@@ -111,10 +111,10 @@
       <div class="col-md-offset-2 col-md-10 submit-row">
         <input type="submit" class="btn btn-primary" value="{{ gettext "Save" }}" />
         {{ if .extra }}
-        {{ .extra }}
+        {{ template "extra" .form}}
         {{ end }}
-        {{ if .cancel_url }}
-          <a href="{{ .cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
+        {{ if .form.cancel_url }}
+          <a href="{{ .form.cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
         {{ end }}
       </div>
     </div>
@@ -122,10 +122,12 @@
 {{ end }}
 
 {{ define "render_form"}}
-  <!-- form, cancel_url, extra=None, form_opts=None, action=None, is_modal=False-->
-    {{ template "form_tag" .| arg "action" .action | args }}
-    {{ template "render_form_fields" . |arg "form" . | arg "cancel_url" .cancel_url | arg "extra" .extra | arg "form_opts" .form_opts | arg "action" .action | arg "is_modal" .is_modal | args }}
-    {{ template "render_form_buttons" . |arg "cancel_url" .cancel_url | arg "extra" .extra | arg "is_modal" .is_modal | args }}
+  <form action="{{ .form.action }}" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
+    <fieldset>
+      {{ template "render_form_fields" . }}
+    </fieldset>
+    {{ template "render_form_buttons" .| arg "extra" true | arg "form" .form | args}}
+  </form>
 {{ end }}
 
 
@@ -171,4 +173,14 @@
   <script src="{{ admin_static_url "vendor/x-editable/js/bootstrap4-editable.min.js" "1.5.1.1" }}"></script>
   {{ end }}
   <script src="{{ admin_static_url "admin/js/form.js" "1.0.1" }}"></script>
+{{ end }}
+
+
+{{ define "extra" }}
+  {{ if .can_create }}
+  <input name="_add_another" type="submit" class="btn btn-secondary" value="{{ gettext "Save and Add Another" }}" />
+  {{ end }}
+  {{ if .can_edit }}
+  <input name="_continue_editing" type="submit" class="btn btn-secondary" value="{{ gettext "Save and Continue Editing" }}" />
+  {{ end }}
 {{ end }}

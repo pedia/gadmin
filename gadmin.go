@@ -346,14 +346,12 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	if err := mv.ts().
 		Lookup("model_create.html").
 		Execute(w, mv.dict(map[string]any{
-			"form":       mv.get_form().dict(),
-			"cancel_url": "TODO:cancel_url",
-			"extra":      nil,
+			"form": mv.get_form().dict(),
 			"form_opts": map[string]any{
-				"widget_args": nil, "form_rules": nil,
+				"widget_args": nil,
+				// "form_rules":  nil, // form_create_rules
 			},
-			"action":   nil,
-			"is_modal": true,
+			"action": nil,
 		})); err != nil {
 		panic(err)
 	}
@@ -381,10 +379,16 @@ func (mv *ModelView) get_form() Form {
 			fmt.Printf("FieldType: %s %v\n", field.Name, field.FieldType)
 			return map[string]any{
 				"id":          field.DBName, //
+				"name":        field.DBName, //
 				"description": field.Comment,
 				"required":    field.NotNull,
-				"label":       field.Name,
-				"widget":      field2widget(field),
+				"choices":     nil,
+				// "type": "StringField",
+				"label":  strings.Title(field.Name),
+				"widget": field2widget(field),
+				"errors": nil,
+				// validators
+				"data": nil,
 			}
 		}),
 	}
@@ -425,8 +429,12 @@ type Form struct {
 
 func (f Form) dict() map[string]any {
 	return map[string]any{
+		"can_create": true,
+		"can_edit":   true,
 		"action":     "", // empty
 		"hidden_tag": false,
 		"fields":     f.Fields,
+		"cancel_url": "TODO:cancel_url",
+		"is_modal":   true,
 	}
 }
