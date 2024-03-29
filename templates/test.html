@@ -1,4 +1,24 @@
 <html>
+
+{{.admin.name}}'s categories:
+{{ range .admin.menus }} 
+<span>{{ .Name }}</span> 
+{{end}}
+
+
+{{define "dump"}}{{.}}{{end}}
+<h3>dump</h3>
+<ul>
+	<li>eq a b: {{ eq "a" "b"}}</li>
+	<li>if true: {{ if true }} true {{ end }}</li>
+	<li>if eq: {{ if eq "a" "a" }} true {{ end }}</li>
+<li>{{ template "dump" .|arg "arg1" 42 | arg "arg2" 33 | args }}</li>
+<li>{{ upper "upper" }}</li>
+
+{{define "ARG2" }} {{.}} {{end}}
+<li>{{ template "ARG2" . }}
+</ul>
+
 <br />{{23 -}} < {{- 45}}
 <br />{{23 }} < {{ 45}}
 
@@ -10,7 +30,7 @@
 <li>call bb</li>
 {{define "bb"}}index{{end}}
 
-{{template "base.html" .}}
+
 
 {{ admin_static_url "a" "b" }}
 
@@ -65,11 +85,14 @@ not work: {{/*block "body"}}{{end*/}}
 {{.Zoo}}
 
 
-<link href="{{ .admin_static.Url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1" }}" rel="stylesheet">
+
+
 <link href="{{ admin_static_url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1" }}" rel="stylesheet">
 
 
-{{ range .List }} <li>{{.}}</li> {{end}}
+List: {{ range .List }} <li>{{.}}</li> {{end}}
+List: {{ range .list }} <li>{{.}}</li> {{end}}
+ss: {{ range .ss }} <li>{{.A}}</li> {{end}}
 
 <br />Conda:{{if .Conda}}a{{end}}
 <br />Condb:{{if .Condb}}b{{end}}

@@ -1,0 +1,10 @@
+{{ block "menu" .}}
+    {{ range .admin.menus }}
+        <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
+            <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">
+                <span class="{{ .class }}">{{ .name }}</span>
+            </a>
+        </li>
+        <ul class="dropdown-menu"></ul>
+    {{ end }}
+{{ end }}

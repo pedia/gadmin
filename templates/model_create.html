@@ -1,0 +1,29 @@
+{{ template "master.html" .}}
+
+{{ define "head" }}
+  {{ template "form_css" }}
+{{ end }}
+
+  {{ define "navlinks" }}
+  <ul class="nav nav-tabs">
+    <li class="nav-item">
+        <a href="{{ .return_url }}" class="nav-link">{{ gettext "List" }}</a>
+    </li>
+    <li class="nav-item">
+        <a href="javascript:void(0)" class="nav-link active">{{ gettext "Create" }}</a>
+    </li>
+  </ul>
+  {{ end }}
+
+  {{ define "create_form" }}
+    {{ template "render_form" .form }}
+  {{ end }}
+
+{{ define "body" }}
+  {{ template "navlinks" .}}
+  {{ template "create_form" .}}
+{{ end }}
+
+{{ define "tail" }}
+  {{ template "form_js" .}}
+{{ end }}

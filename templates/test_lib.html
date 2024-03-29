@@ -1,0 +1,174 @@
+{/* (form, field, kwargs={}, caller=None) */}
+{{ define "render_field" }}
+  <!--{/* set direct_error = h.is_field_error(field.errors) */}
+  {/* set prepend = kwargs.pop('prepend', None) */}
+  {/* set append = kwargs.pop('append', None) */}-->
+  <div class="form-group {{ .kwargs.column_class  }}">
+    <label for="{{ .f.id }}" class="control-label" {{ if eq .f.widget.input_type  "checkbox" }}style="display: block; margin-bottom: 0"{{ end }}>
+      {{ .f.label }}
+        {{ if .f.required }}
+          <strong style="color: red">&#42;</strong>
+        {{- else -}}
+          &nbsp;
+        {{- end }}
+    </label>
+    {{ if or .prepend .append }}
+    <div class="input-group">
+      {{- if .prepend -}}
+      <div class="input-group-prepend">
+        {{ .prepend }}
+      </div>
+      {{- end -}}
+    {{ end }}
+      <!--{% if eq .f.widget.input_type  "checkbox" %}
+        {% set _class = kwargs.setdefault('class', '') %}
+      {% elif field.widget.input_type == 'file' %}
+        {% set _class = kwargs.setdefault('class', 'form-control-file') %}
+      {% else %}
+        {% set _class = kwargs.setdefault('class', 'form-control') %}
+      {% end %} -->
+      {{- if .direct_error }} {/* set _ = kwargs.update({'class': kwargs['class'] ~ ' is-invalid'}) */} {{ end -}}
+      <input class="form-control" id="{{.f.id}}" name="{{.f.name}}" type="text" value="">
+      {{- if .append -}}
+      <div class="input-group-append">
+        {{ .append }}
+      </div>
+      {{- end -}}
+      {{ if .direct_error }}
+        <div class="invalid-feedback">
+          <ul class="form-text text-muted" {{ if eq .f.widget.input_type "checkbox" }}style="margin-top: 0"{{ end }}>
+            {{ range $e := .fs.errors }}
+            {{ if $e }}
+            <li>{{ $e }}</li>
+            {{ end }}
+          {{ end }}
+          </ul>
+        </div>
+      {{ end }}
+      {{ if .f.description }}
+        <small class="form-text text-muted" {{ if eq .f.widget.input_type "checkbox" }}style="margin-top: 0"{{ end }}>
+            {{ .f.description }}
+        </small>
+      {{ end }}
+    {{ if or .prepend .append }}
+    </div>
+    {{ end }}
+    {{ if .caller }}
+      {{ printf "caller(form, field, direct_error, kwargs)" }}
+    {{ end }}
+  </div>
+{{ end }}
+
+
+{{ define "render_form_fields" }}
+    {{ if .hidden_tag }}
+        {{ .hidden_tag }}
+    {{ else }}
+        {{ if .csrf_token }}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {{ end }}
+        {{ range $i, $f := .form.fields }}
+          {{ if eq $f.widget.input_type "hidden" }}
+            {{ $f }}
+          {{ end }}
+        {{ end }}
+    {{ end }}
+
+    {{ if and .form_opts .form_opts.form_rules }}
+        {{ range $i, $r := .form_opts.form_rules }}
+            {{ $r .form .form_opts }}
+        {{ end }}
+    {{ else }}
+        {{ range $i, $f := .form.fields }}
+          {{ template "render_field" . | arg "form" . | arg "f" $f | args }}
+        {{ end }}
+    {{ end }}
+{{ end }}
+
+
+{/* form=None, action=None */}
+{{ define "form_tag" }}
+    <form action="{{ .action }}" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
+    <fieldset>
+      <!-- {{ printf "caller()" }}-->
+    </fieldset>
+    </form>
+{{ end }}
+
+{/* (cancel_url, extra=None, is_modal=False) */}
+{{ define "render_form_buttons" }}
+  {{ if .is_modal }}
+        <input type="submit" class="btn btn-primary" value="{{ gettext "Save" }}" />
+        {{ if .extra }}
+        {{ .extra }}
+        {{ end }}
+        {{ if .cancel_url }}
+          <a href="{{ .cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
+        {{ end }}
+  {{ else }}
+    <hr>
+    <div class="form-group">
+      <div class="col-md-offset-2 col-md-10 submit-row">
+        <input type="submit" class="btn btn-primary" value="{{ gettext "Save" }}" />
+        {{ if .extra }}
+        {{ .extra }}
+        {{ end }}
+        {{ if .cancel_url }}
+          <a href="{{ .cancel_url }}" class="btn btn-danger" role="button" {{ if .is_modal }}data-dismiss="modal"{{ end }}>{{ gettext "Cancel" }}</a>
+        {{ end }}
+      </div>
+    </div>
+  {{ end }}
+{{ end }}
+
+{{ define "render_form"}}
+  <!-- form, cancel_url, extra=None, form_opts=None, action=None, is_modal=False-->
+    {{ template "form_tag" .| arg "action" .action | args }}
+    {{ template "render_form_fields" . |arg "form" . | arg "cancel_url" .cancel_url | arg "extra" .extra | arg "form_opts" .form_opts | arg "action" .action | arg "is_modal" .is_modal | args }}
+    {{ template "render_form_buttons" . |arg "cancel_url" .cancel_url | arg "extra" .extra | arg "is_modal" .is_modal | args }}
+{{ end }}
+
+
+
+
+{{ define "form_css" }}
+  <link href="{{ admin_static_url "vendor/select2/select2.css" "4.2.1" }}" rel="stylesheet">
+  <link href="{{ admin_static_url "vendor/select2/select2-bootstrap4.css" "1.4.6" }}" rel="stylesheet">
+  <link href="{{ admin_static_url "vendor/bootstrap-daterangepicker/daterangepicker-bs4.css" "1.3.22" }}" rel="stylesheet">
+  {{ if config "MAPBOX_MAP_ID" }}
+  <link href="{{ admin_static_url "vendor/leaflet/leaflet.css" "1.0.2" }}" rel="stylesheet">
+  <link href="{{ admin_static_url "vendor/leaflet/leaflet.draw.css" "0.4.6" }}" rel="stylesheet">
+  {{ end }}
+  {{ if .editable_columns }}
+  <link href="{{ admin_static_url "vendor/x-editable/css/bootstrap4-editable.css" "1.5.1.1" }}" rel="stylesheet">
+  {{ end }}
+{{ end }}
+
+
+{{ define "form_js" }}
+  {{ if config "MAPBOX_MAP_ID" }}
+  <script>
+  window.MAPBOX_MAP_ID = "{{ config "MAPBOX_MAP_ID" }}";
+  {{ if config "MAPBOX_ACCESS_TOKEN" }}
+  window.MAPBOX_ACCESS_TOKEN = "{{ config "MAPBOX_ACCESS_TOKEN" }}";
+  {{ end }}
+  {{ if and (config "DEFAULT_CENTER_LAT") (config "DEFAULT_CENTER_LONG") }}
+  window.DEFAULT_CENTER_LAT = "{{ config "DEFAULT_CENTER_LAT" }}";
+  window.DEFAULT_CENTER_LONG = "{{ config "DEFAULT_CENTER_LONG" }}";
+  {{ end }}
+  </script>
+  <script src="{{ admin_static_url "vendor/leaflet/leaflet.js" "1.0.2" }}"></script>
+  <script src="{{ admin_static_url "vendor/leaflet/leaflet.draw.js" "0.4.6" }}"></script>
+  {{ if config "MAPBOX_SEARCH" }}
+  <script>
+  window.MAPBOX_SEARCH = "{{ config "MAPBOX_SEARCH" }}";
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?v=3&libraries=places&key={{ config "GOOGLE_MAPS_API_KEY" }}"></script>
+  {{ end }}
+  {{ end }}
+  <script src="{{ admin_static_url "vendor/bootstrap-daterangepicker/daterangepicker.js" "1.3.22" }}"></script>
+  {{ if .editable_columns }}
+  <script src="{{ admin_static_url "vendor/x-editable/js/bootstrap4-editable.min.js" "1.5.1.1" }}"></script>
+  {{ end }}
+  <script src="{{ admin_static_url "admin/js/form.js" "1.0.1" }}"></script>
+{{ end }}

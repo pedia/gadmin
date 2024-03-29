@@ -31,7 +31,7 @@
   </head>
 <body>
 {{- block "page_body" .}}
-    <div class="container{% if config.get('FLASK_ADMIN_FLUID_LAYOUT', False) %}-fluid{% endif %}">
+    <div class="container{{ if .admin_fluid_layout }}-fluid{{ end }}">
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-2" role="navigation">
             <!-- Brand and toggle get grouped for better mobile display -->
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#admin-navbar-collapse"
@@ -45,7 +45,7 @@
             {{ end }}
             {{ block "main_menu" .}}
                 <ul class="nav navbar-nav mr-auto">
-                    {{/* layout.menu() */}}
+                    {{ template "menu" .}}
                 </ul>
             {{ end }}
 
@@ -63,8 +63,8 @@
             {{/* layout.messages() */}}
         {{ end -}}
 
-        {# store the jinja2 context for form_rules rendering logic #}
-        {% set render_ctx = h.resolve_ctx() %}
+        {{/* store the jinja2 context for form_rules rendering logic #}
+        {% set render_ctx = h.resolve_ctx() */}}
 
         {{ block "body" .}}{{ end -}}
     </div>

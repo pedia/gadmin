@@ -1,7 +1,23 @@
 {{ template "master.html" .}}
 
-{{ define "body" }}
-<span id="index-body"></span>
+{{ define "head" }}
+        <style>
+            pre {
+                white-space: pre-wrap;       /* Since CSS 2.1 */
+                white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+                white-space: -pre-wrap;      /* Opera 4-6 */
+                white-space: -o-pre-wrap;    /* Opera 7 */
+                word-wrap: break-word;       /* Internet Explorer 5.5+ */
+            }
+        </style>
 {{ end }}
 
-{{ define "head" }} <span id="index-head"></span> {{ end }}
+{{ define "body" }}
+<h3>dump dict:</h3>
+    {{ range $key, $value := . }}
+    <li><strong>{{ $key }}</strong>: {{ $value }}</li>
+    {{ end }}
+
+    <pre>{{ marshal . }}</pre>
+
+{{ end }}
