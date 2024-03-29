@@ -129,6 +129,8 @@ func (a *Admin) ts() *template.Template {
 		"templates/index.html",
 		"templates/test_lib.html",
 		"templates/model_create.html",
+		"templates/model_layout.html",
+		"templates/model_list.html",
 		// "templates/layout.html",
 		// "templates/static.html",
 		// "templates/lib.html",
