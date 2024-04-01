@@ -336,7 +336,8 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		"editable_columns": true,
 		"can_create":       true,
 		"can_edit":         true,
-		"can_export":       false,
+		"can_export":       true,
+		"export_types":     []string{"csv"},
 		"edit_modal":       false,
 		"create_modal":     false,
 		"details_modal":    false,
@@ -399,6 +400,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"num_pages": 1,
 			"pager_url": "pager_url",
 			"data":      []any{},
+			"request":   rd(r),
 		},
 	))
 }
@@ -411,7 +413,9 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		"templates/model_create.gotmpl",
 		"templates/model_layout.gotmpl",
 		"templates/actions.gotmpl",
-	}, mv.dict(rd(r)))
+	}, mv.dict(map[string]any{
+		"request": rd(r)},
+	))
 }
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
@@ -428,9 +432,7 @@ var schemaStore = sync.Map{}
 // request's dict
 func rd(r *http.Request) map[string]any {
 	return map[string]any{
-		"request": map[string]any{
-			"args": r.URL.RawQuery,
-		},
+		"args": r.URL.Query(),
 	}
 }
 

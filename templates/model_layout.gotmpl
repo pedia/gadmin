@@ -8,12 +8,12 @@
 {{ end }}
 
 {{ define "export_options" }}
-    {{ if gt (len .admin_view.export_types) 1 }}
+    {{ if gt (len .export_types) 1 }}
         <li class="dropdown">
             <a class="nav-link {{ .btn_class }}" data-toggle="dropdown" href="javascript:void(0)" role="button"
                aria-haspopup="true" aria-expanded="false">{{ gettext "Export" }}<b class="caret"></b></a>
             <div class="dropdown-menu">
-                {{ range $export_type := .admin_view.export_types }}
+                {{ range $export_type := .export_types }}
                     <a class="dropdown-item"
                        href="{{ get_url ".export"  $export_type  .request.args }}"
                        title="{{ gettext "Export" }}">{{ gettext "Export" }}{{ $export_type|upper }}</a>
@@ -22,7 +22,7 @@
         </li>
     {{ else }}
         <li>
-            <a class="nav-link" href="{{ get_url ".export" (first .admin_view.export_types) .request.args  }}"
+            <a class="nav-link" href="{{ get_url ".export" (first .export_types) .request.args  }}"
                title="{{ gettext "Export" }}">{{ gettext "Export" }}</a>
         </li>
     {{ end }}
