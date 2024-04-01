@@ -10,9 +10,9 @@
         <meta name="author" content="">
     {{ end -}}
     {{- block "head_css" .}}
-        <link href="{{ admin_static_url (printf "%s%s%s" "bootstrap/bootstrap4/swatch/" .swatch "/bootstrap.min.css") "4.2.1" }}"
+        <link href="{{ admin_static_url (printf "%s%s%s" "bootstrap/bootstrap4/swatch/" .admin.swatch "/bootstrap.min.css") "4.2.1" }}"
               rel="stylesheet">
-        {{ if eq .swatch "default" -}}
+        {{ if eq .admin.swatch "default" -}}
         <link href="{{ admin_static_url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1"  }}" rel="stylesheet">
         {{ end -}}
         <link href="{{ admin_static_url "admin/css/bootstrap4/admin.css" "1.1.1"  }}" rel="stylesheet">

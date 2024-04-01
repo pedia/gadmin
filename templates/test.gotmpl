@@ -1,0 +1,51 @@
+<html>
+
+<body>
+
+	<ul>
+		<li> admin(pre):</li>
+		<pre rows="10" cols="50">{{ safehtml (marshal .admin) }}</pre>
+
+		<li>require</li>
+		{{ define "foo"}}
+		all: {{. | require "arg1" | require "arg2" | arg "arg1" "replaced" | args}} <br />
+		origin:
+		{{ with .Origin }}
+		{{.Zoo}}
+		{{ end }}
+		{{ end }}
+
+		{{ template "foo" .| arg "arg1" "v1" | arg "arg2" "v2" |arg "arg3" "v3" }}
+
+		<li>reduce args(not worked)</li>
+		{{define "bar"}}
+		all: {{.}} <br />
+		{{end}}
+
+		{{ template "bar" . }}
+
+		<li>only</li>
+		{{define "bar3"}}
+		all: {{.}} <br />
+		{{end}}
+
+		{{ template "bar3" . | only "foo" "Zoo" }}
+
+
+		{{ . | arg "foo" 1 | arg "bar" 2 | only "foo" "Zoo" }}
+
+		<li>html safe</li>
+		{{ safehtml "<span>foo</span>"}}
+
+		<li>js safe</li>
+		<script>
+			var a={{ .null }}, b={{ .list }}, c={{ .ss }};
+			var ls={{ index .ls 0 }};
+			var ls={{ safejs (marshal (index .ls 0)) }};
+			var ss={{ safejs (marshal (index .ss 0)) }};
+			var js={{ json (index .ss 0) }};
+		</script>
+	</ul>
+</body>
+
+</html>

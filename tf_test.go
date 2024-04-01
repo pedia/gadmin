@@ -122,6 +122,13 @@ var testCases = []testCase{
 		expectedResult: "1;2;3",
 		hasError:       false,
 	},
+	{
+		template: `
+		{{ . | only "a" "b" }}`,
+		argument:       map[string]any{"a": 1, "b": 2, "c": 3},
+		expectedResult: "map[a:1 b:2]",
+		hasError:       false,
+	},
 }
 
 func removeWhite(s string) string {

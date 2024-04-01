@@ -198,6 +198,48 @@ func joinStr(sep string, a []string) string {
 	return strings.Join(a, sep)
 }
 
+func Only(args ...any) (map[string]any, error) {
+	if len(args) < 2 {
+		return nil, errors.New("filter need more args")
+	}
+	last := args[len(args)-1]
+	pm, ok := last.(map[string]any)
+	if !ok {
+		pack, ok := last.(Pack)
+		if !ok {
+			return nil, errors.New("filter should be added to pipeline")
+		}
+		pm = pack.Args
+	}
+
+	res := map[string]any{}
+	for i := 0; i < len(args)-1; i++ {
+		k := args[i].(string)
+		if v, ok := pm[k]; ok {
+			res[k] = v
+		}
+	}
+	return res, nil
+}
+
+func Delete(k string, args ...any) (map[string]any, error) {
+	if len(args) < 1 {
+		return nil, errors.New("delete need more args")
+	}
+	last := args[len(args)-1]
+	pm, ok := last.(map[string]any)
+	if !ok {
+		pack, ok := last.(Pack)
+		if !ok {
+			return nil, errors.New("delete should be added to pipeline")
+		}
+		pm = pack.Args
+	}
+
+	delete(pm, k)
+	return pm, nil
+}
+
 // FuncsText is a FuncMap which can be passed as argument of .Func of text/template
 var FuncsText = template.FuncMap{
 	"arg":     Witharg,
@@ -210,6 +252,8 @@ var FuncsText = template.FuncMap{
 	"append":  AppendSlice,
 	"split":   SplitStr,
 	"join":    joinStr,
+	"only":    Only,
+	"delete":  Delete,
 }
 
 // FuncsHTML is a FuncMap which can be passed as argument of .Func of html/template

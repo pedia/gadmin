@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+
+<head></head>
+
+<body>
+    admin:<br />
+    <textarea rows="10" cols="50">{{ marshal .admin }}</textarea>
+    <br />
+    dict(not include admin):<br />
+    <textarea rows="10" cols="50">{{ . | delete "admin" | marshal }}</textarea>
+</body>
+
+</html>

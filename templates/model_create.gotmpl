@@ -1,7 +1,10 @@
-{{ template "master.html" .}}
+{{ template "master.gotmpl" .}}
+{{ template "actions.gotmpl" .}}
+{{ template "lib.gotmpl" .}}
+
 
 {{ define "head" }}
-  {{ template "form_css" }}
+  {{ template "form_css" . }}
 {{ end }}
 
   {{ define "navlinks" }}

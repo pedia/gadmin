@@ -1,10 +1,13 @@
 package gadmin
 
+// Q:
+// - template result to arg
+// - request.args
+
 import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -20,7 +23,7 @@ import (
 )
 
 type Menu struct {
-	Name  string // category
+	Name  string // category?
 	Views []View
 	class string
 }
@@ -47,12 +50,13 @@ type Admin struct {
 	menus []*Menu // TODO: ordered_map
 	Mux   *http.ServeMux
 	DB    *gorm.DB
+	debug bool
 }
 
 func NewAdmin(name string) *Admin {
 	mux := http.NewServeMux()
 	db, err := gorm.Open(
-		sqlite.Open("../flask-admin/examples/sqla/admin/sample_db.sqlite"),
+		sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
 		&gorm.Config{NamingStrategy: schema.NamingStrategy{SingularTable: true}})
 	if err != nil {
 		panic(err)
@@ -63,6 +67,7 @@ func NewAdmin(name string) *Admin {
 		menus:  []*Menu{},
 		Mux:    mux,
 		DB:     db,
+		debug:  true,
 	}
 
 	// Home -> /admin
@@ -108,58 +113,57 @@ func (a *Admin) AddView(v View) {
 	// }
 }
 
-func (a *Admin) ts() *template.Template {
+func (a *Admin) ts(fs ...string) *template.Template {
 	fm := merge(sprig.FuncMap(), FuncsText)
 	merge(fm, template.FuncMap{
 		"admin_static_url": a.staticUrl, // used
-		"marshal":          a.marshal,   // test
-		"config":           a.config,    // used
-		"gettext":          a.gettext,   //
+		"get_url":          a.getUrl,
+		"marshal":          a.marshal, // test
+		"config":           a.config,  // used
+		"gettext":          a.gettext, //
 		"csrf_token":       func() string { return "xxxx-csrf-token" },
+		// escape safe
+		"safehtml": func(s string) template.HTML { return template.HTML(s) },
+		"safejs":   func(s string) template.JS { return template.JS(s) },
+		"json": func(v any) (template.JS, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return template.JS(string(bs)), nil
+		},
 	})
 
-	t, err := template.New("all").Funcs(fm).ParseFiles(
-		"templates/test.html",
-		"templates/test_base.html",
-
-		// "templates/layout.html",
-		"templates/test_layout.html",
-		"templates/master.html",
-		"templates/base.html",
-		"templates/index.html",
-		"templates/test_lib.html",
-		"templates/model_create.html",
-		"templates/model_layout.html",
-		"templates/model_list.html",
-		// "templates/layout.html",
-		// "templates/static.html",
-		// "templates/lib.html",
-		// "templates/actions.html",
-	)
+	t, err := template.New("all").
+		Option("missingkey=error").
+		Funcs(fm).ParseFiles(fs...)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(t.DefinedTemplates())
+	// fmt.Println(t.DefinedTemplates())
 	return t
 }
 
 func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
 
-	if err := a.ts().ExecuteTemplate(w, "test.html", map[string]any{
+	if err := a.ts().ExecuteTemplate(w, "test.gotmpl", map[string]any{
 		"foo":   "bar",
 		"empty": "",
 		"null":  nil,
 		"Zoo":   "Bar",
 		"list":  []string{"a", "b"},
 		"ss":    []struct{ A string }{{A: "a"}, {A: "b"}},
-		"Conda": true,
-		"Condb": false,
+		"ls":    []map[string]any{{"A": "a"}, {"B": "b"}},
+		"conda": true,
+		"condb": false,
+		"int":   34,
 
-		// exposed map is better than struct
-		"admin": a.dict(nil),
+		// map is better than struct
+		"admin": a.dict(),
 
+		// bad
 		// {{ .admin_static.Url x y}}
 		"admin_static": a,
 
@@ -184,6 +188,17 @@ func (*Admin) config(key string) bool {
 func (*Admin) gettext(key string) string {
 	return key
 }
+
+func (*Admin) getUrl(vs ...any) string {
+	t := vs[0].(string)
+	path, ok := map[string]string{
+		".create_view": "new",
+	}[t]
+	if ok {
+		return path
+	}
+	return fmt.Sprintf("TODO %v", vs)
+}
 func (*Admin) staticUrl(filename, ver string) string {
 	// TODO: /admin/static
 	s := "/admin/static/" + filename
@@ -193,8 +208,9 @@ func (*Admin) staticUrl(filename, ver string) string {
 	return s + "?ver=" + ver
 }
 
-func (a *Admin) dict(other map[string]any) map[string]any {
-	o := map[string]any{
+func (a *Admin) dict() map[string]any {
+	return map[string]any{
+		"debug":               a.debug,
 		"name":                a.name,
 		"url":                 "/admin",
 		"admin_base_template": "base.html",
@@ -205,9 +221,6 @@ func (a *Admin) dict(other map[string]any) map[string]any {
 			return m.dict()
 		}),
 	}
-	cloned := maps.Clone(o)
-	cloned["admin"] = o
-	return merge(cloned, other)
 }
 
 func (a *Admin) Run() {
@@ -220,6 +233,7 @@ type View interface {
 	Category() string
 	Name() string
 	Install(*Admin)
+	dict(others ...map[string]any) map[string]any
 }
 
 type BaseView struct {
@@ -230,7 +244,16 @@ type BaseView struct {
 
 func (bv *BaseView) Category() string { return bv.category }
 func (bv *BaseView) Name() string     { return bv.name }
-func (bv *BaseView) Install(a *Admin) { bv.Admin = a }
+func (bv *BaseView) Install(a *Admin) {
+	bv.Admin = a
+}
+
+func (bv *BaseView) render(w http.ResponseWriter, page string, fs []string, dict map[string]any) {
+	w.Header().Add("content-type", "text/html; charset=utf-8")
+	if err := bv.ts(fs...).Lookup(page).Execute(w, dict); err != nil {
+		panic(err)
+	}
+}
 
 func (bv *BaseView) HandleFunc(pattern string, f http.HandlerFunc) {
 	p := fmt.Sprintf("/admin/%s%s", bv.name, pattern)
@@ -241,12 +264,14 @@ func (bv *BaseView) HandleFunc(pattern string, f http.HandlerFunc) {
 }
 
 func (bv *BaseView) dict(others ...map[string]any) map[string]any {
-	o := bv.Admin.dict(map[string]any{
-		"category":  bv.category,
-		"name":      bv.name,
-		"extra_css": []string{},
-		"extra_js":  []string{}, // "a.js", "b.js"}
-	})
+	o := map[string]any{
+		"category":           bv.category,
+		"name":               bv.name,
+		"extra_css":          []string{},
+		"extra_js":           []string{}, // "a.js", "b.js"}
+		"admin":              bv.Admin.dict(),
+		"admin_fluid_layout": true,
+	}
 
 	if len(others) > 0 {
 		merge(o, others[0])
@@ -257,17 +282,16 @@ func (bv *BaseView) dict(others ...map[string]any) map[string]any {
 func (bv *BaseView) index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
 
-	if err := bv.ts().Lookup("index.html").Execute(w, bv.dict()); err != nil {
+	if err := bv.ts().Lookup("index.gotmpl").Execute(w, bv.dict()); err != nil {
 		panic(err)
 	}
 }
 
 func NewView(category, name string) View {
-	bv := BaseView{
+	return &BaseView{
 		category: category,
 		name:     name,
 	}
-	return &bv
 }
 
 type admin_index_view struct {
@@ -279,15 +303,8 @@ func (aiv *admin_index_view) Install(admin *Admin) {
 	aiv.HandleFunc("/", aiv.index)
 }
 func (aiv *admin_index_view) index(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", "text/html; charset=utf-8")
-
-	if err := aiv.ts().
-		Lookup("index.html").
-		Execute(w, aiv.dict()); err != nil {
-		panic(err)
-	}
+	aiv.render(w, "index.gotmpl", []string{}, aiv.dict())
 }
-
 func NewAdminIndex() *admin_index_view {
 	aiv := admin_index_view{
 		BaseView: &BaseView{
@@ -301,7 +318,7 @@ func NewAdminIndex() *admin_index_view {
 type ModelView struct {
 	*BaseView
 	model any
-	DB    *gorm.DB // session
+	db    *gorm.DB // session
 }
 
 func NewModalView(m any, DB *gorm.DB) *ModelView {
@@ -310,13 +327,36 @@ func NewModalView(m any, DB *gorm.DB) *ModelView {
 	return &ModelView{
 		BaseView: &BaseView{category: cate, name: strings.ToLower(cate)},
 		model:    m, // TODO: ptr to elem
-		DB:       DB,
+		db:       DB,
 	}
 }
 
 func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 	o := mv.BaseView.dict(map[string]any{
-		"return_url": "..", // TODO: /admin/user/
+		"editable_columns": true,
+		"can_create":       true,
+		"can_edit":         true,
+		"can_export":       false,
+		"edit_modal":       false,
+		"create_modal":     false,
+		"details_modal":    false,
+		"return_url":       "../",
+		"form":             mv.get_form().dict(),
+		"form_opts": map[string]any{
+			"widget_args": nil,
+			"form_rules":  []any{},
+		},
+		"filters":                []string{},
+		"filter_groups":          []string{},
+		"can_set_page_size":      false, // TODO:
+		"actions":                []string{},
+		"actions_confirmation":   []string{},
+		"search_supported":       false,
+		"column_display_actions": true,
+		"list_columns":           []string{},
+		"page_size_url": func() string {
+			return "?page_size=2"
+		},
 	})
 
 	if len(others) > 0 {
@@ -335,28 +375,43 @@ func (mv *ModelView) Install(admin *Admin) {
 	mv.HandleFunc("/export/{export_type}", mv.index)
 	mv.HandleFunc("/ajax/lookup/", mv.index)
 	mv.HandleFunc("/ajax/update/", mv.index)
+	if mv.Admin.debug {
+		mv.HandleFunc("/debug/", mv.debug)
+	}
+}
+func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
+	mv.render(w, "debug.gotmpl", []string{}, mv.dict())
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", "text/html; charset=utf-8")
+	mv.render(w, "model_list.gotmpl", []string{
+		"templates/layout.gotmpl",
+		"templates/master.gotmpl",
+		"templates/base.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/actions.gotmpl",
+		"templates/model_list.gotmpl",
+	}, mv.dict(
+		map[string]any{
+			"count":     2,
+			"page":      1,
+			"pages":     1,
+			"num_pages": 1,
+			"pager_url": "pager_url",
+			"data":      []any{},
+		},
+	))
 }
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	// can_create
-	// create_form
-	// form_args
-	// form_widget_args
-	w.Header().Add("content-type", "text/html; charset=utf-8")
-	if err := mv.ts().
-		Lookup("model_create.html").
-		Execute(w, mv.dict(map[string]any{
-			"form": mv.get_form().dict(),
-			"form_opts": map[string]any{
-				"widget_args": nil,
-				// "form_rules":  nil, // form_create_rules
-			},
-			"action": nil,
-		})); err != nil {
-		panic(err)
-	}
+	mv.render(w, "model_create.gotmpl", []string{
+		"templates/layout.gotmpl",
+		"templates/master.gotmpl",
+		"templates/base.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/model_create.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/actions.gotmpl",
+	}, mv.dict(rd(r)))
 }
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
@@ -370,6 +425,15 @@ func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 
 var schemaStore = sync.Map{}
 
+// request's dict
+func rd(r *http.Request) map[string]any {
+	return map[string]any{
+		"request": map[string]any{
+			"args": r.URL.RawQuery,
+		},
+	}
+}
+
 func (mv *ModelView) get_form() Form {
 	s, err := schema.Parse(mv.model, &schemaStore, schema.NamingStrategy{})
 	if err != nil {
@@ -378,7 +442,7 @@ func (mv *ModelView) get_form() Form {
 
 	return Form{
 		Fields: lo.Map(s.Fields, func(field *schema.Field, _ int) map[string]any {
-			fmt.Printf("FieldType: %s %v\n", field.Name, field.FieldType)
+			// fmt.Printf("FieldType: %s %v\n", field.Name, field.FieldType)
 			return map[string]any{
 				"id":          field.DBName, //
 				"name":        field.DBName, //
@@ -389,8 +453,6 @@ func (mv *ModelView) get_form() Form {
 				"label":  strings.Title(field.Name),
 				"widget": field2widget(field),
 				"errors": nil,
-				// validators
-				"data": nil,
 			}
 		}),
 	}
@@ -431,12 +493,11 @@ type Form struct {
 
 func (f Form) dict() map[string]any {
 	return map[string]any{
-		"can_create": true,
-		"can_edit":   true,
 		"action":     "", // empty
 		"hidden_tag": false,
 		"fields":     f.Fields,
 		"cancel_url": "TODO:cancel_url",
 		"is_modal":   true,
+		"csrf_token": true,
 	}
 }

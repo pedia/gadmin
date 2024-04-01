@@ -1,0 +1,37 @@
+{{/* import 'admin/static.html' as admin_static with context */}}
+
+{{/* (actions, btn_class='nav-link dropdown-toggle' */}}
+{{ define "actionlib_dropdown" -}}
+    <a class="{{ .btn_class }}" data-toggle="dropdown" href="javascript:void(0)" role="button" aria-haspopup="true"
+       aria-expanded="false">{{ gettext "With selected" }}<b class="caret"></b></a>
+    <div class="dropdown-menu">
+        {{ range $p := .actions }}
+            <a class="dropdown-item" href="javascript:void(0)"
+               onclick="return modelActions.execute('{{ printf "$p[0]" }}');">{{ printf "gettext $p[1]" }}</a>
+        {{ end }}
+    </div>
+{{ end }}
+
+{{/* (actions, url) */}}
+{{ define "actionlib_form" }}
+    {{ if .actions }}
+        <form id="action_form" action="{{ .url }}" method="POST" style="display: none">
+            {% if action_form.csrf_token %}
+                {% action_form.csrf_token %}
+            {% elif csrf_token %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+            {% end %}
+            {% action_form.url(value=return_url) %}
+            {% action_form.action() %}
+        </form>
+    {{ end }}
+{{ end }}
+
+{{/* (message, actions, actions_confirmation) */}}
+{{ define "actionlib_script" }}
+    {{ if .actions }}
+        <div id="actions-confirmation-data" style="display:none;">{{ .actions_confirmation }}</div>
+        <div id="message-data" style="display:none;">{{ .message }}</div>
+        <script src="{{ admin_static_url "admin/js/actions.js" "1.0.0" }}"></script>
+    {{ end }}
+{{ end }}
