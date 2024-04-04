@@ -6,6 +6,7 @@ package gadmin
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"text/template"
@@ -240,6 +241,46 @@ func Delete(k string, args ...any) (map[string]any, error) {
 	return pm, nil
 }
 
+// {{ add "key" "val"}}
+func Add(k string, v any, args ...any) (map[string]any, error) {
+	if len(args) != 1 {
+		return nil, errors.New("add need more args")
+	}
+	last := args[len(args)-1]
+	pm, ok := last.(map[string]any)
+	if !ok {
+		pack, ok := last.(Pack)
+		if !ok {
+			return nil, errors.New("add should be added to pipeline")
+		}
+		pm = pack.Args
+	}
+
+	pm[k] = v
+	return pm, nil
+}
+
+// {{ default . "key" "value" }}
+func Default(c any, k string, dv any) (any, error) {
+	m, ok := c.(map[string]any)
+	if !ok {
+		pack, ok := c.(Pack)
+		if !ok {
+			return nil, errors.New("a map of pack descired before pipeline")
+		}
+		m = pack.Args
+	}
+	if v, ok := m[k]; ok {
+		return v, nil
+	}
+	return dv, nil
+}
+
+func dolog(format string, v ...any) string {
+	log.Printf(format, v...)
+	return ""
+}
+
 // FuncsText is a FuncMap which can be passed as argument of .Func of text/template
 var FuncsText = template.FuncMap{
 	"arg":     Witharg,
@@ -254,6 +295,9 @@ var FuncsText = template.FuncMap{
 	"join":    joinStr,
 	"only":    Only,
 	"delete":  Delete,
+	"add":     Add,
+	"default": Default,
+	"log":     dolog,
 }
 
 // FuncsHTML is a FuncMap which can be passed as argument of .Func of html/template

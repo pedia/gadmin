@@ -1,9 +1,5 @@
 package gadmin
 
-// Q:
-// - template result to arg
-// - request.args
-
 import (
 	"encoding/json"
 	"fmt"
@@ -19,6 +15,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -57,7 +54,10 @@ func NewAdmin(name string) *Admin {
 	mux := http.NewServeMux()
 	db, err := gorm.Open(
 		sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
-		&gorm.Config{NamingStrategy: schema.NamingStrategy{SingularTable: true}})
+		&gorm.Config{
+			NamingStrategy: schema.NamingStrategy{SingularTable: true},
+			Logger:         logger.Default.LogMode(logger.Info),
+		})
 	if err != nil {
 		panic(err)
 	}
@@ -88,21 +88,28 @@ func NewAdmin(name string) *Admin {
 	return &a
 }
 
+func (a *Admin) Run() {
+	a.Handler = a.Mux
+	l, _ := net.Listen("tcp", "127.0.0.1:3333")
+	a.Serve(l)
+}
+
 func (a *Admin) add_view(v View) {
-	cate, ok := lo.Find(a.menus, func(item *Menu) bool {
-		return item.Name == v.Category()
+	cate, _ := v.Name()
+	menu, ok := lo.Find(a.menus, func(item *Menu) bool {
+		return item.Name == cate
 	})
 	if !ok {
-		cate = &Menu{Name: v.Category(), Views: []View{}}
-		a.menus = append(a.menus, cate)
+		menu = &Menu{Name: cate, Views: []View{}}
+		a.menus = append(a.menus, menu)
 	}
-	cate.Views = append(cate.Views, v)
+	menu.Views = append(menu.Views, v)
 }
 
 func (a *Admin) AddView(v View) {
 	a.add_view(v)
 
-	v.Install(a)
+	v.install(a)
 
 	// /admin/					=> admin_index_view.index
 	// /admin/{modal}        	=> model_view.index
@@ -124,7 +131,12 @@ func (a *Admin) ts(fs ...string) *template.Template {
 		"csrf_token":       func() string { return "xxxx-csrf-token" },
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
-		"safejs":   func(s string) template.JS { return template.JS(s) },
+		"comment": func(s string) template.HTML {
+			return template.HTML(
+				"<!-- " + s + " -->",
+			)
+		},
+		"safejs": func(s string) template.JS { return template.JS(s) },
 		"json": func(v any) (template.JS, error) {
 			bs, err := json.Marshal(v)
 			if err != nil {
@@ -148,7 +160,15 @@ func (a *Admin) ts(fs ...string) *template.Template {
 func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
 
-	if err := a.ts().ExecuteTemplate(w, "test.gotmpl", map[string]any{
+	type foo struct {
+		name  string
+		Label string
+	}
+	type msa map[string]any
+
+	if err := a.ts([]string{
+		"templates/test.gotmpl",
+	}...).ExecuteTemplate(w, "test.gotmpl", map[string]any{
 		"foo":   "bar",
 		"empty": "",
 		"null":  nil,
@@ -159,6 +179,13 @@ func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
 		"conda": true,
 		"condb": false,
 		"int":   34,
+		"bool1": func() bool { return false },
+		"bool2": func() bool { return true },
+		"rs":    func() foo { return foo{name: "Jerry", Label: "Label"} },
+		"map":   func() map[string]any { return map[string]any{"name": "Jerry", "Label": "Label"} },
+		"msa":   func() msa { return msa{"name": "Jerry", "Label": "Label"} },
+		"msas":  func() []msa { return []msa{{"name": "Jerry", "Label": "Label"}} },
+		"msas2": func() ([]msa, error) { return []msa{{"name": "Jerry", "Label": "Label"}}, nil },
 
 		// map is better than struct
 		"admin": a.dict(),
@@ -189,23 +216,24 @@ func (*Admin) gettext(key string) string {
 	return key
 }
 
-func (*Admin) getUrl(vs ...any) string {
-	t := vs[0].(string)
+// Like Flask.url_for
+func (*Admin) getUrl(endpoint string, args ...any) string {
+	// endpoint to path
 	path, ok := map[string]string{
 		".create_view": "new",
-	}[t]
+		".export":      "export/csv/", // TODO: pass to view.getUrl, get type from args
+	}[endpoint]
 	if ok {
 		return path
 	}
-	return fmt.Sprintf("TODO %v", vs)
+	return fmt.Sprintf("TODO %s?%v", endpoint, args)
 }
 func (*Admin) staticUrl(filename, ver string) string {
-	// TODO: /admin/static
 	s := "/admin/static/" + filename
-	if ver == "" {
-		return s
+	if ver != "" {
+		s += "?ver=" + ver
 	}
-	return s + "?ver=" + ver
+	return s
 }
 
 func (a *Admin) dict() map[string]any {
@@ -223,16 +251,10 @@ func (a *Admin) dict() map[string]any {
 	}
 }
 
-func (a *Admin) Run() {
-	a.Handler = a.Mux
-	l, _ := net.Listen("tcp", "127.0.0.1:3333")
-	a.Serve(l)
-}
-
 type View interface {
-	Category() string
-	Name() string
-	Install(*Admin)
+	// return category, name
+	Name() (string, string)
+	install(*Admin)
 	dict(others ...map[string]any) map[string]any
 }
 
@@ -242,15 +264,23 @@ type BaseView struct {
 	name     string
 }
 
-func (bv *BaseView) Category() string { return bv.category }
-func (bv *BaseView) Name() string     { return bv.name }
-func (bv *BaseView) Install(a *Admin) {
+func (bv *BaseView) Name() (string, string) { return bv.category, bv.name }
+func (bv *BaseView) install(a *Admin) {
 	bv.Admin = a
 }
 
-func (bv *BaseView) render(w http.ResponseWriter, page string, fs []string, dict map[string]any) {
+func (bv *BaseView) render(w http.ResponseWriter, page string, dict map[string]any) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
-	if err := bv.ts(fs...).Lookup(page).Execute(w, dict); err != nil {
+	bases := []string{
+		"templates/layout.gotmpl",
+		"templates/master.gotmpl",
+		"templates/base.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/actions.gotmpl",
+	}
+	bases = append(bases, "templates/"+page)
+	if err := bv.ts(bases...).Lookup(page).Execute(w, dict); err != nil {
 		panic(err)
 	}
 }
@@ -298,12 +328,12 @@ type admin_index_view struct {
 	*BaseView
 }
 
-func (aiv *admin_index_view) Install(admin *Admin) {
-	aiv.BaseView.Install(admin)
+func (aiv *admin_index_view) install(admin *Admin) {
+	aiv.BaseView.install(admin)
 	aiv.HandleFunc("/", aiv.index)
 }
 func (aiv *admin_index_view) index(w http.ResponseWriter, r *http.Request) {
-	aiv.render(w, "index.gotmpl", []string{}, aiv.dict())
+	aiv.render(w, "index.gotmpl", aiv.dict())
 }
 func NewAdminIndex() *admin_index_view {
 	aiv := admin_index_view{
@@ -317,8 +347,9 @@ func NewAdminIndex() *admin_index_view {
 
 type ModelView struct {
 	*BaseView
-	model any
-	db    *gorm.DB // session
+	model   model
+	db      *gorm.DB // session
+	Columns []string
 }
 
 func NewModalView(m any, DB *gorm.DB) *ModelView {
@@ -326,7 +357,7 @@ func NewModalView(m any, DB *gorm.DB) *ModelView {
 	cate := reflect.ValueOf(m).Type().Name()
 	return &ModelView{
 		BaseView: &BaseView{category: cate, name: strings.ToLower(cate)},
-		model:    m, // TODO: ptr to elem
+		model:    model{typo: reflect.TypeOf(m)}, // TODO: ptr to elem
 		db:       DB,
 	}
 }
@@ -337,7 +368,7 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		"can_create":       true,
 		"can_edit":         true,
 		"can_export":       true,
-		"export_types":     []string{"csv"},
+		"export_types":     []string{"csv", "xls"},
 		"edit_modal":       false,
 		"create_modal":     false,
 		"details_modal":    false,
@@ -354,7 +385,6 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		"actions_confirmation":   []string{},
 		"search_supported":       false,
 		"column_display_actions": true,
-		"list_columns":           []string{},
 		"page_size_url": func() string {
 			return "?page_size=2"
 		},
@@ -365,8 +395,8 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 	}
 	return o
 }
-func (mv *ModelView) Install(admin *Admin) {
-	mv.BaseView.Install(admin)
+func (mv *ModelView) install(admin *Admin) {
+	mv.BaseView.install(admin)
 	mv.HandleFunc("/", mv.index)
 	mv.HandleFunc("/new/", mv.new)
 	mv.HandleFunc("/edit/", mv.edit)
@@ -381,39 +411,73 @@ func (mv *ModelView) Install(admin *Admin) {
 	}
 }
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.render(w, "debug.gotmpl", []string{}, mv.dict())
+	mv.render(w, "debug.gotmpl", mv.dict())
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	mv.render(w, "model_list.gotmpl", []string{
-		"templates/layout.gotmpl",
-		"templates/master.gotmpl",
-		"templates/base.gotmpl",
-		"templates/lib.gotmpl",
-		"templates/model_layout.gotmpl",
-		"templates/actions.gotmpl",
-		"templates/model_list.gotmpl",
-	}, mv.dict(
+	data, err := mv.model.list(mv.db)
+	_ = err
+	mv.render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
-			"count":     2,
-			"page":      1,
-			"pages":     1,
-			"num_pages": 1,
-			"pager_url": "pager_url",
-			"data":      []any{},
-			"request":   rd(r),
+			"count":                    len(data),
+			"page":                     1,
+			"pages":                    1,
+			"num_pages":                1,
+			"pager_url":                "pager_url",
+			"actions":                  nil,
+			"data":                     data,
+			"request":                  rd(r),
+			"get_pk_value":             mv.model.get_pk_value,
+			"column_display_pk":        false,
+			"column_display_actions":   true,
+			"column_extra_row_actions": nil,
+			// flask_admin.model.template.ViewRowAction object at 0x112600f40&gt;, &lt;
+			// flask_admin.model.template.EditRowAction object at 0x1126004c0&gt;, &lt;
+			// flask_admin.model.template.DeleteRowAction object at 0x112600310&gt;] -->
+			"list_row_actions":    nil,
+			"list_columns":        mv.list_columns,
+			"is_sortable":         func(v ...any) []string { return nil },
+			"sort_column":         func(v any) any { return nil },
+			"sort_url":            func(v ...any) string { return "?sort" },
+			"is_editable":         func(v any) any { return nil },
+			"column_descriptions": func(vs ...any) any { return nil },
+			"get_value": func(m map[string]any, col column) any {
+				return m[col["label"]]
+			},
 		},
 	))
 }
+
+func (mv *ModelView) SetColumns(list []string) *ModelView {
+	mv.Columns = list
+	return mv
+}
+
+type column map[string]string
+
+func (mv *ModelView) list_columns(_ ...any) ([]column, error) {
+	s, err := schema.Parse(mv.model.new(), &schemaStore, schema.NamingStrategy{})
+	if err != nil {
+		return nil, err
+	}
+
+	fs := lo.Filter(s.Fields, func(f *schema.Field, _ int) bool {
+		_, ok := lo.Find(mv.Columns, func(c string) bool {
+			return c == f.DBName
+		})
+		return ok
+	})
+
+	cs := lo.Map(fs, func(f *schema.Field, _ int) column {
+		return column{
+			"label": strings.Title(f.Name),
+			"name":  f.DBName,
+		}
+	})
+	return cs, nil
+}
+
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	mv.render(w, "model_create.gotmpl", []string{
-		"templates/layout.gotmpl",
-		"templates/master.gotmpl",
-		"templates/base.gotmpl",
-		"templates/lib.gotmpl",
-		"templates/model_create.gotmpl",
-		"templates/model_layout.gotmpl",
-		"templates/actions.gotmpl",
-	}, mv.dict(map[string]any{
+	mv.render(w, "model_create.gotmpl", mv.dict(map[string]any{
 		"request": rd(r)},
 	))
 }
@@ -427,14 +491,16 @@ func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
 }
 
-var schemaStore = sync.Map{}
-
-// request's dict
+// request to dict
 func rd(r *http.Request) map[string]any {
 	return map[string]any{
-		"args": r.URL.Query(),
+		"method": r.Method,
+		"url":    r.URL.String(),
+		"args":   r.URL.Query(),
 	}
 }
+
+var schemaStore = sync.Map{}
 
 func (mv *ModelView) get_form() Form {
 	s, err := schema.Parse(mv.model, &schemaStore, schema.NamingStrategy{})
@@ -502,4 +568,49 @@ func (f Form) dict() map[string]any {
 		"is_modal":   true,
 		"csrf_token": true,
 	}
+}
+
+type model struct {
+	typo reflect.Type
+}
+
+// new t
+func (m *model) new() any {
+	return reflect.New(m.typo).Interface()
+}
+
+// new []t
+func (m *model) new_slice() reflect.Value {
+	return reflect.New(reflect.SliceOf(m.typo))
+}
+
+func (m *model) get_pk_value(row any) any {
+	return 1
+}
+func (m *model) list(db *gorm.DB) ([]map[string]any, error) {
+	ptr := m.new_slice()
+	if err := db.Find(ptr.Interface()).Error; err != nil {
+		return nil, err
+	}
+
+	// better way?
+	len := ptr.Elem().Len()
+	res := make([]any, len)
+	for i := 0; i < len; i++ {
+		item := ptr.Elem().Index(i).Interface()
+		res[i] = item
+	}
+
+	// _, ok := ptr.Interface().([]any)
+	// fmt.Printf("conv %v", ok)
+
+	bs, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
+	}
+	var ms []map[string]any
+	if err := json.Unmarshal(bs, &ms); err != nil {
+		return nil, err
+	}
+	return ms, nil
 }

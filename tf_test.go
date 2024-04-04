@@ -129,6 +129,34 @@ var testCases = []testCase{
 		expectedResult: "map[a:1 b:2]",
 		hasError:       false,
 	},
+	{
+		template: `
+		{{ block "foo" .| add "b" "2"}}{{.}}{{end}}`,
+		argument:       map[string]any{"a": 1},
+		expectedResult: "map[a:1 b:2]",
+		hasError:       false,
+	},
+	{
+		template: `
+		{{ block "foo" .| add "a" "2"}}{{.}}{{end}}`,
+		argument:       map[string]any{"a": 1},
+		expectedResult: "map[a:2]",
+		hasError:       false,
+	},
+	{
+		template: `
+		{{ default . "a" "A" }}`,
+		argument:       map[string]any{"a": 1},
+		expectedResult: "1",
+		hasError:       false,
+	},
+	{
+		template: `
+		{{ default . "b" "B" }}`,
+		argument:       map[string]any{"a": 1},
+		expectedResult: "B",
+		hasError:       false,
+	},
 }
 
 func removeWhite(s string) string {

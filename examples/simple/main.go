@@ -5,7 +5,7 @@ import "gadmin"
 type User struct {
 	Id                       string `gorm:"primaryKey"`
 	Type                     string
-	EnumChoiceField          string
+	EnumChoiceField          string `a:"enum:1=first,2=second;"`
 	SqlaUtilsChoiceField     string
 	SqlaUtilsEnumChoiceField int
 	FirstName                string
@@ -24,6 +24,9 @@ func main() {
 	admin := gadmin.NewAdmin("Example: Simple Views")
 	admin.AddView(gadmin.NewView("Test", "view1"))
 	admin.AddView(gadmin.NewView("Test", "view2"))
-	admin.AddView(gadmin.NewModalView(User{}, admin.DB))
+
+	mv := gadmin.NewModalView(User{}, admin.DB).
+		SetColumns([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"})
+	admin.AddView(mv)
 	admin.Run()
 }

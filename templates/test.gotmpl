@@ -3,6 +3,18 @@
 <body>
 
 	<ul>
+		<li>call functions</li>
+		<li>{{.bool1}}</li>
+		<li>{{call .bool1}}</li>
+		<li>{{call .bool2}}</li>
+		<li>{{call .rs}} :struct worked</li>
+		<li>{{$a:= call .rs }}{{$a.Label}} :struct.name not work</li>
+		<li>{{$a:= call .map }}{{$a.name}} :map</li>
+		<li>{{$a:= call .msa }}{{$a.name}} :msa.name worked</li>
+		<li>{{$a:= index (call .msas) 0 }}{{$a.name}} :msas[0].name worked</li>
+		<li>{{$a:= index (call .msas2) 0 }}{{$a.name}} :msas[0].name worked</li>
+		<li></li>
+
 		<li> admin(pre):</li>
 		<pre rows="10" cols="50">{{ safehtml (marshal .admin) }}</pre>
 
@@ -45,6 +57,12 @@
 			var ss={{ safejs (marshal (index .ss 0)) }};
 			var js={{ json (index .ss 0) }};
 		</script>
+
+		<li>default arg</li>
+		{{ block "default_arg" . }}
+			not exists: {{ default . "san" "dv" }}<br />
+			exists: {{ default . "Zoo" "dv" }}
+		{{ end }}
 	</ul>
 </body>
 

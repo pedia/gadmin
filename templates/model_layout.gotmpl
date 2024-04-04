@@ -15,8 +15,8 @@
             <div class="dropdown-menu">
                 {{ range $export_type := .export_types }}
                     <a class="dropdown-item"
-                       href="{{ get_url ".export"  $export_type  .request.args }}"
-                       title="{{ gettext "Export" }}">{{ gettext "Export" }}{{ $export_type|upper }}</a>
+                       href="{{ get_url ".export"  $export_type }}"
+                       title="{{ gettext "Export" }}">{{ gettext "Export" }} {{ $export_type|upper }}</a>
                 {{ end }}
             </div>
         </li>
