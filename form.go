@@ -10,23 +10,37 @@ type XEditableWidget struct {
 	column column
 }
 
+// <a data-csrf="" data-pk="e155df9870f044018fb4e58015993383" data-role="x-editable"
+//	data-type="select2" data-url="./ajax/update/"
+//  data-value="content-writer" href="#" id="type" name="type">content-writer</a>
+
 // <a data-csrf="" data-pk="a1d13310-7c10-48d5-b63b-3485995ad6a4" data-role="x-editable"
 // data-source="[{"text": "", "value": "__None"}, {"text": "Admin", "value": "admin"}, {"text": "Content writer", "value": "content-writer"}, {"text": "Editor", "value": "editor"}, {"text": "Regular user", "value": "regular-user"}]"
 // data-type="select2" data-url="./ajax/update/" data-value="editor" href="#"
 // id="type" name="type">editor</a>
+
+// <a data-csrf="" data-pk="5ad19739-80a1-4b0e-9b6d-ab7e264bd4eb"
+// data-role="x-editable" data-type="text" data-url="./ajax/update/"
+// data-value="EUR" href="#" id="currency" name="currency">EUR</a>
+
 func (xw *XEditableWidget) html(r row) template.HTML {
 	args := map[template.HTMLAttr]any{
 		"data-value": r.get(xw.column.label()), // TODO: column.name()
 		"data-role":  "x-editable",
-		"data-type":  "select2",
 		"data-url":   "./ajax/update/",
 		"data-pk":    xw.model.get_pk_value(r),
-		"data-csrf":  "",
-
-		"id":   xw.column.name(),
-		"name": xw.column.name(),
-		"href": "#",
+		"data-csrf":  "", // TODO:
+		"data-type":  "text",
+		"id":         xw.column.name(),
+		"name":       xw.column.name(),
+		"href":       "#",
 	}
+
+	if xw.column["choices"] != nil {
+		args["data-type"] = "select2"
+		args["data-source"] = xw.column["choices"]
+	}
+
 	tmpl, err := template.New("test").
 		Parse(`<a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}>{{.display_value}}</a>`)
 	if err != nil {

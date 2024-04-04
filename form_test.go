@@ -1,11 +1,36 @@
 package gadmin
 
 import (
+	"errors"
 	"html/template"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestBaseMust(t *testing.T) {
+	is := assert.New(t)
+
+	fr := func() (int, error) {
+		return 42, nil
+	}
+	is.Equal(42, must[int](fr()))
+
+	fe := func() (int, error) {
+		return 1, errors.New("sth. wrong")
+	}
+	is.Panics(func() { must[int](fe()) })
+
+	ft := func() (int, bool) {
+		return 42, true
+	}
+	is.Equal(42, must[int](ft()))
+
+	ff := func() (int, bool) {
+		return 42, false
+	}
+	is.Panics(func() { must[int](ff()) })
+}
 
 func TestWidget(t *testing.T) {
 	is := assert.New(t)

@@ -146,15 +146,10 @@ func (a *Admin) ts(fs ...string) *template.Template {
 		},
 	})
 
-	t, err := template.New("all").
+	return must[*template.Template](template.New("all").
 		Option("missingkey=error").
-		Funcs(fm).ParseFiles(fs...)
-	if err != nil {
-		panic(err)
-	}
-
-	// fmt.Println(t.DefinedTemplates())
-	return t
+		Funcs(fm).
+		ParseFiles(fs...))
 }
 
 func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
@@ -434,7 +429,7 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	data, err := mv.model.list(mv.db)
-	_ = err
+	_ = err // TODO: notify error
 	mv.render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
 			"count":                    len(data),

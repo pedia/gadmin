@@ -27,10 +27,7 @@ type model struct {
 }
 
 func new_model(m any) *model {
-	s, err := schema.Parse(m, &schemaStore, schema.NamingStrategy{})
-	if err != nil {
-		return nil
-	}
+	s := must[*schema.Schema](schema.Parse(m, &schemaStore, schema.NamingStrategy{}))
 
 	pkf, ok := lo.Find(s.Fields, func(f *schema.Field) bool {
 		return f.PrimaryKey
@@ -89,6 +86,14 @@ func (m *model) new_slice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.typo))
 }
 
+func (m *model) into_row(a any) row {
+	r := row{}
+	for _, col := range m.columns {
+		col.name()
+	}
+	return r
+}
+
 func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk)
 }
@@ -109,10 +114,7 @@ func (m *model) list(db *gorm.DB) ([]row, error) {
 	var rs []row
 	mapstructure.Decode(ptr.Interface(), &rs)
 
-	bs, err := json.Marshal(res)
-	if err != nil {
-		return nil, err
-	}
+	bs := must[[]byte](json.Marshal(res))
 	var ms []row
 	if err := json.Unmarshal(bs, &ms); err != nil {
 		return nil, err
