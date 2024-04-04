@@ -97,7 +97,7 @@ func (m *model) into_row(a any) row {
 func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk)
 }
-func (m *model) list(db *gorm.DB) ([]row, error) {
+func (m *model) get_list(db *gorm.DB) ([]row, error) {
 	ptr := m.new_slice()
 	if err := db.Limit(10).Find(ptr.Interface()).Error; err != nil {
 		return nil, err
@@ -120,4 +120,29 @@ func (m *model) list(db *gorm.DB) ([]row, error) {
 		return nil, err
 	}
 	return ms, nil
+}
+
+func (m *model) get(db *gorm.DB, pk any) (row, error) {
+	ptr := m.new()
+	if err := db.First(ptr, pk).Error; err != nil {
+		return nil, err
+	}
+
+	var r row
+	if err := mapstructure.Decode(ptr, &r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (m *model) update(db *gorm.DB, pk any, row row) error {
+	ptr := m.new()
+
+	if err := db.Model(ptr).
+		Where("?=?", m.pk, pk).
+		Updates(map[string]any(row)).
+		Error; err != nil {
+		return err
+	}
+	return nil
 }

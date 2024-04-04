@@ -1,9 +1,14 @@
 package main
 
-import "gadmin"
+import (
+	"gadmin"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
-	Id                       string `gorm:"primaryKey"`
+	Id                       uuid.UUID `gorm:"primaryKey"`
 	Type                     string
 	EnumChoiceField          string `a:"enum:1=first,2=second;"`
 	SqlaUtilsChoiceField     string
@@ -20,14 +25,32 @@ type User struct {
 	FeaturedPostId           int
 }
 
+type Post struct {
+	Id              int    `gorm:"primaryKey"`
+	Title           string `gorm:"size:120"`
+	Text            string
+	Date            time.Time
+	BackgroundColor string
+	CreatedAt       time.Time `gorm:"default:CURRENT_TIMESTAMP"`
+	UserId          uuid.UUID
+	User            *User `gorm:"foreignKey:UserId"`
+}
+
+type Tag struct {
+	Id   int    `gorm:"primaryKey"`
+	Name string `gorm:"uniqueIndex"`
+}
+
 func main() {
 	admin := gadmin.NewAdmin("Example: Simple Views")
 	admin.AddView(gadmin.NewView("Test", "view1"))
 	admin.AddView(gadmin.NewView("Test", "view2"))
 
-	mv := gadmin.NewModalView(User{}, admin.DB).
+	mv := gadmin.NewModalView(User{}).
 		SetColumnList([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"}).
 		SetColumnEditableList([]string{"first_name", "type", "currency", "timezone"})
 	admin.AddView(mv)
+	admin.AddView(gadmin.NewModalView(Post{}))
+	admin.AddView(gadmin.NewModalView(Tag{}))
 	admin.Run()
 }

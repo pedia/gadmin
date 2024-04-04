@@ -207,8 +207,8 @@ func (*Admin) marshal(v any) string {
 func (*Admin) config(key string) bool {
 	return false
 }
-func (*Admin) gettext(key string) string {
-	return key
+func (*Admin) gettext(format string, a ...any) string {
+	return fmt.Sprintf(format, a...)
 }
 
 // Like Flask.url_for
@@ -343,7 +343,6 @@ func NewAdminIndex() *admin_index_view {
 type ModelView struct {
 	*BaseView
 	model *model
-	db    *gorm.DB // session
 
 	// Permissions
 	can_create       bool
@@ -361,13 +360,12 @@ type ModelView struct {
 	list_forms []form
 }
 
-func NewModalView(m any, DB *gorm.DB) *ModelView {
+func NewModalView(m any) *ModelView {
 	// TODO: package.name => name
 	cate := reflect.ValueOf(m).Type().Name()
 	return &ModelView{
 		BaseView:         &BaseView{category: cate, name: strings.ToLower(cate)},
 		model:            new_model(m), // TODO: ptr to elem
-		db:               DB,
 		can_create:       true,
 		can_edit:         true,
 		can_delete:       true,
@@ -419,7 +417,7 @@ func (mv *ModelView) install(admin *Admin) {
 	mv.HandleFunc("/action/", mv.index)
 	mv.HandleFunc("/export/{export_type}", mv.index)
 	mv.HandleFunc("/ajax/lookup/", mv.index)
-	mv.HandleFunc("/ajax/update/", mv.index)
+	mv.HandleFunc("/ajax/update/", mv.ajax_update)
 	if mv.Admin.debug {
 		mv.HandleFunc("/debug/", mv.debug)
 	}
@@ -428,7 +426,7 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	mv.render(w, "debug.gotmpl", mv.dict())
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	data, err := mv.model.list(mv.db)
+	data, err := mv.model.get_list(mv.DB)
 	_ = err // TODO: notify error
 	mv.render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
@@ -496,14 +494,17 @@ func (mv *ModelView) SetColumnEditableList(vs []string) *ModelView {
 func (mv *ModelView) list_columns() []column {
 	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
 		// in column_list
-		_, ok := lo.Find(mv.column_list, func(c string) bool {
-			return c == col.name()
-		})
+		ok := true
+		if len(mv.column_list) > 0 {
+			_, ok = lo.Find(mv.column_list, func(c string) bool {
+				return c == col.name()
+			})
+		}
 		// not in column_exclude_list
-		_, nok := lo.Find(mv.column_exclude_list, func(c string) bool {
+		_, exclude := lo.Find(mv.column_exclude_list, func(c string) bool {
 			return c == col.name()
 		})
-		return ok && !nok
+		return ok && !exclude
 	})
 }
 
@@ -534,6 +535,53 @@ func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
 }
 func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", "text/html; charset=utf-8")
+}
+
+// list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
+// Record was successfully saved.
+func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(405)
+		return
+	}
+
+	if len(mv.column_editable_list) == 0 {
+		w.WriteHeader(404)
+		return
+	}
+
+	// form
+	r.ParseForm()
+	pk := r.Form.Get("list_form_pk")
+
+	// TODO: pk to int
+
+	// TODO: type list_form struct, parse
+	row := row{}
+	for k, v := range r.Form {
+		if k == "list_form_pk" {
+			continue
+		}
+		row[k] = v[0]
+	}
+
+	// validate
+	// get_one
+	// record, err := mv.model.get(mv.DB, pk)
+	// if err == gorm.ErrRecordNotFound {
+	// 	w.WriteHeader(500)
+	// 	w.Write([]byte(mv.gettext("Record does not exist.")))
+	// 	return
+	// }
+	// _ = record
+
+	// update_model
+	if err := mv.model.update(mv.DB, pk, row); err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(mv.gettext("Failed to update record. %s", err)))
+		return
+	}
+	w.Write([]byte(mv.gettext("Record was successfully saved.")))
 }
 
 // request to dict
