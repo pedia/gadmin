@@ -150,15 +150,8 @@
 
                 {{ range $c := call $g.list_columns }}
                     <td class="col-{{$c.name}}">
-                    {{- if call $g.is_editable $c }}
-                        {% set form = list_forms[get_pk_value(row)] %}
-                        {{ if .form.csrf_token }}
-                            {{ .form.gen $c "$row" .form.csrf_token }}
-                        {{/* elif csrf_token %}
-                            { form[c](pk=get_pk_value(row), display_value=get_value(row, c), csrf=csrf_token()) }
-                        {{ else }}
-                            { form[c](pk=get_pk_value(row), display_value=get_value(row, c)) */}}
-                        {{ end }}
+                    {{- if call $g.is_editable $c.name }}
+                        {{ call $g.list_form $c $row }}
                     {{ else }}
                         {{- call $g.get_value $row $c -}}
                     {{ end -}}

@@ -347,27 +347,46 @@ func NewAdminIndex() *admin_index_view {
 
 type ModelView struct {
 	*BaseView
-	model   model
-	db      *gorm.DB // session
-	Columns []string
+	model *model
+	db    *gorm.DB // session
+
+	// Permissions
+	can_create       bool
+	can_edit         bool
+	can_delete       bool
+	can_view_details bool
+	can_export       bool
+
+	// Customizations
+	column_list          []string
+	column_exclude_list  []string
+	column_editable_list []string
+
+	//
+	list_forms []form
 }
 
 func NewModalView(m any, DB *gorm.DB) *ModelView {
 	// TODO: package.name => name
 	cate := reflect.ValueOf(m).Type().Name()
 	return &ModelView{
-		BaseView: &BaseView{category: cate, name: strings.ToLower(cate)},
-		model:    model{typo: reflect.TypeOf(m)}, // TODO: ptr to elem
-		db:       DB,
+		BaseView:         &BaseView{category: cate, name: strings.ToLower(cate)},
+		model:            new_model(m), // TODO: ptr to elem
+		db:               DB,
+		can_create:       true,
+		can_edit:         true,
+		can_delete:       true,
+		can_view_details: true,
+		can_export:       true,
 	}
 }
 
 func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 	o := mv.BaseView.dict(map[string]any{
 		"editable_columns": true,
-		"can_create":       true,
-		"can_edit":         true,
-		"can_export":       true,
+		"can_create":       mv.can_create,
+		"can_edit":         mv.can_edit,
+		"can_export":       mv.can_export,
 		"export_types":     []string{"csv", "xls"},
 		"edit_modal":       false,
 		"create_modal":     false,
@@ -430,50 +449,81 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"column_display_pk":        false,
 			"column_display_actions":   true,
 			"column_extra_row_actions": nil,
-			// flask_admin.model.template.ViewRowAction object at 0x112600f40&gt;, &lt;
-			// flask_admin.model.template.EditRowAction object at 0x1126004c0&gt;, &lt;
-			// flask_admin.model.template.DeleteRowAction object at 0x112600310&gt;] -->
+			// flask_admin.model.template.ViewRowAction
+			// flask_admin.model.template.EditRowAction
+			// flask_admin.model.template.DeleteRowAction
 			"list_row_actions":    nil,
 			"list_columns":        mv.list_columns,
 			"is_sortable":         func(v ...any) []string { return nil },
 			"sort_column":         func(v any) any { return nil },
 			"sort_url":            func(v ...any) string { return "?sort" },
-			"is_editable":         func(v any) any { return nil },
+			"is_editable":         mv.is_editable,
 			"column_descriptions": func(vs ...any) any { return nil },
 			"get_value": func(m map[string]any, col column) any {
-				return m[col["label"]]
+				return m[col.label()]
 			},
+			"list_form": mv.list_form,
 		},
 	))
 }
 
-func (mv *ModelView) SetColumns(list []string) *ModelView {
-	mv.Columns = list
+// Permissions
+// Is model creation allowed
+func (mv *ModelView) SetCanCreate(v bool) *ModelView {
+	mv.can_create = v
 	return mv
 }
 
-type column map[string]string
+// Is model editing allowed
+func (mv *ModelView) SetCanEdit(v bool) *ModelView {
+	mv.can_edit = v
+	return mv
+}
+func (mv *ModelView) SetCanExport(v bool) *ModelView {
+	mv.can_export = v
+	return mv
+}
 
-func (mv *ModelView) list_columns(_ ...any) ([]column, error) {
-	s, err := schema.Parse(mv.model.new(), &schemaStore, schema.NamingStrategy{})
-	if err != nil {
-		return nil, err
-	}
+// Collection of the model field names for the list view.
+// If not set, will get them from the model.
+func (mv *ModelView) SetColumnList(list []string) *ModelView {
+	mv.column_list = list
+	return mv
+}
 
-	fs := lo.Filter(s.Fields, func(f *schema.Field, _ int) bool {
-		_, ok := lo.Find(mv.Columns, func(c string) bool {
-			return c == f.DBName
+func (mv *ModelView) SetColumnEditableList(vs []string) *ModelView {
+	mv.column_editable_list = vs
+	// build list_forms here
+	mv.list_forms = []form{}
+	return mv
+}
+
+func (mv *ModelView) list_columns() []column {
+	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
+		// in column_list
+		_, ok := lo.Find(mv.column_list, func(c string) bool {
+			return c == col.name()
 		})
-		return ok
+		// not in column_exclude_list
+		_, nok := lo.Find(mv.column_exclude_list, func(c string) bool {
+			return c == col.name()
+		})
+		return ok && !nok
 	})
+}
 
-	cs := lo.Map(fs, func(f *schema.Field, _ int) column {
-		return column{
-			"label": strings.Title(f.Name),
-			"name":  f.DBName,
-		}
+func (mv *ModelView) list_form(col column, r row) template.HTML {
+	x := XEditableWidget{model: mv.model, column: col}
+	return x.html(r)
+}
+func (mv *ModelView) is_editable(name string) bool {
+	if !mv.can_edit {
+		return false
+	}
+	_, ok := lo.Find(mv.column_editable_list, func(i string) bool {
+		return i == name
 	})
-	return cs, nil
+	return ok
 }
 
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
@@ -502,44 +552,9 @@ func rd(r *http.Request) map[string]any {
 
 var schemaStore = sync.Map{}
 
-func (mv *ModelView) get_form() Form {
-	s, err := schema.Parse(mv.model, &schemaStore, schema.NamingStrategy{})
-	if err != nil {
-		panic(err)
-	}
-
-	return Form{
-		Fields: lo.Map(s.Fields, func(field *schema.Field, _ int) map[string]any {
-			// fmt.Printf("FieldType: %s %v\n", field.Name, field.FieldType)
-			return map[string]any{
-				"id":          field.DBName, //
-				"name":        field.DBName, //
-				"description": field.Comment,
-				"required":    field.NotNull,
-				"choices":     nil,
-				// "type": "StringField",
-				"label":  strings.Title(field.Name),
-				"widget": field2widget(field),
-				"errors": nil,
-			}
-		}),
-	}
-}
-
-// TODO: more field type
-func field2widget(field *schema.Field) map[string]any {
-	table := map[reflect.Kind]string{
-		reflect.String: "text",
-		// reflect.:"password",
-		// reflect.Kind:"hidden",
-		reflect.Bool: "checkbox",
-		// reflect.Kind:"radio",
-		// reflect.Kind:"file",
-		// reflect.Kind:"submit",
-	}
-
-	return map[string]any{
-		"input_type": table[field.FieldType.Kind()],
+func (mv *ModelView) get_form() model_form {
+	return model_form{
+		Fields: mv.model.columns,
 	}
 }
 
@@ -552,65 +567,3 @@ func field2widget(field *schema.Field) map[string]any {
 // @expose('/export/<export_type>/')
 // @expose('/ajax/lookup/')
 // @expose('/ajax/update/', methods=('POST',))
-
-type Form struct {
-	Fields      []map[string]any
-	Prefix      string
-	ExtraFields []string
-}
-
-func (f Form) dict() map[string]any {
-	return map[string]any{
-		"action":     "", // empty
-		"hidden_tag": false,
-		"fields":     f.Fields,
-		"cancel_url": "TODO:cancel_url",
-		"is_modal":   true,
-		"csrf_token": true,
-	}
-}
-
-type model struct {
-	typo reflect.Type
-}
-
-// new t
-func (m *model) new() any {
-	return reflect.New(m.typo).Interface()
-}
-
-// new []t
-func (m *model) new_slice() reflect.Value {
-	return reflect.New(reflect.SliceOf(m.typo))
-}
-
-func (m *model) get_pk_value(row any) any {
-	return 1
-}
-func (m *model) list(db *gorm.DB) ([]map[string]any, error) {
-	ptr := m.new_slice()
-	if err := db.Find(ptr.Interface()).Error; err != nil {
-		return nil, err
-	}
-
-	// better way?
-	len := ptr.Elem().Len()
-	res := make([]any, len)
-	for i := 0; i < len; i++ {
-		item := ptr.Elem().Index(i).Interface()
-		res[i] = item
-	}
-
-	// _, ok := ptr.Interface().([]any)
-	// fmt.Printf("conv %v", ok)
-
-	bs, err := json.Marshal(res)
-	if err != nil {
-		return nil, err
-	}
-	var ms []map[string]any
-	if err := json.Unmarshal(bs, &ms); err != nil {
-		return nil, err
-	}
-	return ms, nil
-}

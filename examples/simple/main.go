@@ -26,7 +26,8 @@ func main() {
 	admin.AddView(gadmin.NewView("Test", "view2"))
 
 	mv := gadmin.NewModalView(User{}, admin.DB).
-		SetColumns([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"})
+		SetColumnList([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"}).
+		SetColumnEditableList([]string{"first_name", "type", "currency", "timezone"})
 	admin.AddView(mv)
 	admin.Run()
 }
