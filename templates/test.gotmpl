@@ -2,8 +2,7 @@
 
 <body>
 
-	<ul>
-		<li>call functions</li>
+	<ul>call functions<br />
 		<li>{{.bool1}}</li>
 		<li>{{call .bool1}}</li>
 		<li>{{call .bool2}}</li>
@@ -13,12 +12,17 @@
 		<li>{{$a:= call .msa }}{{$a.name}} :msa.name worked</li>
 		<li>{{$a:= index (call .msas) 0 }}{{$a.name}} :msas[0].name worked</li>
 		<li>{{$a:= index (call .msas2) 0 }}{{$a.name}} :msas[0].name worked</li>
-		<li></li>
+	</ul>
 
-		<li> admin(pre):</li>
-		<pre rows="10" cols="50">{{ safehtml (marshal .admin) }}</pre>
+	<ul>admin:<br />
+		<textarea rows="10" cols="50">{{ safehtml (marshal .admin) }}</textarea>
+	</ul>
 
-		<li>require</li>
+	<ul>request:<br />
+		<textarea rows="4" cols="50">{{ safehtml (marshal .request) }}</textarea>
+	</ul>
+
+	<ul>require<br />
 		{{ define "foo"}}
 		all: {{. | require "arg1" | require "arg2" | arg "arg1" "replaced" | args}} <br />
 		origin:

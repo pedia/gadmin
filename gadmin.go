@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -185,6 +186,8 @@ func (a *Admin) test(w http.ResponseWriter, r *http.Request) {
 		// map is better than struct
 		"admin": a.dict(),
 
+		"request": rd(r),
+
 		// bad
 		// {{ .admin_static.Url x y}}
 		"admin_static": a,
@@ -355,6 +358,7 @@ type ModelView struct {
 	column_list          []string
 	column_exclude_list  []string
 	column_editable_list []string
+	column_sortable_list []string
 
 	//
 	list_forms []form
@@ -363,7 +367,7 @@ type ModelView struct {
 func NewModalView(m any) *ModelView {
 	// TODO: package.name => name
 	cate := reflect.ValueOf(m).Type().Name()
-	return &ModelView{
+	mv := ModelView{
 		BaseView:         &BaseView{category: cate, name: strings.ToLower(cate)},
 		model:            new_model(m), // TODO: ptr to elem
 		can_create:       true,
@@ -372,6 +376,12 @@ func NewModalView(m any) *ModelView {
 		can_view_details: true,
 		can_export:       true,
 	}
+
+	mv.column_list = lo.Map(mv.model.columns, func(col column, _ int) string {
+		return col.name()
+	})
+	mv.column_sortable_list = mv.model.sortable_list()
+	return &mv
 }
 
 func (mv *ModelView) dict(others ...map[string]any) map[string]any {
@@ -426,6 +436,22 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	mv.render(w, "debug.gotmpl", mv.dict())
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	// ?sort=0&desc=1
+	// sort_column=name
+	// sort_desc=0 asc, 1 desc
+	var sort_column string
+	var sort_desc int
+	q := r.URL.Query()
+	if q.Has("sort") {
+		i := must[int](strconv.Atoi(q.Get("sort")))
+		sort_column = mv.column_list[i]
+	}
+	if q.Has("desc") {
+		i := must[int](strconv.Atoi(q.Get("desc")))
+		sort_desc = i
+	}
+
 	data, err := mv.model.get_list(mv.DB)
 	_ = err // TODO: notify error
 	mv.render(w, "model_list.gotmpl", mv.dict(
@@ -445,11 +471,23 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			// flask_admin.model.template.ViewRowAction
 			// flask_admin.model.template.EditRowAction
 			// flask_admin.model.template.DeleteRowAction
-			"list_row_actions":    nil,
-			"list_columns":        mv.list_columns,
-			"is_sortable":         func(v ...any) []string { return nil },
-			"sort_column":         func(v any) any { return nil },
-			"sort_url":            func(v ...any) string { return "?sort" },
+			"list_row_actions": nil,
+			"list_columns":     mv.list_columns,
+			"is_sortable": func(name string) bool {
+				_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
+					return s == name
+				})
+				return ok
+			},
+			"sort_column": sort_column,
+			"sort_desc":   sort_desc,
+			"sort_url": func(name string, invert ...bool) string {
+				idx := lo.IndexOf(mv.column_list, name)
+				if len(invert) > 0 && sort_desc != 1 {
+					return fmt.Sprintf("./?sort=%d&desc=1", idx)
+				}
+				return fmt.Sprintf("./?sort=%d", idx)
+			},
 			"is_editable":         mv.is_editable,
 			"column_descriptions": func(vs ...any) any { return nil },
 			"get_value": func(m map[string]any, col column) any {
@@ -600,13 +638,3 @@ func (mv *ModelView) get_form() model_form {
 		Fields: mv.model.columns,
 	}
 }
-
-// @expose('/')
-// @expose('/new/', methods=('GET', 'POST'))
-// @expose('/edit/', methods=('GET', 'POST'))
-// @expose('/details/')
-// @expose('/delete/', methods=('POST',))
-// @expose('/action/', methods=('POST',))
-// @expose('/export/<export_type>/')
-// @expose('/ajax/lookup/')
-// @expose('/ajax/update/', methods=('POST',))

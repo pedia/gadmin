@@ -94,6 +94,15 @@ func (m *model) into_row(a any) row {
 	return r
 }
 
+func (m *model) sortable_list() []string {
+	cols := lo.Filter(m.columns, func(col column, _ int) bool {
+		_, ok := m.schema.Relationships.Relations[col.label()]
+		return !ok
+	})
+	return lo.Map(cols, func(col column, _ int) string {
+		return col.name()
+	})
+}
 func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk)
 }
@@ -146,3 +155,5 @@ func (m *model) update(db *gorm.DB, pk any, row row) error {
 	}
 	return nil
 }
+
+type Desc string
