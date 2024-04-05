@@ -52,7 +52,7 @@
         {{ end }}
 
         {{ if .can_export }}
-            {{ template "export_options" . | add "btn_class" "dropdown-toggle" | add "request" .request }}
+            {{ template "export_options" . | set "btn_class" "dropdown-toggle" | set "request" .request }}
         {{ end }}
 
         {{ block "model_menu_bar_before_filters" . }}
@@ -176,9 +176,10 @@
     </table>
     </div>
     {{ block "list_pager" . }}
-        {{ if .num_pages  }}
-            {{/* .page .num_pages .pager_url */}}
-            {{ template "pager" . }}
+        {{ if gt .num_pages 0  }}
+            {{ template "pager" . | arg "page" .page 
+            | arg "pages" .num_pages
+            | arg "generator" .pager_url |args }}
         {{ else }}
             {{ template "simple_pager" . }}
         {{ end }}

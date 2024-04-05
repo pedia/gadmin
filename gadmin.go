@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -454,7 +455,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	total, data, err := mv.model.get_list(mv.DB, q)
 	_ = err // TODO: notify error
 
-	num_pages := 1 + (total-1)/q.limit
+	num_pages := 1 + (total-1)/q.page_size
 	// num_pages := math.Ceil(float64(total) / float64(q.limit))
 
 	mv.render(w, "model_list.gotmpl", mv.dict(
@@ -463,10 +464,16 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"page":      q.page,
 			"pages":     1,
 			"num_pages": num_pages,
-			"pager_url": "pager_url",
-			"page_size": q.limit, // mv.page_size,
-			"page_size_url": func(n int) string {
-				return fmt.Sprintf("./?page_size=%d", n)
+			"pager_url": func(page int) string {
+				args := mv.query(q)
+				args.Set("page", fmt.Sprintf("%d", page))
+				return "./?" + args.Encode()
+			},
+			"page_size": q.page_size,
+			"page_size_url": func(page_size int) string {
+				args := mv.query(q)
+				args.Set("page_size", fmt.Sprintf("%d", page_size))
+				return "./?" + args.Encode()
 			},
 			"can_set_page_size":        mv.can_set_page_size,
 			"actions":                  nil,
@@ -512,6 +519,21 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
+func (mv *ModelView) query(q *query) url.Values {
+	args := url.Values{}
+	if q.page > 0 {
+		args.Set("page", fmt.Sprintf("%d", q.page))
+	}
+	args.Set("page_size", fmt.Sprintf("%d", q.page_size))
+	if q.sort.Name != "" {
+		args.Set("sort", fmt.Sprintf("%d", mv.get_column_index(q.sort.Name)))
+		if q.sort.Desc == 1 {
+			args.Set("desc", "1")
+		}
+	}
+	return args
+}
+
 func (mv *ModelView) query_from(r *http.Request) *query {
 	q := r.URL.Query()
 
@@ -548,9 +570,9 @@ func (mv *ModelView) query_from(r *http.Request) *query {
 		page = i
 	}
 	return &query{
-		page:  page,
-		limit: limit,
-		sort:  o,
+		page:      page,
+		page_size: limit,
+		sort:      o,
 	}
 }
 
@@ -596,6 +618,10 @@ func (mv *ModelView) SetCanSetPageSize(v bool) *ModelView {
 	mv.can_set_page_size = v
 	return mv
 }
+func (mv *ModelView) SetPageSize(v int) *ModelView {
+	mv.page_size = v
+	return mv
+}
 
 func (mv *ModelView) list_columns() []column {
 	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
@@ -623,8 +649,8 @@ func (mv *ModelView) get_column(name string) column {
 	return nil
 }
 func (mv *ModelView) get_column_index(name string) int {
-	if _, i, ok := lo.FindIndexOf(mv.model.columns, func(col column) bool {
-		return col.name() == name
+	if _, i, ok := lo.FindIndexOf(mv.column_list, func(c string) bool {
+		return c == name
 	}); ok {
 		return i
 	}

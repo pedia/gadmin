@@ -51,6 +51,7 @@ func main() {
 		SetColumnEditableList("first_name", "type", "currency", "timezone").
 		SetColumnDescriptions(map[string]string{"first_name": "名"}).
 		SetCanSetPageSize(true).
+		SetPageSize(5).
 		SetTablePrefixHtml(`<h1>hello</h1>`)
 	admin.AddView(mv)
 	admin.AddView(gadmin.NewModalView(Post{}))

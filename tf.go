@@ -242,7 +242,7 @@ func Delete(k string, args ...any) (map[string]any, error) {
 }
 
 // {{ add "key" "val"}}
-func Add(k string, v any, args ...any) (map[string]any, error) {
+func MapSet(k string, v any, args ...any) (map[string]any, error) {
 	if len(args) != 1 {
 		return nil, errors.New("add need more args")
 	}
@@ -295,9 +295,18 @@ var FuncsText = template.FuncMap{
 	"join":    joinStr,
 	"only":    Only,
 	"delete":  Delete,
-	"add":     Add,
+	"set":     MapSet,
 	"default": Default,
 	"log":     dolog,
+	// sprig add return int64
+	"add": func(is ...int) int {
+		var a int = 0
+		for _, b := range is {
+			a += b
+		}
+		return a
+	},
+	"sub": func(a, b int) int { return a - b },
 }
 
 // FuncsHTML is a FuncMap which can be passed as argument of .Func of html/template

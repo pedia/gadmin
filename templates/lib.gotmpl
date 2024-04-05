@@ -7,11 +7,79 @@
 */}}
 
 {{ define "pager" -}}
+  {{ comment "pager input: page: %d/%T pages: %d/%T %v" .page .page .pages .pages .generator }}
   {{ if gt .pages 1 }}
   <ul class="pagination">
+    {{ $min := sub .page 3 }}
+    {{ $max := add .page 4 }}
+    {{ if lt $min 0 }}
+      {{ $max = sub $max $min }}
+    {{ end }}
+    {{ if ge $max .pages }}
+      {{ $min = add (sub $min $max) .pages }}
+    {{ end }}
+
+    {{ if lt $min 0 }}
+      {{ $min = 0 }}
+    {{ end }}
+    {{ if ge $max .pages }}
+      {{ $max = .pages }}
+    {{ end }}
+
+    {{ if gt $min 0 }}
       <li class="page-item">
-          <a class="page-link" href="{{ 0 }}">&laquo;</a>
+          <a class="page-link" href="{{ .generator 0 }}">&laquo;</a>
       </li>
+    {{ else }}
+      <li class="page-item disabled">
+        <a class="page-link" href="javascript:void(0)">&laquo;</a>
+      </li>
+    {{ end }}
+    {{ if gt .page 0 }}
+      <li class="page-item">
+        <a class="page-link" href="{{ call .generator (sub .page 1) }}">&lt;</a>
+      </li>
+    {{ else }}
+      <li class="page-item disabled">
+        <a class="page-link" href="javascript:void(0)">&lt;</a>
+      </li>
+    {{ end }}
+
+    {{/* comment "max: %d/%T %d/%T" $min $min $max $max */}}
+    {{ $ps := rng $min $max }}
+    {{ $page := .page }}
+    {{ $generator := .generator }}
+    {{ range $p := $ps }}
+      {{ if eq $p $page }}
+      <li class="page-item active">
+        <a class="page-link" href="javascript:void(0)">{{ add $p 1 }}</a>
+      </li>
+      {{ else }}
+      <li class="page-item">
+        <a class="page-link" href="{{ call $generator $p }}">{{ add $p 1 }}</a>
+      </li>
+      {{ end }}
+    {{ end }}
+
+    {{ if lt ( add $page 1 ) .pages }}
+      <li class="page-item">
+        <a class="page-link" href="{{ call .generator ( add .page  1) }}">&gt;</a>
+      </li>
+    {{ else }}
+      <li class="page-item disabled">
+        <a class="page-link" href="javascript:void(0)">&gt;</a>
+      </li>
+    {{ end }}
+
+    {{ if lt $max .pages }}
+      <li class="page-item">
+        <a class="page-link" href="{{ call .generator ( sub .pages 1) }}">&raquo;</a>
+      </li>
+    {{ else }}
+      <li class="page-item disabled">
+        <a class="page-link" href="javascript:void(0)">&raquo;</a>
+      </li>
+    {{ end }}
   </ul>
   {{- end }}
 {{ end }}

@@ -114,51 +114,56 @@ func (m *model) get_pk_value(row row) any {
 }
 
 type query struct {
-	page  int
-	limit int
-	sort  Order
+	page      int
+	page_size int
+	sort      Order
 	// search string
 	// filters []
 }
 
 func (q *query) sort_desc() int {
-	return q.sort.desc()
+	return q.sort.Desc
 }
 func (q *query) sort_column() string {
-	return q.sort.name()
+	return q.sort.Name
 }
-func (q *query) apply(db *gorm.DB) *gorm.DB {
-	n := db.Limit(q.limit)
+func (q *query) apply(db *gorm.DB, count_only bool) *gorm.DB {
+	n := db
+	if !count_only {
+		n = n.Limit(q.page_size)
 
-	if q.page > 0 {
-		n = n.Offset(q.limit * q.page)
+		if q.page > 0 {
+			n = n.Offset(q.page_size * q.page)
+		}
+
+		if q.sort_column() != "" {
+			n = n.Order(clause.OrderByColumn{
+				Column: clause.Column{Name: q.sort_column()},
+				Desc:   q.sort_desc() == 1,
+			})
+		}
 	}
 
-	if q.sort_column() != "" {
-		n = n.Order(clause.OrderByColumn{
-			Column: clause.Column{Name: q.sort_column()},
-			Desc:   q.sort_desc() == 1,
-		})
-	}
+	// filter or search
 	return n
 }
 
 func Query() *query {
 	return &query{
-		page:  1,
-		limit: 10,
-		sort:  Asc(""),
+		page:      1,
+		page_size: 10,
+		sort:      Asc(""),
 	}
 }
 
 func (m *model) get_list(db *gorm.DB, q *query) (int, []row, error) {
 	var total int64
-	if err := q.apply(db).Model(m.new()).Count(&total).Error; err != nil {
+	if err := q.apply(db, true).Model(m.new()).Count(&total).Error; err != nil {
 		return 0, nil, err
 	}
 
 	ptr := m.new_slice()
-	if err := q.apply(db).Find(ptr.Interface()).Error; err != nil {
+	if err := q.apply(db, false).Find(ptr.Interface()).Error; err != nil {
 		return 0, nil, err
 	}
 
@@ -191,27 +196,14 @@ func (m *model) update(db *gorm.DB, pk any, row row) error {
 	return nil
 }
 
-type Order interface {
-	name() string
-	desc() int
-}
-
-type _order struct {
-	_name string
-	_desc int
-}
-
-func (bo *_order) name() string {
-	return bo._name
-}
-
-func (bo *_order) desc() int {
-	return bo._desc
+type Order struct {
+	Name string
+	Desc int
 }
 
 func Asc(name string) Order {
-	return &_order{_name: name}
+	return Order{Name: name}
 }
 func Desc(name string) Order {
-	return &_order{_name: name, _desc: 1}
+	return Order{Name: name, Desc: 1}
 }
