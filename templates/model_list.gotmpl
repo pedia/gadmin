@@ -106,28 +106,28 @@
                     
                 {{ range $index, $c := call .list_columns }}
                     <th class="column-header col-{{$c.name}}">
-                        {{- if call $g.is_sortable $c.name }}
-                            {{ if eq $g.sort_column $c.name }}
+                        {{- if call $g.is_sortable $c.name -}}
+                            {{- if eq $g.sort_column $c.name -}}
                                 <a href="{{ call $g.sort_url $c.name true }}" title="{{ gettext "Sort by %s" $c.name }}">
                                     {{ $c.name }}
-                                    {{ if $g.sort_desc }}
+                                    {{- if $g.sort_desc -}}
                                         <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
-                                    {{ else }}
+                                    {{- else -}}
                                         <span class="fa fa-chevron-down glyphicon glyphicon-chevron-down"></span>
-                                    {{ end }}
+                                    {{- end }}
                                 </a>
                             {{ else }}
                                 <a href="{{ call $g.sort_url $c.name }}" title="{{ gettext "Sort by %s" $c.name }}">{{ $c.name }}</a>
-                            {{ end }}
+                            {{ end -}}
                         {{ else -}}
-                            {{ $c.label -}}
+                            {{- $c.label -}}
                         {{- end -}}
-                        {{ if call $g.column_descriptions $c }}
+                        {{ if call $g.column_descriptions $c.name }}
                             <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
-                               title="{{ $g.column_descriptions $c }}"
+                               title="{{ call $g.column_descriptions $c.name }}"
                                href="javascript:void(0)" data-role="tooltip"
                             ></a>
-                        {{ end -}}
+                        {{- end }}
                     </th>
                 {{ end }}
             </tr>

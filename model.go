@@ -106,9 +106,26 @@ func (m *model) sortable_list() []string {
 func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk)
 }
-func (m *model) get_list(db *gorm.DB) ([]row, error) {
+
+type query struct {
+	page  int
+	limit int
+	sorts []Order
+}
+
+func Query() *query {
+	return &query{
+		page:  1,
+		limit: 10,
+		sorts: []Order{Desc("name")},
+	}
+}
+
+func (m *model) get_list(db *gorm.DB, q *query) ([]row, error) {
 	ptr := m.new_slice()
-	if err := db.Limit(10).Find(ptr.Interface()).Error; err != nil {
+	if err := db.
+		Limit(q.limit).
+		Find(ptr.Interface()).Error; err != nil {
 		return nil, err
 	}
 
@@ -156,4 +173,27 @@ func (m *model) update(db *gorm.DB, pk any, row row) error {
 	return nil
 }
 
-type Desc string
+type Order interface {
+	name() string
+	desc() bool
+}
+
+type _order struct {
+	_name string
+	_desc bool
+}
+
+func (bo *_order) name() string {
+	return bo._name
+}
+
+func (bo *_order) desc() bool {
+	return bo._desc
+}
+
+func Asc(name string) Order {
+	return &_order{_name: name}
+}
+func Desc(name string) Order {
+	return &_order{_name: name, _desc: false}
+}

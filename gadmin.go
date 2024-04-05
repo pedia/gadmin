@@ -359,6 +359,11 @@ type ModelView struct {
 	column_exclude_list  []string
 	column_editable_list []string
 	column_sortable_list []string
+	column_descriptions  map[string]string
+
+	// Pagination settings
+	page_size         int
+	can_set_page_size bool
 
 	//
 	list_forms []form
@@ -368,13 +373,15 @@ func NewModalView(m any) *ModelView {
 	// TODO: package.name => name
 	cate := reflect.ValueOf(m).Type().Name()
 	mv := ModelView{
-		BaseView:         &BaseView{category: cate, name: strings.ToLower(cate)},
-		model:            new_model(m), // TODO: ptr to elem
-		can_create:       true,
-		can_edit:         true,
-		can_delete:       true,
-		can_view_details: true,
-		can_export:       true,
+		BaseView:          &BaseView{category: cate, name: strings.ToLower(cate)},
+		model:             new_model(m), // TODO: ptr to elem
+		can_create:        true,
+		can_edit:          true,
+		can_delete:        true,
+		can_view_details:  true,
+		can_export:        true,
+		page_size:         20,
+		can_set_page_size: false,
 	}
 
 	mv.column_list = lo.Map(mv.model.columns, func(col column, _ int) string {
@@ -452,7 +459,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		sort_desc = i
 	}
 
-	data, err := mv.model.get_list(mv.DB)
+	data, err := mv.model.get_list(mv.DB, Query())
 	_ = err // TODO: notify error
 	mv.render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
@@ -461,6 +468,8 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"pages":                    1,
 			"num_pages":                1,
 			"pager_url":                "pager_url",
+			"page_size":                mv.page_size,
+			"can_set_page_size":        mv.can_set_page_size,
 			"actions":                  nil,
 			"data":                     data,
 			"request":                  rd(r),
@@ -488,8 +497,10 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				}
 				return fmt.Sprintf("./?sort=%d", idx)
 			},
-			"is_editable":         mv.is_editable,
-			"column_descriptions": func(vs ...any) any { return nil },
+			"is_editable": mv.is_editable,
+			"column_descriptions": func(name string) string {
+				return mv.column_descriptions[name]
+			},
 			"get_value": func(m map[string]any, col column) any {
 				return m[col.label()]
 			},
@@ -526,6 +537,10 @@ func (mv *ModelView) SetColumnEditableList(vs []string) *ModelView {
 	mv.column_editable_list = vs
 	// build list_forms here
 	mv.list_forms = []form{}
+	return mv
+}
+func (mv *ModelView) SetColumnDescriptions(ds map[string]string) *ModelView {
+	mv.column_descriptions = ds
 	return mv
 }
 

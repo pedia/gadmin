@@ -48,7 +48,8 @@ func main() {
 
 	mv := gadmin.NewModalView(User{}).
 		SetColumnList([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"}).
-		SetColumnEditableList([]string{"first_name", "type", "currency", "timezone"})
+		SetColumnEditableList([]string{"first_name", "type", "currency", "timezone"}).
+		SetColumnDescriptions(map[string]string{"first_name": "名"})
 	admin.AddView(mv)
 	admin.AddView(gadmin.NewModalView(Post{}))
 	admin.AddView(gadmin.NewModalView(Tag{}))
