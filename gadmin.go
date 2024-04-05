@@ -498,11 +498,14 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"sort_column": q.sort_column(),
 			"sort_desc":   q.sort_desc(),
 			"sort_url": func(name string, invert ...bool) string {
-				idx := lo.IndexOf(mv.column_list, name)
-				if len(invert) > 0 && q.sort_desc() == 0 {
-					return fmt.Sprintf("./?sort=%d&desc=1", idx)
+				q := *q // simply copy
+				if len(invert) > 0 && invert[0] {
+					q.sort = Desc(name)
+				} else {
+					q.sort = Asc(name)
 				}
-				return fmt.Sprintf("./?sort=%d", idx)
+				args := mv.query(&q)
+				return "./?" + args.Encode()
 			},
 			"is_editable": mv.is_editable,
 			"column_descriptions": func(name string) string {
