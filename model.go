@@ -1,12 +1,15 @@
 package gadmin
 
 import (
-	"encoding/json"
+	"context"
+	"fmt"
 	"reflect"
+	"strings"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/fatih/camelcase"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
@@ -23,19 +26,11 @@ type model struct {
 	typo    reflect.Type
 	schema  *schema.Schema
 	columns []column
-	pk      string // TODO: multiple primary keys
+	pk      column // TODO: multiple primary keys
 }
 
 func new_model(m any) *model {
 	s := must[*schema.Schema](schema.Parse(m, &schemaStore, schema.NamingStrategy{}))
-
-	pkf, ok := lo.Find(s.Fields, func(f *schema.Field) bool {
-		return f.PrimaryKey
-	})
-	var pk string
-	if ok {
-		pk = pkf.Name
-	}
 
 	columns := lo.Map(s.Fields, func(field *schema.Field, _ int) column {
 		return column{
@@ -45,10 +40,15 @@ func new_model(m any) *model {
 			"required":    field.NotNull,
 			"choices":     nil,
 			"type":        "StringField", // TODO:
-			"label":       field.Name,    // TODO: FooBar to Foo Bar
+			"label":       strings.Join(camelcase.Split(field.Name), " "),
 			"widget":      field2widget(field),
 			"errors":      nil,
+			"primary_key": field.PrimaryKey,
 		}
+	})
+
+	pk, _ := lo.Find(columns, func(c column) bool {
+		return c["primary_key"].(bool)
 	})
 
 	return &model{
@@ -87,13 +87,19 @@ func (m *model) new_slice() reflect.Value {
 }
 
 func (m *model) into_row(a any) row {
+	ctx := context.TODO()
+	v := reflect.ValueOf(a)
+
 	r := row{}
-	for _, col := range m.columns {
-		col.name()
+	for _, f := range m.schema.Fields {
+		i, _ := f.ValueOf(ctx, v)
+		r[f.DBName] = i
 	}
 	return r
 }
 
+// Return all field can be sorted
+// exclude relationship fields
 func (m *model) sortable_list() []string {
 	cols := lo.Filter(m.columns, func(col column, _ int) bool {
 		_, ok := m.schema.Relationships.Relations[col.label()]
@@ -104,48 +110,66 @@ func (m *model) sortable_list() []string {
 	})
 }
 func (m *model) get_pk_value(row row) any {
-	return row.get(m.pk)
+	return row.get(m.pk.name())
 }
 
 type query struct {
 	page  int
 	limit int
-	sorts []Order
+	sort  Order
+	// search string
+	// filters []
+}
+
+func (q *query) sort_desc() int {
+	return q.sort.desc()
+}
+func (q *query) sort_column() string {
+	return q.sort.name()
+}
+func (q *query) apply(db *gorm.DB) *gorm.DB {
+	n := db.Limit(q.limit)
+
+	if q.page > 0 {
+		n = n.Offset(q.limit * q.page)
+	}
+
+	if q.sort_column() != "" {
+		n = n.Order(clause.OrderByColumn{
+			Column: clause.Column{Name: q.sort_column()},
+			Desc:   q.sort_desc() == 1,
+		})
+	}
+	return n
 }
 
 func Query() *query {
 	return &query{
 		page:  1,
 		limit: 10,
-		sorts: []Order{Desc("name")},
+		sort:  Asc(""),
 	}
 }
 
-func (m *model) get_list(db *gorm.DB, q *query) ([]row, error) {
+func (m *model) get_list(db *gorm.DB, q *query) (int, []row, error) {
+	var total int64
+	if err := q.apply(db).Model(m.new()).Count(&total).Error; err != nil {
+		return 0, nil, err
+	}
+
 	ptr := m.new_slice()
-	if err := db.
-		Limit(q.limit).
-		Find(ptr.Interface()).Error; err != nil {
-		return nil, err
+	if err := q.apply(db).Find(ptr.Interface()).Error; err != nil {
+		return 0, nil, err
 	}
 
 	// better way?
 	len := ptr.Elem().Len()
-	res := make([]any, len)
+	res := make([]row, len)
 	for i := 0; i < len; i++ {
 		item := ptr.Elem().Index(i).Interface()
-		res[i] = item
+		res[i] = m.into_row(item)
 	}
-
-	var rs []row
-	mapstructure.Decode(ptr.Interface(), &rs)
-
-	bs := must[[]byte](json.Marshal(res))
-	var ms []row
-	if err := json.Unmarshal(bs, &ms); err != nil {
-		return nil, err
-	}
-	return ms, nil
+	return int(total), res, nil
 }
 
 func (m *model) get(db *gorm.DB, pk any) (row, error) {
@@ -153,41 +177,35 @@ func (m *model) get(db *gorm.DB, pk any) (row, error) {
 	if err := db.First(ptr, pk).Error; err != nil {
 		return nil, err
 	}
-
-	var r row
-	if err := mapstructure.Decode(ptr, &r); err != nil {
-		return nil, err
-	}
-	return r, nil
+	return m.into_row(ptr), nil
 }
 
 func (m *model) update(db *gorm.DB, pk any, row row) error {
 	ptr := m.new()
 
-	if err := db.Model(ptr).
-		Where("?=?", m.pk, pk).
-		Updates(map[string]any(row)).
-		Error; err != nil {
-		return err
+	if rc := db.Model(ptr).
+		Where(fmt.Sprintf("%s=?", m.pk["name"]), pk).
+		Updates(map[string]any(row)); rc.Error != nil || rc.RowsAffected != 1 {
+		return rc.Error
 	}
 	return nil
 }
 
 type Order interface {
 	name() string
-	desc() bool
+	desc() int
 }
 
 type _order struct {
 	_name string
-	_desc bool
+	_desc int
 }
 
 func (bo *_order) name() string {
 	return bo._name
 }
 
-func (bo *_order) desc() bool {
+func (bo *_order) desc() int {
 	return bo._desc
 }
 
@@ -195,5 +213,5 @@ func Asc(name string) Order {
 	return &_order{_name: name}
 }
 func Desc(name string) Order {
-	return &_order{_name: name, _desc: false}
+	return &_order{_name: name, _desc: 1}
 }

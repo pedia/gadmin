@@ -96,13 +96,13 @@
 {{ end }}
 
 {{ define "page_size_form" }}
-{/* (generator, btn_class='nav-link dropdown-toggle" */}
+{{/* (generator page_size btn_class='nav-link dropdown-toggle" */}}
     <a class="{{ .btn_class }}" data-toggle="dropdown" href="javascript:void(0)">
         {{ .page_size }} {{ gettext "items" }}<b class="caret"></b>
     </a>
     <div class="dropdown-menu">
-      <a class="dropdown-item{{ if eq .page_size  20 }} active{{ end }}" href="{{ printf "generator(20)" }}">20 {{ gettext "items" }}</a>
-      <a class="dropdown-item{{ if eq .page_size  50 }} active{{ end }}" href="{{ printf "generator(50)" }}">50 {{ gettext "items" }}</a>
-      <a class="dropdown-item{{ if eq .page_size  100 }} active{{ end }}" href="{{ printf "generator(100)" }}">100 {{ gettext "items" }}</a>
+      <a class="dropdown-item{{ if eq .page_size  20 }} active{{ end }}" href="{{ call .generator 20 }}">20 {{ gettext "items" }}</a>
+      <a class="dropdown-item{{ if eq .page_size  50 }} active{{ end }}" href="{{ call .generator 50 }}">50 {{ gettext "items" }}</a>
+      <a class="dropdown-item{{ if eq .page_size  100 }} active{{ end }}" href="{{ call .generator 100 }}">100 {{ gettext "items" }}</a>
     </div>
 {{ end }}

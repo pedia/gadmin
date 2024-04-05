@@ -125,16 +125,16 @@ func (a *Admin) ts(fs ...string) *template.Template {
 	fm := merge(sprig.FuncMap(), FuncsText)
 	merge(fm, template.FuncMap{
 		"admin_static_url": a.staticUrl, // used
-		"get_url":          a.getUrl,
+		"get_url":          a.urlFor,
 		"marshal":          a.marshal, // test
 		"config":           a.config,  // used
 		"gettext":          a.gettext, //
 		"csrf_token":       func() string { return "xxxx-csrf-token" },
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
-		"comment": func(s string) template.HTML {
+		"comment": func(format string, args ...any) template.HTML {
 			return template.HTML(
-				"<!-- " + s + " -->",
+				"<!-- " + fmt.Sprintf(format, args...) + " -->",
 			)
 		},
 		"safejs": func(s string) template.JS { return template.JS(s) },
@@ -215,7 +215,7 @@ func (*Admin) gettext(format string, a ...any) string {
 }
 
 // Like Flask.url_for
-func (*Admin) getUrl(endpoint string, args ...any) string {
+func (*Admin) urlFor(endpoint string, args ...any) string {
 	// endpoint to path
 	path, ok := map[string]string{
 		".create_view": "new",
@@ -361,9 +361,17 @@ type ModelView struct {
 	column_sortable_list []string
 	column_descriptions  map[string]string
 
+	table_prefix_html string
+
 	// Pagination settings
 	page_size         int
 	can_set_page_size bool
+	column_filters    []string
+
+	column_display_pk      bool
+	column_display_actions bool
+	form_columns           []string
+	form_excluded_columns  []string
 
 	//
 	list_forms []form
@@ -393,30 +401,28 @@ func NewModalView(m any) *ModelView {
 
 func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 	o := mv.BaseView.dict(map[string]any{
-		"editable_columns": true,
-		"can_create":       mv.can_create,
-		"can_edit":         mv.can_edit,
-		"can_export":       mv.can_export,
-		"export_types":     []string{"csv", "xls"},
-		"edit_modal":       false,
-		"create_modal":     false,
-		"details_modal":    false,
-		"return_url":       "../",
-		"form":             mv.get_form().dict(),
+		"table_prefix_html": mv.table_prefix_html,
+		"editable_columns":  true,
+		"can_create":        mv.can_create,
+		"can_edit":          mv.can_edit,
+		"can_export":        mv.can_export,
+		"can_view_details":  mv.can_view_details,
+		"can_delete":        mv.can_delete,
+		"export_types":      []string{"csv", "xls"},
+		"edit_modal":        false,
+		"create_modal":      false,
+		"details_modal":     false,
+		"return_url":        "../",
+		"form":              mv.get_form().dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
 			"form_rules":  []any{},
 		},
-		"filters":                []string{},
-		"filter_groups":          []string{},
-		"can_set_page_size":      false, // TODO:
-		"actions":                []string{},
-		"actions_confirmation":   []string{},
-		"search_supported":       false,
-		"column_display_actions": true,
-		"page_size_url": func() string {
-			return "?page_size=2"
-		},
+		"filters":              []string{},
+		"filter_groups":        []string{},
+		"actions":              []string{},
+		"actions_confirmation": []string{},
+		"search_supported":     false,
 	})
 
 	if len(others) > 0 {
@@ -443,39 +449,32 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	mv.render(w, "debug.gotmpl", mv.dict())
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	// ?sort=0&desc=1
-	// sort_column=name
-	// sort_desc=0 asc, 1 desc
-	var sort_column string
-	var sort_desc int
-	q := r.URL.Query()
-	if q.Has("sort") {
-		i := must[int](strconv.Atoi(q.Get("sort")))
-		sort_column = mv.column_list[i]
-	}
-	if q.Has("desc") {
-		i := must[int](strconv.Atoi(q.Get("desc")))
-		sort_desc = i
-	}
+	q := mv.query_from(r)
 
-	data, err := mv.model.get_list(mv.DB, Query())
+	total, data, err := mv.model.get_list(mv.DB, q)
 	_ = err // TODO: notify error
+
+	num_pages := 1 + (total-1)/q.limit
+	// num_pages := math.Ceil(float64(total) / float64(q.limit))
+
 	mv.render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
-			"count":                    len(data),
-			"page":                     1,
-			"pages":                    1,
-			"num_pages":                1,
-			"pager_url":                "pager_url",
-			"page_size":                mv.page_size,
+			"count":     len(data),
+			"page":      q.page,
+			"pages":     1,
+			"num_pages": num_pages,
+			"pager_url": "pager_url",
+			"page_size": q.limit, // mv.page_size,
+			"page_size_url": func(n int) string {
+				return fmt.Sprintf("./?page_size=%d", n)
+			},
 			"can_set_page_size":        mv.can_set_page_size,
 			"actions":                  nil,
 			"data":                     data,
 			"request":                  rd(r),
 			"get_pk_value":             mv.model.get_pk_value,
-			"column_display_pk":        false,
-			"column_display_actions":   true,
+			"column_display_pk":        mv.column_display_pk,
+			"column_display_actions":   mv.column_display_actions,
 			"column_extra_row_actions": nil,
 			// flask_admin.model.template.ViewRowAction
 			// flask_admin.model.template.EditRowAction
@@ -488,25 +487,71 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				})
 				return ok
 			},
-			"sort_column": sort_column,
-			"sort_desc":   sort_desc,
+			// in template, the sort url is: ?sort={index}
+			"sort_column": q.sort_column(),
+			"sort_desc":   q.sort_desc(),
 			"sort_url": func(name string, invert ...bool) string {
 				idx := lo.IndexOf(mv.column_list, name)
-				if len(invert) > 0 && sort_desc != 1 {
+				if len(invert) > 0 && q.sort_desc() == 0 {
 					return fmt.Sprintf("./?sort=%d&desc=1", idx)
 				}
 				return fmt.Sprintf("./?sort=%d", idx)
 			},
 			"is_editable": mv.is_editable,
 			"column_descriptions": func(name string) string {
-				return mv.column_descriptions[name]
+				if desc, ok := mv.column_descriptions[name]; ok {
+					return desc
+				}
+				return mv.get_column(name)["description"].(string)
 			},
 			"get_value": func(m map[string]any, col column) any {
-				return m[col.label()]
+				return m[col.name()]
 			},
 			"list_form": mv.list_form,
 		},
 	))
+}
+
+func (mv *ModelView) query_from(r *http.Request) *query {
+	q := r.URL.Query()
+
+	// ?sort=0&desc=1
+	var sort_column string
+	if q.Has("sort") {
+		i := must[int](strconv.Atoi(q.Get("sort")))
+		sort_column = mv.column_list[i]
+	}
+
+	var sort_desc int
+	if q.Has("desc") {
+		sort_desc = 1
+	}
+
+	o := Asc("")
+	if sort_column != "" {
+		if sort_desc == 0 {
+			o = Asc(sort_column)
+		} else {
+			o = Desc(sort_column)
+		}
+	}
+
+	limit := mv.page_size
+	if mv.can_set_page_size && q.Has("page_size") {
+		i := must[int](strconv.Atoi(q.Get("page_size")))
+		limit = i
+	}
+
+	var page int
+	if q.Has("page") {
+		i := must[int](strconv.Atoi(q.Get("page")))
+		page = i
+	}
+	return &query{
+		page:  page,
+		limit: limit,
+		sort:  o,
+	}
 }
 
 // Permissions
@@ -528,19 +573,27 @@ func (mv *ModelView) SetCanExport(v bool) *ModelView {
 
 // Collection of the model field names for the list view.
 // If not set, will get them from the model.
-func (mv *ModelView) SetColumnList(list []string) *ModelView {
-	mv.column_list = list
+func (mv *ModelView) SetColumnList(vs ...string) *ModelView {
+	mv.column_list = vs
 	return mv
 }
 
-func (mv *ModelView) SetColumnEditableList(vs []string) *ModelView {
+func (mv *ModelView) SetColumnEditableList(vs ...string) *ModelView {
 	mv.column_editable_list = vs
 	// build list_forms here
 	mv.list_forms = []form{}
 	return mv
 }
-func (mv *ModelView) SetColumnDescriptions(ds map[string]string) *ModelView {
-	mv.column_descriptions = ds
+func (mv *ModelView) SetColumnDescriptions(m map[string]string) *ModelView {
+	mv.column_descriptions = m
+	return mv
+}
+func (mv *ModelView) SetTablePrefixHtml(v string) *ModelView {
+	mv.table_prefix_html = v
+	return mv
+}
+func (mv *ModelView) SetCanSetPageSize(v bool) *ModelView {
+	mv.can_set_page_size = v
 	return mv
 }
 
@@ -561,6 +614,22 @@ func (mv *ModelView) list_columns() []column {
 	})
 }
 
+func (mv *ModelView) get_column(name string) column {
+	if col, ok := lo.Find(mv.model.columns, func(col column) bool {
+		return col.name() == name
+	}); ok {
+		return col
+	}
+	return nil
+}
+func (mv *ModelView) get_column_index(name string) int {
+	if _, i, ok := lo.FindIndexOf(mv.model.columns, func(col column) bool {
+		return col.name() == name
+	}); ok {
+		return i
+	}
+	return -1
+}
 func (mv *ModelView) list_form(col column, r row) template.HTML {
 	x := XEditableWidget{model: mv.model, column: col}
 	return x.html(r)

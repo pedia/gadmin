@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	Id                       uuid.UUID `gorm:"primaryKey"`
+	Id                       string `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()"`
 	Type                     string
 	EnumChoiceField          string `a:"enum:1=first,2=second;"`
 	SqlaUtilsChoiceField     string
@@ -17,7 +17,7 @@ type User struct {
 	LastName                 string
 	Email                    string
 	Website                  string
-	IpAddress                string
+	IpAddress                string `gorm:"comment:last logined ip address"`
 	Currency                 string
 	Timezone                 string
 	DiallingCode             int
@@ -47,9 +47,11 @@ func main() {
 	admin.AddView(gadmin.NewView("Test", "view2"))
 
 	mv := gadmin.NewModalView(User{}).
-		SetColumnList([]string{"type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number"}).
-		SetColumnEditableList([]string{"first_name", "type", "currency", "timezone"}).
-		SetColumnDescriptions(map[string]string{"first_name": "名"})
+		SetColumnList("type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number").
+		SetColumnEditableList("first_name", "type", "currency", "timezone").
+		SetColumnDescriptions(map[string]string{"first_name": "名"}).
+		SetCanSetPageSize(true).
+		SetTablePrefixHtml(`<h1>hello</h1>`)
 	admin.AddView(mv)
 	admin.AddView(gadmin.NewModalView(Post{}))
 	admin.AddView(gadmin.NewModalView(Tag{}))

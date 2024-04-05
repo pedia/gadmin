@@ -25,7 +25,7 @@ type XEditableWidget struct {
 
 func (xw *XEditableWidget) html(r row) template.HTML {
 	args := map[template.HTMLAttr]any{
-		"data-value": r.get(xw.column.label()), // TODO: column.name()
+		"data-value": r.get(xw.column.name()),
 		"data-role":  "x-editable",
 		"data-url":   "./ajax/update/",
 		"data-pk":    xw.model.get_pk_value(r),
@@ -49,7 +49,7 @@ func (xw *XEditableWidget) html(r row) template.HTML {
 	w := &bytes.Buffer{}
 	tmpl.Execute(w, map[string]any{
 		"args":          args,
-		"display_value": r.get(xw.column.label()),
+		"display_value": r.get(xw.column.name()),
 	})
 	return template.HTML(w.String())
 }
