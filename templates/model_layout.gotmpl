@@ -15,14 +15,14 @@
             <div class="dropdown-menu">
                 {{ range $export_type := .export_types }}
                     <a class="dropdown-item"
-                       href="{{ get_url ".export"  $export_type }}"
+                       href="{{ get_url ".export"  (map "export_type" $export_type) }}"
                        title="{{ gettext "Export" }}">{{ gettext "Export" }} {{ $export_type|upper }}</a>
                 {{ end }}
             </div>
         </li>
     {{ else }}
         <li>
-            <a class="nav-link" href="{{ get_url ".export" (first .export_types) .request.args  }}"
+            <a class="nav-link" href="{{ get_url ".export" (map "export_type" (first .export_types)) }}"
                title="{{ gettext "Export" }}">{{ gettext "Export" }}</a>
         </li>
     {{ end }}

@@ -1,0 +1,63 @@
+{% import 'admin/lib.html' as lib with context %}
+
+{{ define "render_action" }}
+  {{ if eq .action.name "view_row_action" }}
+    {{ template "view_row" .}}
+  {{ end }}
+  {{ if eq .action.name "edit_row_action" }}
+    {{ template "edit_row" .}}
+  {{ end }}
+  {{ if eq .action.name "delete_row_action" }}
+    {{ template "delete_row" .}}
+  {{ end }}
+{{ end }}
+
+{{/*(action, url, icon_class=None)*/}}
+{{ define "link" }}
+<a class="icon" href="{{ .url }}" title="{{ .action.title }}">
+  <span class="{{ or .icon_class .action.icon_class }}"></span>
+</a>
+{{ end }}
+
+{{/*(action, row_id, row)*/}}
+{{ define "view_row" }}
+  {{ template "link" .| arg "action" .action
+  | arg "url" (get_url ".details_view" (map "id" .row_id "url" .return_url))
+  | arg "icon_class" "fa fa-eye glyphicon glyphicon-eye-open"|args }}
+{{ end }}
+
+{{/*(action, row_id, row)*/}}
+{{ define "view_row_popup" }}
+  {{/*get_url('.details_view', id=row_id, url=return_url, modal=True)*/}}
+  {{ template "add_modal_button" .| arg "url" (get_url ".details_view'" (map "id" .row_id "url" .return_url "modal" 1))
+  | arg "title" .action.title
+  | arg "content" `<span class="fa fa-eye glyphicon glyphicon-eye-open"></span>` | args }}
+{{ end }}
+
+{{/*(action, row_id, row)*/}}
+{{ define "edit_row" }}
+  {{ template "link" .| arg "action" .action 
+  | arg "url" (get_url ".edit_view" (map "id" .row_id "url" .return_url))
+  | arg "icon_class" "fa fa-pencil glyphicon glyphicon-pencil" | args }}
+{{ end }}
+
+{{/*(action, row_id, row)*/}}
+{{ define "edit_row_popup" }}
+  {{/* lib.add_modal_button(url=get_url('.edit_view', (map "id" .row_id "url" .return_url "modal" 1), title=action.title, content='<span class="fa fa-pencil glyphicon glyphicon-pencil"></span>') */}}
+{{ end }}
+
+{{/*(action, row_id, row)*/}}
+{{ define "delete_row" }}
+<form class="icon" method="POST" action="{{ get_url ".delete_view" }}">
+  {{/* delete_form.id(value=get_pk_value(row)) */}}
+  {{/* delete_form.url(value=return_url) */}}
+  {{ if .delete_form.csrf_token }}
+  {{/* delete_form.csrf_token */}}
+  {% elif csrf_token %}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  {{ end }}
+  <button onclick="return faHelpers.safeConfirm('{{ gettext "Are you sure you want to delete this record?" }}');" title="{{ gettext "Delete record" }}">
+    <span class="fa fa-trash glyphicon glyphicon-trash"></span>
+  </button>
+</form>
+{{ end }}

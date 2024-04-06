@@ -172,6 +172,8 @@
     {% endblock %}
 
     {% block actions %}
+    <!-- actions: {{get_url('.action_view'))}} -->
+    <!-- actions: {{actions}} -->
     {{ actionlib.form(actions, get_url('.action_view')) }}
     {% endblock %}
 

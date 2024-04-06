@@ -3,6 +3,8 @@ package gadmin
 import (
 	"bytes"
 	"html/template"
+
+	"github.com/go-playground/form/v4"
 )
 
 type XEditableWidget struct {
@@ -54,7 +56,7 @@ func (xw *XEditableWidget) html(r row) template.HTML {
 	return template.HTML(w.String())
 }
 
-type form struct {
+type base_form struct {
 	Args      row
 	Validates []string
 }
@@ -74,4 +76,12 @@ func (f model_form) dict() map[string]any {
 		"is_modal":   true,
 		"csrf_token": true,
 	}
+}
+
+// list_form_pk = HiddenField(validators=[InputRequired()])
+// xx=yy
+// widget
+func enc() {
+	e := form.NewEncoder()
+	e.Encode(map[string]any{})
 }

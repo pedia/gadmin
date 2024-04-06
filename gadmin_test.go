@@ -3,9 +3,11 @@ package gadmin
 import (
 	"errors"
 	"html/template"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/go-playground/form/v4"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/guregu/null.v4"
@@ -33,6 +35,20 @@ func TestBaseMust(t *testing.T) {
 		return 42, false
 	}
 	is.Panics(func() { must[int](ff()) })
+}
+
+func TestBaseConvert(t *testing.T) {
+	is := assert.New(t)
+
+	myMap := map[string]any{
+		"name":    "John Doe",
+		"age":     30,
+		"active":  true,
+		"numbers": []int{1, 2, 3}, // This will be skipped as it's not a string
+	}
+
+	urlValues := map_into_values(myMap)
+	is.Equal("active=true&age=30&name=John+Doe", urlValues.Encode())
 }
 
 type foo struct {
@@ -81,4 +97,24 @@ func TestWidget(t *testing.T) {
 	is.Equal(template.HTML(
 		`<a data-csrf="" data-pk="3" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="a foo" href="#" id="bar" name="bar">a foo</a>`),
 		x.html(r))
+}
+
+func TestPlaygroundForm(t *testing.T) {
+	is := assert.New(t)
+
+	e := form.NewEncoder()
+
+	type list_form struct {
+		list_form_pk any
+		CamelCase    string
+	}
+
+	is.Equal("%5Ba%5D=1", must[url.Values](e.Encode(map[string]any{
+		"a": 1,
+	})).Encode())
+
+	is.Equal("CamelCase=abc", must[url.Values](e.Encode(list_form{
+		list_form_pk: "33",
+		CamelCase:    "abc",
+	})).Encode())
 }

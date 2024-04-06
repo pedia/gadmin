@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/fatih/camelcase v1.0.0
 	github.com/glebarez/sqlite v1.11.0
+	github.com/go-playground/form/v4 v4.2.1
 	github.com/google/uuid v1.3.0
 	github.com/samber/lo v1.39.0
 	github.com/shopspring/decimal v1.2.0
