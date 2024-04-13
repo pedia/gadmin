@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -79,14 +78,18 @@ func NewAdmin(name string) *Admin {
 	// a.Router.HandleFunc("/admin/{$}", a.index)
 	a.Mux.HandleFunc("/admin/test", a.test)
 
-	// serve in Admin.staticUrl
-	// /admin/static/{} => static/{}
-	a.Mux.HandleFunc("/admin/static/{path...}",
-		func(w http.ResponseWriter, r *http.Request) {
-			path := r.PathValue("path")
-			fmt.Printf("static: %s", path)
-			http.ServeFileFS(w, r, os.DirFS("static"), path)
-		})
+	// serve Admin.staticUrl
+	// url /admin/static/{} => local static/{}
+	// first way:
+	fs := http.FileServer(http.Dir("static"))
+	a.Mux.Handle("/admin/static/", http.StripPrefix("/admin/static/", fs))
+
+	// second way:
+	// a.Mux.HandleFunc("/admin/static/{path...}",
+	// 	func(w http.ResponseWriter, r *http.Request) {
+	// 		path := r.PathValue("path")
+	// 		http.ServeFileFS(w, r, os.DirFS("static"), path)
+	// 	})
 	return &a
 }
 
@@ -236,6 +239,7 @@ func (*Admin) urlFor(endpoint string, args ...map[string]any) (string, error) {
 		".action_view":  "action",
 		".execute_view": "execute",
 		".edit_view":    "edit",
+		".delete_view":  "delete",
 		".export":       "export/csv",
 	}[endpoint]
 	if !ok {
@@ -728,7 +732,7 @@ func (mv *ModelView) list_row_actions() []action {
 		as = append(as, edit_row_action())
 	}
 	if mv.can_delete {
-		// as = append(as, delete_row_action())
+		as = append(as, delete_row_action())
 	}
 	return as
 }

@@ -52,7 +52,7 @@ func main() {
 		SetColumnDescriptions(map[string]string{"first_name": "名"}).
 		SetCanSetPageSize(true).
 		SetPageSize(5).
-		SetTablePrefixHtml(`<h1>hello</h1>`)
+		SetTablePrefixHtml(`<h4>hello</h4>`)
 	admin.AddView(mv)
 	admin.AddView(gadmin.NewModalView(Post{}))
 	admin.AddView(gadmin.NewModalView(Tag{}))

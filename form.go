@@ -12,19 +12,9 @@ type XEditableWidget struct {
 	column column
 }
 
-// <a data-csrf="" data-pk="e155df9870f044018fb4e58015993383" data-role="x-editable"
-//	data-type="select2" data-url="./ajax/update/"
-//  data-value="content-writer" href="#" id="type" name="type">content-writer</a>
-
-// <a data-csrf="" data-pk="a1d13310-7c10-48d5-b63b-3485995ad6a4" data-role="x-editable"
-// data-source="[{"text": "", "value": "__None"}, {"text": "Admin", "value": "admin"}, {"text": "Content writer", "value": "content-writer"}, {"text": "Editor", "value": "editor"}, {"text": "Regular user", "value": "regular-user"}]"
-// data-type="select2" data-url="./ajax/update/" data-value="editor" href="#"
-// id="type" name="type">editor</a>
-
 // <a data-csrf="" data-pk="5ad19739-80a1-4b0e-9b6d-ab7e264bd4eb"
 // data-role="x-editable" data-type="text" data-url="./ajax/update/"
 // data-value="EUR" href="#" id="currency" name="currency">EUR</a>
-
 func (xw *XEditableWidget) html(r row) template.HTML {
 	args := map[template.HTMLAttr]any{
 		"data-value": r.get(xw.column.name()),
@@ -85,3 +75,48 @@ func enc() {
 	e := form.NewEncoder()
 	e.Encode(map[string]any{})
 }
+
+type field struct {
+	Name string
+	// Value       any
+	Label       string
+	Description string
+	Default     any
+	Widget      any
+	RenderArgs  map[string]any
+	Filters     []any
+	Validators  []any
+}
+
+var input_tmpl = template.Must(template.New("input").Parse(
+	`<input{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}} />`))
+
+func (f *field) into_html() template.HTML {
+	args := map[template.HTMLAttr]any{
+		"id":   f.Name,
+		"name": f.Name,
+	}
+	w := bytes.Buffer{}
+	input_tmpl.Execute(&w, map[string]any{
+		"args": args,
+	})
+	return template.HTML(w.String())
+}
+
+type hidden_field struct {
+	*field
+}
+
+func (f *hidden_field) into_html() template.HTML {
+	return ""
+}
+
+// type list_form struct {
+// 	fields: []{ list_form_pk, xx }
+// }
+//
+// form.Render(field_name string, value any)
+
+// type delete_form struct {
+// 	fields: []{ id, url }
+// }

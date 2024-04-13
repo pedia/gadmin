@@ -3,11 +3,9 @@
 {{ define "render_action" }}
   {{ if eq .action.name "view_row_action" }}
     {{ template "view_row" .}}
-  {{ end }}
-  {{ if eq .action.name "edit_row_action" }}
+  {{ else if eq .action.name "edit_row_action" }}
     {{ template "edit_row" .}}
-  {{ end }}
-  {{ if eq .action.name "delete_row_action" }}
+  {{ else if eq .action.name "delete_row_action" }}
     {{ template "delete_row" .}}
   {{ end }}
 {{ end }}
@@ -51,10 +49,9 @@
 <form class="icon" method="POST" action="{{ get_url ".delete_view" }}">
   {{/* delete_form.id(value=get_pk_value(row)) */}}
   {{/* delete_form.url(value=return_url) */}}
-  {{ if .delete_form.csrf_token }}
-  {{/* delete_form.csrf_token */}}
-  {% elif csrf_token %}
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  {{ if .action.csrf_token }}
+    {{/* delete_form.csrf_token */}}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
   {{ end }}
   <button onclick="return faHelpers.safeConfirm('{{ gettext "Are you sure you want to delete this record?" }}');" title="{{ gettext "Delete record" }}">
     <span class="fa fa-trash glyphicon glyphicon-trash"></span>
