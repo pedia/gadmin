@@ -51,7 +51,7 @@ func TestBaseConvert(t *testing.T) {
 	is.Equal("active=true&age=30&name=John+Doe", urlValues.Encode())
 }
 
-type foo struct {
+type FooBar struct {
 	Id             int `gorm:"primaryKey"`
 	Bar            string
 	ZenOfScreaming bool
@@ -60,7 +60,7 @@ type foo struct {
 	LowestPrice    decimal.Decimal
 }
 
-var af = foo{Id: 3, Bar: "a foo", ZenOfScreaming: true,
+var af = FooBar{Id: 3, Bar: "a foo", ZenOfScreaming: true,
 	RawDate: time.Date(2014, 11, 30, 12, 59, 59, 0, time.Local),
 }
 
@@ -89,7 +89,7 @@ func TestModel(t *testing.T) {
 func TestWidget(t *testing.T) {
 	is := assert.New(t)
 
-	m := new_model(foo{})
+	m := new_model(FooBar{})
 	r := m.into_row(af)
 	is.Equal(3, m.get_pk_value(r))
 
@@ -117,4 +117,21 @@ func TestPlaygroundForm(t *testing.T) {
 		list_form_pk: "33",
 		CamelCase:    "abc",
 	})).Encode())
+}
+
+func TestUrl(t *testing.T) {
+	is := assert.New(t)
+	admin := NewAdmin("Example: Simple Views")
+
+	u0, err := admin.urlFor("foo", ".index_view", map[string]any{})
+	is.Nil(err)
+	is.Equal("/admin/foo/", u0)
+
+	u1, err := admin.urlFor("foo", ".index_view", map[string]any{"page_size": 10})
+	is.Nil(err)
+	is.Equal("/admin/foo/?page_size=10", u1)
+
+	u2, err := admin.urlFor("", ".create_view", map[string]any{"hello": "world"})
+	is.Nil(err)
+	is.Equal("new/?hello=world", u2)
 }

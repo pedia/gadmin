@@ -8,6 +8,7 @@ import (
 
 	"github.com/fatih/camelcase"
 	"github.com/samber/lo"
+	"github.com/stoewer/go-strcase"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -75,6 +76,9 @@ func field2widget(field *schema.Field) map[string]any {
 		"input_type": table[field.FieldType.Kind()],
 	}
 }
+
+// Convert CamelCase to snake_case
+func (m *model) name() string { return strcase.SnakeCase(m.schema.Name) }
 
 // new t
 func (m *model) new() any {

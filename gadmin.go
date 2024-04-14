@@ -129,11 +129,16 @@ func (a *Admin) ts(fs ...string) *template.Template {
 	fm := merge(sprig.FuncMap(), FuncsText)
 	merge(fm, template.FuncMap{
 		"admin_static_url": a.staticUrl, // used
-		"get_url":          a.urlFor,
-		"marshal":          a.marshal, // test
-		"config":           a.config,  // used
-		"gettext":          a.gettext, //
-		"csrf_token":       func() string { return "xxxx-csrf-token" },
+		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
+			if len(args) == 0 {
+				args = []map[string]any{{}}
+			}
+			return a.urlFor("", endpoint, args[0])
+		},
+		"marshal":    a.marshal, // test
+		"config":     a.config,  // used
+		"gettext":    a.gettext, //
+		"csrf_token": func() string { return "xxxx-csrf-token" },
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		"comment": func(format string, args ...any) template.HTML {
@@ -225,9 +230,8 @@ func gettext(format string, a ...any) string {
 }
 
 // Like Flask.url_for
-func (*Admin) urlFor(endpoint string, args ...map[string]any) (string, error) {
+func (*Admin) urlFor(model, endpoint string, args map[string]any) (string, error) {
 	// endpoint to path
-	model := ""
 	if pos := strings.Index(endpoint, "."); pos != 0 {
 		model = endpoint[:pos]
 		endpoint = endpoint[pos:]
@@ -240,27 +244,25 @@ func (*Admin) urlFor(endpoint string, args ...map[string]any) (string, error) {
 		".execute_view": "execute",
 		".edit_view":    "edit",
 		".delete_view":  "delete",
-		".export":       "export/csv",
+		".export":       "export",
 	}[endpoint]
 	if !ok {
 		return "", fmt.Errorf(`endpoint "%s" not found`, endpoint)
 	}
 
-	arg := map[string]any{}
-	if len(args) > 0 {
-		arg = args[0]
-	}
-
 	// apply custom args
-	uv := map_into_values(arg)
-	if model == "" {
-		if path == "" {
-			return "?" + uv.Encode(), nil
+	uv := map_into_values(args)
+	if model != "" {
+		path = "/admin/" + model + "/"
+	} else {
+		if path != "" {
+			path = path + "/" // TODO: use URL.JoinPath
 		}
-		return "../" + path + "/?" + uv.Encode(), nil
 	}
-
-	return "/admin/" + model + "/" + path + "/?" + uv.Encode(), nil
+	if len(uv) > 0 {
+		return path + "?" + uv.Encode(), nil
+	}
+	return path, nil
 }
 func (*Admin) staticUrl(filename, ver string) string {
 	s := "/admin/static/" + filename
@@ -484,6 +486,14 @@ func (mv *ModelView) SetPageSize(v int) *ModelView {
 	return mv
 }
 
+func (mv *ModelView) urlFor(endpoint string, args ...map[string]any) (string, error) {
+	arg := map[string]any{}
+	if len(args) > 0 {
+		arg = args[0]
+	}
+	return mv.Admin.urlFor(mv.model.name(), endpoint, arg)
+}
+
 func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 	o := mv.BaseView.dict(map[string]any{
 		"table_prefix_html": mv.table_prefix_html,
@@ -548,17 +558,17 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"page":       q.page,
 			"pages":      1,
 			"num_pages":  num_pages,
-			"return_url": must[string](mv.Admin.urlFor(".index_view", mv.query_into_args(q))),
+			"return_url": must[string](mv.urlFor(".index_view", mv.query_into_args(q))),
 			"pager_url": func(page int) (string, error) {
 				args := mv.query_into_args(q)
 				args["page"] = page
-				return mv.Admin.urlFor(".index_view", args)
+				return mv.urlFor(".index_view", args)
 			},
 			"page_size": q.page_size,
 			"page_size_url": func(page_size int) (string, error) {
 				args := mv.query_into_args(q)
 				args["page_size"] = page_size
-				return mv.Admin.urlFor(".index_view", args)
+				return mv.urlFor(".index_view", args)
 			},
 			"can_set_page_size":        mv.can_set_page_size,
 			"actions":                  []string{},
@@ -587,7 +597,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 					q.sort = Asc(name)
 				}
 				args := mv.query_into_args(&q)
-				return mv.Admin.urlFor(".index_view", args)
+				return mv.urlFor(".index_view", args)
 			},
 			"is_editable": mv.is_editable,
 			"column_descriptions": func(name string) string {
