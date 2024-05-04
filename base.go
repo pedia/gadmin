@@ -14,6 +14,7 @@ func first_or_empty[T any](as ...T) T {
 	return t
 }
 
+// Ensure value avoid error/bool trouble
 func must[T any](xs ...any) T {
 	// try return with (x, error)
 	err, ok := xs[len(xs)-1].(error)
