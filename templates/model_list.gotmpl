@@ -28,7 +28,7 @@
 
 {{ define "body" }}
     {{ comment "model_list::body" }}
-    {{if .table_prefix_html}}{{ safehtml .table_prefix_html }}{{end}}
+    {{ if .table_prefix_html}}{{ safehtml .table_prefix_html }}{{ end }}
     {{ block "model_menu_bar" . }}
     <ul class="nav nav-tabs">
         <li class="nav-item">

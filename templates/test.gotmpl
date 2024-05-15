@@ -11,7 +11,7 @@
 	{{ end }}
 
 	<ul>call functions<br />
-		<li>{{.bool1}}</li>
+		<li>{{ .bool1 }}</li>
 		<li>{{call .bool1}}</li>
 		<li>{{call .bool2}}</li>
 		<li>{{call .rs}} :struct worked</li>
@@ -32,10 +32,10 @@
 
 	<ul>require<br />
 		{{ define "foo"}}
-		all: {{. | require "arg1" | require "arg2" | arg "arg1" "replaced" | args}} <br />
+		all: {{ . | require "arg1" | require "arg2" | arg "arg1" "replaced" | args}} <br />
 		origin:
 		{{ with .Origin }}
-		{{.Zoo}}
+		{{ .Zoo }}
 		{{ end }}
 		{{ end }}
 
@@ -43,15 +43,15 @@
 
 		<li>reduce args(not worked)</li>
 		{{define "bar"}}
-		all: {{.}} <br />
-		{{end}}
+		all: {{ . }} <br />
+		{{ end }}
 
 		{{ template "bar" . }}
 
 		<li>only</li>
 		{{define "bar3"}}
-		all: {{.}} <br />
-		{{end}}
+		all: {{ . }} <br />
+		{{ end }}
 
 		{{ template "bar3" . | only "foo" "Zoo" }}
 
