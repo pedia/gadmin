@@ -45,12 +45,12 @@ func args(p Pack) map[string]any {
 	return p.Args
 }
 
-// argCheckError may be raised in RequireArg
+// argCheckError may be raised in `require`
 type argCheckError struct {
 	detail string
 }
 
-// newArgCheckError returns a new ArgCheckError instance from detailed message
+// newArgCheckError returns a new [argCheckError] instance from detailed message
 func newArgCheckError(s string) *argCheckError {
 	return &argCheckError{
 		detail: s,
@@ -91,6 +91,7 @@ func requireArg(k string, trailingArgs ...any) (any, error) {
 	return nil, newArgCheckError("requireArg didn't receive argument modified by withArg")
 }
 
+// {{ slice 1 2 }}
 func makeSlice(args ...any) []any {
 	return args
 }
