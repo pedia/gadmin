@@ -46,7 +46,7 @@
     {{ end }}
 
     {{/* comment "max: %d/%T %d/%T" $min $min $max $max */}}
-    {{ $ps := rng $min $max }}
+    {{ $ps := seq $min $max }}
     {{ $page := .page }}
     {{ $generator := .generator }}
     {{ range $p := $ps }}

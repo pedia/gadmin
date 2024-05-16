@@ -76,7 +76,7 @@ var testCases = []testCase{
 	},
 	{
 		template: `
-		{{ $r1 := rng 5 }}
+		{{ $r1 := seq 5 }}
 		{{ range $e := $r1 }}
 		{{$e}},
 		{{end}}`,
@@ -86,7 +86,7 @@ var testCases = []testCase{
 	},
 	{
 		template: `
-		{{ $r2 := rng 1 4 }}
+		{{ $r2 := seq 1 4 }}
 		{{ range $e := $r2 }}
 		{{$e}},
 		{{end}}`,
@@ -96,7 +96,7 @@ var testCases = []testCase{
 	},
 	{
 		template: `
-		{{ $r3 := rng 10 1 -3}}
+		{{ $r3 := seq 10 1 -3}}
 		{{ range $e := $r3 }}
 		{{$e}},
 		{{end}}`,
@@ -106,7 +106,7 @@ var testCases = []testCase{
 	},
 	{
 		template: `
-		{{ $r4 := rng 3 }}
+		{{ $r4 := seq 3 }}
 		{{ $r4_1 := $r4 | append 3 4 }}
 		{{ range $e := $r4_1 }}
 		{{$e}},
@@ -172,7 +172,7 @@ func removeWhite(s string) string {
 func runTestCase(t *testing.T, tc testCase) {
 	temp := template.Must(
 		template.New("test_template").Funcs(
-			FuncsText,
+			Funcs,
 		).Parse(tc.template))
 	buf := new(bytes.Buffer)
 	err := temp.Execute(buf, tc.argument)

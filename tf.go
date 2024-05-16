@@ -14,12 +14,12 @@ import (
 
 // Pack represents packed arguments and original dot
 type Pack struct {
-	Origin interface{}
-	Args   map[string]interface{}
+	Origin any
+	Args   map[string]any
 }
 
-// Witharg is used in pipe to pack argument with dot
-func Witharg(k string, v interface{}, i interface{}) Pack {
+// witharg is used in pipe to pack argument with dot
+func witharg(k string, v any, i any) Pack {
 	packT := reflect.TypeOf((*Pack)(nil)).Elem()
 	if reflect.TypeOf(i) == packT {
 		old := i.(Pack)
@@ -28,106 +28,106 @@ func Witharg(k string, v interface{}, i interface{}) Pack {
 	}
 	return Pack{
 		Origin: i,
-		Args: map[string]interface{}{
+		Args: map[string]any{
 			k: v,
 		},
 	}
 
 }
 
-// Done eats all pack passed to it and returns nil
-func Done(Pack) interface{} {
+// done eats all pack passed to it and returns nil
+func done(Pack) any {
 	return nil
 }
 
-// Args extracts .Args field
-func Args(p Pack) map[string]interface{} {
+// args extracts .args field
+func args(p Pack) map[string]any {
 	return p.Args
 }
 
-// ArgCheckError may be raised in RequireArg
-type ArgCheckError struct {
+// argCheckError may be raised in RequireArg
+type argCheckError struct {
 	detail string
 }
 
-// NewArgCheckError returns a new ArgCheckError instance from detailed message
-func NewArgCheckError(s string) *ArgCheckError {
-	return &ArgCheckError{
+// newArgCheckError returns a new ArgCheckError instance from detailed message
+func newArgCheckError(s string) *argCheckError {
+	return &argCheckError{
 		detail: s,
 	}
 }
 
-func (a ArgCheckError) Error() string {
+func (a argCheckError) Error() string {
 	return a.detail
 }
 
-// RequireArg accepts packed dot(Pack), checks its validity, then returns the dot
-func RequireArg(k string, trailingArgs ...interface{}) (interface{}, error) {
+// requireArg accepts packed dot(Pack), checks its validity, then returns the dot
+func requireArg(k string, trailingArgs ...any) (any, error) {
 	if len(trailingArgs) != 1 && len(trailingArgs) != 2 {
-		return nil, NewArgCheckError(`Invalid format. requireArg parameterName ["typeName"]`)
+		return nil, newArgCheckError(`Invalid format. requireArg parameterName ["typeName"]`)
 	}
 	v := trailingArgs[len(trailingArgs)-1]
 
 	if v, ok := v.(Pack); ok { // check whether last arg is Pack
 		if _, ok := v.Args[k]; !ok { // check whether Pack contains arguments with name K
-			return nil, NewArgCheckError(fmt.Sprintf("Required argument not found. Expected: %s, actual args: %v",
+			return nil, newArgCheckError(fmt.Sprintf("Required argument not found. Expected: %s, actual args: %v",
 				k,
 				v.Args))
 		}
 		if len(trailingArgs) == 2 { // check type
 			if expectedTypeName, ok := trailingArgs[0].(string); ok {
 				if reflect.TypeOf(v.Args[k]).Name() != expectedTypeName {
-					return nil, NewArgCheckError(fmt.Sprintf("Unmatched type: Expected: %s, actual: %s",
+					return nil, newArgCheckError(fmt.Sprintf("Unmatched type: Expected: %s, actual: %s",
 						expectedTypeName,
 						reflect.TypeOf(v.Args[k]).Name()))
 				}
 			} else {
-				return nil, NewArgCheckError(fmt.Sprintf("The second argument of requireArg must be string! %v found",
+				return nil, newArgCheckError(fmt.Sprintf("The second argument of requireArg must be string! %v found",
 					trailingArgs[0]))
 			}
 		}
 		return trailingArgs[len(trailingArgs)-1], nil
 	}
-	return nil, NewArgCheckError("requireArg didn't receive argument modified by withArg")
+	return nil, newArgCheckError("requireArg didn't receive argument modified by withArg")
 }
 
-func MakeSlice(args ...interface{}) []interface{} {
+func makeSlice(args ...any) []any {
 	return args
 }
 
-// MapError may be raised in MakeMap
-type MapError struct {
+// mapError may be raised in MakeMap
+type mapError struct {
 	detail string
 }
 
-// NewMapError returns a new ArgCheckError instance from detailed message
-func NewMapError(s string) *MapError {
-	return &MapError{
+// newMapError returns a new ArgCheckError instance from detailed message
+func newMapError(s string) *mapError {
+	return &mapError{
 		detail: s,
 	}
 }
 
-func (a MapError) Error() string {
+func (a mapError) Error() string {
 	return a.detail
 }
 
-func MakeMap(args ...interface{}) (map[string]interface{}, error) {
+func makeMap(args ...any) (map[string]any, error) {
 	if len(args) < 2 {
-		return nil, NewMapError("arg num not required")
+		return nil, newMapError("arg num not required")
 	}
-	rawMap := make(map[string]interface{})
-	if oldMap, ok := args[len(args)-1].(map[string]interface{}); ok {
+	rawMap := make(map[string]any)
+	if oldMap, ok := args[len(args)-1].(map[string]any); ok {
 		rawMap = oldMap
 		args = args[:len(args)-1]
 	}
 
 	if len(args)%2 != 0 {
-		return nil, NewMapError("arg should like key1 value1 key2 value2 ...")
+		return nil, newMapError("arg should like key1 value1 key2 value2 ...")
 	}
 	for i := 0; i < len(args); i += 2 {
 		key, ok := args[i].(string)
 		if !ok {
-			return nil, NewMapError("key should be string")
+			return nil, newMapError("key should be string")
 		}
 		rawMap[key] = args[i+1]
 	}
@@ -141,9 +141,9 @@ func inRange(start, end, n int) bool {
 	return n <= start && n > end
 }
 
-func MakeRange(args ...int) ([]int, error) {
+func makeSequence(args ...int) ([]int, error) {
 	if len(args) < 1 || len(args) > 3 {
-		return nil, errors.New("Arg number to make range unsatisfied: 1-3 is acceptable")
+		return nil, errors.New("arg number to make range unsatisfied: 1-3 is acceptable")
 	}
 	var result []int
 	if len(args) == 1 {
@@ -172,26 +172,24 @@ func MakeRange(args ...int) ([]int, error) {
 	return result, nil
 }
 
-func AppendSlice(args ...interface{}) ([]interface{}, error) {
+func appendSlice(args ...any) ([]any, error) {
 	if len(args) == 0 {
-		return nil, errors.New("No arg found for appendSlice")
+		return nil, errors.New("no arg found for appendSlice")
 	}
 	oldSlice := reflect.ValueOf(args[len(args)-1])
 	if oldSlice.Kind() != reflect.Slice {
-		return nil, errors.New("The last arg must be an slice")
+		return nil, errors.New("the last arg must be an slice")
 	}
-	slice := []interface{}{}
+	slice := []any{}
 	for i := 0; i < oldSlice.Len(); i++ {
 		slice = append(slice, oldSlice.Index(i).Interface())
 	}
-	for _, v := range args[:len(args)-1] {
-		slice = append(slice, v)
-	}
+	slice = append(slice, args[:len(args)-1]...)
 
 	return slice, nil
 }
 
-func SplitStr(sep, s string) []string {
+func splitStr(sep, s string) []string {
 	return strings.Split(s, sep)
 }
 
@@ -199,7 +197,7 @@ func joinStr(sep string, a []string) string {
 	return strings.Join(a, sep)
 }
 
-func Only(args ...any) (map[string]any, error) {
+func only(args ...any) (map[string]any, error) {
 	if len(args) < 2 {
 		return nil, errors.New("filter need more args")
 	}
@@ -223,7 +221,7 @@ func Only(args ...any) (map[string]any, error) {
 	return res, nil
 }
 
-func Delete(k string, args ...any) (map[string]any, error) {
+func deleteItem(k string, args ...any) (map[string]any, error) {
 	if len(args) < 1 {
 		return nil, errors.New("delete need more args")
 	}
@@ -242,7 +240,7 @@ func Delete(k string, args ...any) (map[string]any, error) {
 }
 
 // {{ add "key" "val"}}
-func MapSet(k string, v any, args ...any) (map[string]any, error) {
+func mapSet(k string, v any, args ...any) (map[string]any, error) {
 	if len(args) != 1 {
 		return nil, errors.New("add need more args")
 	}
@@ -261,7 +259,7 @@ func MapSet(k string, v any, args ...any) (map[string]any, error) {
 }
 
 // {{ default . "key" "value" }}
-func Default(c any, k string, dv any) (any, error) {
+func defaultOf(c any, k string, dv any) (any, error) {
 	m, ok := c.(map[string]any)
 	if !ok {
 		pack, ok := c.(Pack)
@@ -276,28 +274,28 @@ func Default(c any, k string, dv any) (any, error) {
 	return dv, nil
 }
 
-func dolog(format string, v ...any) string {
+func logto(format string, v ...any) string {
 	log.Printf(format, v...)
 	return ""
 }
 
-// FuncsText is a FuncMap which can be passed as argument of .Func of text/template
-var FuncsText = template.FuncMap{
-	"arg":     Witharg,
-	"require": RequireArg,
-	"done":    Done,
-	"args":    Args,
-	"slice":   MakeSlice,
-	"map":     MakeMap,
-	"rng":     MakeRange,
-	"append":  AppendSlice,
-	"split":   SplitStr,
+// Funcs is a FuncMap which can be passed as argument of .Func of text/template
+var Funcs = template.FuncMap{
+	"arg":     witharg,
+	"require": requireArg,
+	"done":    done,
+	"args":    args,
+	"slice":   makeSlice,
+	"map":     makeMap,
+	"seq":     makeSequence,
+	"append":  appendSlice,
+	"split":   splitStr,
 	"join":    joinStr,
-	"only":    Only,
-	"delete":  Delete,
-	"set":     MapSet,
-	"default": Default,
-	"log":     dolog,
+	"only":    only,
+	"delete":  deleteItem,
+	"set":     mapSet,
+	"default": defaultOf,
+	"log":     logto,
 	// sprig add return int64
 	"add": func(is ...int) int {
 		var a int = 0
@@ -308,6 +306,3 @@ var FuncsText = template.FuncMap{
 	},
 	"sub": func(a, b int) int { return a - b },
 }
-
-// FuncsHTML is a FuncMap which can be passed as argument of .Func of html/template
-var FuncsHTML = FuncsText

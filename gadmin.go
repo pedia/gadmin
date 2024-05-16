@@ -126,7 +126,7 @@ func (a *Admin) AddView(v View) {
 }
 
 func (a *Admin) ts(fs ...string) *template.Template {
-	fm := merge(sprig.FuncMap(), FuncsText)
+	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
 		"admin_static_url": a.staticUrl, // used
 		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
