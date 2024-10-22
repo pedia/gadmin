@@ -27,8 +27,9 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		mux: http.NewServeMux(),
 	}
 
-	// TODO:
-	A.mux.HandleFunc("/admin/debug", A.debug_handle)
+	if A.debug {
+		A.mux.HandleFunc("/admin/debug", A.debug_handle)
+	}
 
 	return &A
 }
@@ -49,10 +50,10 @@ type Admin struct {
 	mux *http.ServeMux
 }
 
-func (A *Admin) AddView(view View) {
+func (A *Admin) AddView(view View) error {
 	if mv, ok := view.(*ModelView); ok {
 		if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -60,6 +61,7 @@ func (A *Admin) AddView(view View) {
 	A.Register(view.GetBlueprint())
 
 	A.addViewToMenu(view)
+	return nil
 }
 
 func (A *Admin) addViewToMenu(view View) {

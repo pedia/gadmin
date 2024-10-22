@@ -62,12 +62,12 @@ func merge[K comparable, V any](a, b map[K]V) map[K]V {
 }
 
 var (
-	ContentTypeJson     = "application/json; charset=utf-8"
-	ContentTypeUtf8Html = "text/html; charset=utf-8"
+	contentTypeJson     = "application/json; charset=utf-8"
+	contentTypeUtf8Html = "text/html; charset=utf-8"
 )
 
 func replyJson(w http.ResponseWriter, status int, obj any) {
-	w.Header().Add("content-type", ContentTypeJson)
+	w.Header().Add("content-type", contentTypeJson)
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(obj); err != nil {

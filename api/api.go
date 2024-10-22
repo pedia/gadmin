@@ -30,7 +30,7 @@ func (M MenuItem) dict() map[string]any {
 }
 
 type View interface {
-	// Add custom handle, eg: /admin/{model}/path
+	// Add custom handler, eg: /admin/{model}/path
 	Expose(path string, h http.HandlerFunc)
 
 	// CreateBluePrint()
@@ -62,7 +62,9 @@ func NewView(menu MenuItem) *BaseView {
 
 // Expose "/test" create Blueprint{Endpoint: "test", Path: "/test"}
 func (V *BaseView) Expose(path string, h http.HandlerFunc) {
+	// TODO: better way to generate default `endpoint`
 	ep := strings.ToLower(strings.ReplaceAll(path, "/", ""))
+
 	V.Blueprint.Register(
 		&Blueprint{Endpoint: ep, Path: path, Handler: h},
 	)
