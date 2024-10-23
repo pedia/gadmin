@@ -29,6 +29,7 @@ func TestBlueprint(t *testing.T) {
 	}
 
 	// is.PanicsWithError("endpoint 'not' miss in `foo`", func() { f.GetUrl(".not") })
+	is.Panics(func() { f.GetUrl(".not") })
 
 	is.Equal("/foo/", f.GetUrl(".index"))
 	is.Equal("/foo/", f.GetUrl("foo.index"))

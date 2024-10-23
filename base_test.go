@@ -55,15 +55,15 @@ func TestBaseMust(t *testing.T) {
 func TestBaseConvert(t *testing.T) {
 	is := assert.New(t)
 
-	myMap := map[string]any{
+	m := map[string]any{
 		"name":    "John Doe",
 		"age":     30,
 		"active":  true,
 		"numbers": []int{1, 2, 3}, // This will be skipped as it's not a string
 	}
 
-	urlValues := anyMapToQuery(myMap)
-	is.Equal("active=true&age=30&name=John+Doe", urlValues.Encode())
+	uv := anyMapToQuery(m)
+	is.Equal("active=true&age=30&name=John+Doe&numbers=%5B1+2+3%5D", uv.Encode())
 }
 
 func TestStd(t *testing.T) {
