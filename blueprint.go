@@ -1,10 +1,13 @@
-package api
+package gadmin
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 )
+
+type RegisterFunc func(*http.ServeMux, string, *Blueprint)
 
 // like flask.Blueprint
 //
@@ -19,20 +22,46 @@ import (
 type Blueprint struct {
 	Endpoint string                // {foo}.index
 	Path     string                // /foo
-	Children map[string]*Blueprint // endpoint => Blueprint
+	Children map[string]*Blueprint // endpoint => *Blueprint
 	Name     string                // Foo
 	Handler  http.HandlerFunc
+	Register RegisterFunc // Custom register to mux, serve static file
 	// StaticFolder
 	// StaticUrlPath
 	// TemplateFolder
 	// ErrorHandler
 }
 
-func (B *Blueprint) Register(child *Blueprint) {
+// like flask `Blueprint.Register`
+func (B *Blueprint) Add(child *Blueprint) {
 	if B.Children == nil {
 		B.Children = map[string]*Blueprint{}
 	}
 	B.Children[child.Endpoint] = child
+}
+
+// Add `Blueprint` to `http.ServeMux`
+func (B *Blueprint) RegisterTo(mux *http.ServeMux, path string) {
+	log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
+	if B.Register != nil {
+		B.Register(mux, path, B)
+	}
+
+	if B.Handler != nil {
+		mux.HandleFunc(path+B.Path, B.Handler)
+	}
+
+	unique := map[string]bool{}
+	for _, cb := range B.Children {
+		cp := path + B.Path + cb.Path
+		_, ok := unique[cp]
+		if !ok {
+			cb.RegisterTo(mux, path+B.Path)
+			unique[cp] = true
+		} else {
+			log.Printf("duplicated handle %s", cp)
+		}
+	}
 }
 
 func (B *Blueprint) GetUrl(endpoint string, args ...string) string {
@@ -43,7 +72,7 @@ func (B *Blueprint) GetUrl(endpoint string, args ...string) string {
 	} else {
 		child, ok := B.Children[arr[0]]
 		if ok {
-			return B.Path + "/" + child.GetUrl(endpoint, args...)
+			return B.Path + child.GetUrl(endpoint, args...)
 		} else {
 			panic(fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint))
 		}
@@ -66,6 +95,27 @@ func (B *Blueprint) withQuery(path string, args ...string) string {
 		return path + "?" + qs
 	}
 	return path
+}
+
+func (B *Blueprint) dict() map[string]any {
+	o := map[string]any{
+		"endpoint": B.Endpoint,
+		"path":     B.Path,
+		"handler":  B.Handler == nil,
+	}
+
+	if B.Name != "" {
+		o["name"] = B.Name
+	}
+
+	if B.Children != nil {
+		oc := map[string]any{}
+		for k, v := range B.Children {
+			oc[k] = v.dict()
+		}
+		o["children"] = oc
+	}
+	return o
 }
 
 // menu

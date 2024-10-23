@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/fatih/camelcase"
 	"github.com/samber/lo"
@@ -30,6 +31,8 @@ type model struct {
 	pk      column // TODO: multiple primary keys
 }
 
+var schemaStore = sync.Map{}
+
 func new_model(m any) *model {
 	s := must[*schema.Schema](schema.Parse(m, &schemaStore, schema.NamingStrategy{}))
 
@@ -44,8 +47,7 @@ func new_model(m any) *model {
 			"label":       strings.Join(camelcase.Split(field.Name), " "),
 			"widget":      field2widget(field),
 			"errors":      nil,
-			"primary_key": field.PrimaryKey,
-		}
+			"primary_key": field.PrimaryKey}
 	})
 
 	pk, _ := lo.Find(columns, func(c column) bool {
@@ -79,6 +81,8 @@ func field2widget(field *schema.Field) map[string]any {
 
 // Convert CamelCase to snake_case
 func (m *model) name() string { return strcase.SnakeCase(m.schema.Name) }
+
+func (m *model) label() string { return m.schema.Name }
 
 // new t
 func (m *model) new() any {

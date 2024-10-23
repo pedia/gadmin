@@ -38,8 +38,8 @@ func (xw *XEditableWidget) html(r row) template.HTML {
 	if err != nil {
 		panic(err)
 	}
-	w := &bytes.Buffer{}
-	tmpl.Execute(w, map[string]any{
+	w := bytes.Buffer{}
+	tmpl.Execute(&w, map[string]any{
 		"args":          args,
 		"display_value": r.get(xw.column.name()),
 	})

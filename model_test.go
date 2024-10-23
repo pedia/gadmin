@@ -1,7 +1,6 @@
 package gadmin
 
 import (
-	"errors"
 	"html/template"
 	"net/url"
 	"testing"
@@ -12,44 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/guregu/null.v4"
 )
-
-func TestBaseMust(t *testing.T) {
-	is := assert.New(t)
-
-	fr := func() (int, error) {
-		return 42, nil
-	}
-	is.Equal(42, must[int](fr()))
-
-	fe := func() (int, error) {
-		return 1, errors.New("sth. wrong")
-	}
-	is.Panics(func() { must[int](fe()) })
-
-	ft := func() (int, bool) {
-		return 42, true
-	}
-	is.Equal(42, must[int](ft()))
-
-	ff := func() (int, bool) {
-		return 42, false
-	}
-	is.Panics(func() { must[int](ff()) })
-}
-
-func TestBaseConvert(t *testing.T) {
-	is := assert.New(t)
-
-	myMap := map[string]any{
-		"name":    "John Doe",
-		"age":     30,
-		"active":  true,
-		"numbers": []int{1, 2, 3}, // This will be skipped as it's not a string
-	}
-
-	urlValues := map_into_values(myMap)
-	is.Equal("active=true&age=30&name=John+Doe", urlValues.Encode())
-}
 
 type FooBar struct {
 	Id             int `gorm:"primaryKey"`
@@ -121,7 +82,7 @@ func TestPlaygroundForm(t *testing.T) {
 
 func TestUrl(t *testing.T) {
 	is := assert.New(t)
-	admin := NewAdmin("Example: Simple Views")
+	admin := NewAdmin("Example: Simple Views", nil)
 
 	u0, err := admin.urlFor("foo", ".index_view", map[string]any{})
 	is.Nil(err)

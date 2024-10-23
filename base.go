@@ -1,12 +1,13 @@
 package gadmin
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/url"
-	"reflect"
-	"strconv"
 )
 
-func first_or_empty[T any](as ...T) T {
+func firstOrEmpty[T any](as ...T) T {
 	if len(as) > 0 {
 		return as[0]
 	}
@@ -16,14 +17,14 @@ func first_or_empty[T any](as ...T) T {
 
 // Ensure value avoid error/bool trouble
 func must[T any](xs ...any) T {
-	// try return with (x, error)
+	// try: func() (x, error)
 	err, ok := xs[len(xs)-1].(error)
 	if ok && err != nil {
 		panic(err)
 	}
 
 	if !ok {
-		// try return with (x, bool)
+		// try: func() (x, bool)
 		if b, ok := xs[len(xs)-1].(bool); ok && !b {
 			panic("not ok")
 		}
@@ -32,27 +33,53 @@ func must[T any](xs ...any) T {
 	return xs[0].(T)
 }
 
-func map_into_values(m map[string]any) url.Values {
-	values := url.Values{}
-	for key, value := range m {
-		// Convert value to string based on its type
-		var strVal string
-		switch reflect.TypeOf(value).Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			strVal = strconv.FormatInt(reflect.ValueOf(value).Int(), 10)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			strVal = strconv.FormatUint(reflect.ValueOf(value).Uint(), 10)
-		case reflect.Float32, reflect.Float64:
-			strVal = strconv.FormatFloat(reflect.ValueOf(value).Float(), 'f', -1, 64) // Use -1 for automatic precision
-		case reflect.Bool:
-			strVal = strconv.FormatBool(reflect.ValueOf(value).Bool())
-		case reflect.String:
-			strVal = reflect.ValueOf(value).String()
-		default:
-			// Handle any other types as needed, or skip if unsupported
-			continue
-		}
-		values.Set(key, strVal)
+func anyMapToQuery(m map[string]any) url.Values {
+	uv := url.Values{}
+	for key, val := range m {
+		uv.Set(key, fmt.Sprint(val))
 	}
-	return values
+	return uv
+}
+
+func mapToList(m map[string]any) []string {
+	arr := []string{}
+	for k, v := range m {
+		arr = append(arr, k)
+		arr = append(arr, fmt.Sprint(v)) // TODO:
+	}
+	return arr
+}
+
+// Input a,b,c,d got "a=b&c=d"
+func pairToQueryString(args ...string) string {
+	uv := url.Values{}
+	for i := 0; i < len(args); i += 2 {
+		if i+1 < len(args) {
+			// `Add` is better than `Set`
+			uv.Add(args[i], args[i+1])
+		}
+	}
+	return uv.Encode()
+}
+
+// Merge b map to a
+func merge[K comparable, V any](a, b map[K]V) map[K]V {
+	for k, v := range b {
+		a[k] = v
+	}
+	return a
+}
+
+var (
+	contentTypeJson     = "application/json; charset=utf-8"
+	contentTypeUtf8Html = "text/html; charset=utf-8"
+)
+
+func replyJson(w http.ResponseWriter, status int, obj any) {
+	w.Header().Add("content-type", contentTypeJson)
+	w.WriteHeader(status)
+
+	if err := json.NewEncoder(w).Encode(obj); err != nil {
+		panic(err)
+	}
 }

@@ -1,9 +1,8 @@
-package api
+package gadmin
 
 import (
 	"encoding/json"
 	"fmt"
-	"gadmin"
 	"html/template"
 	"net"
 	"net/http"
@@ -15,8 +14,7 @@ import (
 
 func NewAdmin(name string, db *gorm.DB) *Admin {
 	A := Admin{
-		Blueprint: &Blueprint{Name: name, Endpoint: "admin", Path: "/admin"},
-		DB:        db,
+		DB: db,
 
 		menus: []MenuItem{},
 		views: []View{},
@@ -27,9 +25,28 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		mux: http.NewServeMux(),
 	}
 
-	if A.debug {
-		A.mux.HandleFunc("/admin/debug", A.debug_handle)
-	}
+	A.Blueprint = &Blueprint{
+		Name:     name,
+		Endpoint: "admin",
+		Path:     "/admin",
+		Handler:  A.index_handle,
+		Children: map[string]*Blueprint{
+			// TODO: A.debug
+			"debug": {
+				Endpoint: "debug",
+				Path:     "/debug.html",
+				Handler:  A.debug_handle,
+			},
+			"static": {
+				Endpoint: "static",
+				Path:     "/static/",
+				Register: func(mux *http.ServeMux, path string, bp *Blueprint) {
+					fs := http.FileServer(http.Dir("static")) // TODO: Blueprint.StaticFolder
+					mux.Handle(path+bp.Path, http.StripPrefix(path+bp.Path, fs))
+				},
+			},
+		}}
+	A.RegisterTo(A.mux, "")
 
 	return &A
 }
@@ -50,17 +67,31 @@ type Admin struct {
 	mux *http.ServeMux
 }
 
+func (A *Admin) register(b *Blueprint) {
+	A.Add(b)
+
+	b.RegisterTo(A.mux, A.Path)
+}
+
 func (A *Admin) AddView(view View) error {
+	// if bv, ok := view.(*BaseView); ok {}
+
+	// TODO: flag for migrate
 	if mv, ok := view.(*ModelView); ok {
+		mv.admin = A
+
 		if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
 			return err
 		}
 	}
 
-	A.views = append(A.views, view)
-	A.Register(view.GetBlueprint())
+	b := view.GetBlueprint()
+	if b != nil {
+		A.views = append(A.views, view)
+		A.addViewToMenu(view)
 
-	A.addViewToMenu(view)
+		A.register(b)
+	}
 	return nil
 }
 
@@ -76,22 +107,15 @@ func (A *Admin) Menu() []MenuItem {
 	return A.menus
 }
 
-func (A *Admin) dict() map[string]any {
-	return map[string]any{
-		"debug":               A.debug,
-		"name":                A.Name,
-		"url":                 A.Path,
-		"admin_base_template": "base.html",
-		"swatch":              "cerulean", // "default",
-		// {{ .admin_static_url x y }}
-		// "admin_static_url": a.staticUrl,
-		"menus": lo.Map(A.menus, func(m MenuItem, _ int) map[string]any {
-			return m.dict()
-		}),
-	}
-}
-
 // AddCategory/AddLink/AddMenuItem
+
+func (A *Admin) staticURL(filename, ver string) string {
+	s := A.staticUrl + "/" + filename
+	if ver != "" {
+		s += "?ver=" + ver
+	}
+	return s
+}
 
 // `endpoint` like:
 // admin.index
@@ -126,10 +150,30 @@ func gettext(format string, a ...any) string {
 	return fmt.Sprintf(format, a...)
 }
 
+func (A *Admin) dict(others ...map[string]any) map[string]any {
+	o := map[string]any{
+		"debug":               A.debug,
+		"name":                A.Name,
+		"url":                 "/admin",
+		"admin_base_template": "base.html",
+		"swatch":              "cerulean", // "default",
+		// {{ .admin_static_url x y }}
+		// "admin_static_url": a.staticUrl,
+		"menus": lo.Map(A.menus, func(m MenuItem, _ int) map[string]any {
+			return m.dict()
+		}),
+	}
+
+	if len(others) > 0 {
+		merge(o, others[0])
+	}
+	return o
+}
+
 func (A *Admin) render(fs ...string) *template.Template {
-	fm := merge(sprig.FuncMap(), gadmin.Funcs)
+	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
-		"admin_static_url": A.staticUrl, // used
+		"admin_static_url": A.staticURL, // used
 		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
 			return A.UrlFor(endpoint, ""), nil
 		},
@@ -161,7 +205,29 @@ func (A *Admin) render(fs ...string) *template.Template {
 	// log.Println(tx.DefinedTemplates())
 	return tx
 }
+func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
+	// A.Render(w, "index.gotmpl", A.dict())
+}
 
 func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
-	replyJson(w, 200, A.dict())
+	replyJson(w, 200, A.dict(map[string]any{
+		"blueprints": A.Blueprint.dict(),
+	}))
+}
+
+// serve admin.static
+// url /admin/static/{} => local static/{}
+// first way:
+// fs := http.FileServer(http.Dir("static"))
+// a.Mux.Handle("/admin/static/", http.StripPrefix("/admin/static/", fs))
+//
+// second way:
+// a.Mux.HandleFunc("/admin/static/{path...}",
+//
+//	func(w http.ResponseWriter, r *http.Request) {
+//	        path := r.PathValue("path")
+//	        http.ServeFileFS(w, r, os.DirFS("static"), path)
+//	})
+func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {
+
 }

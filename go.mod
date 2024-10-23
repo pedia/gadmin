@@ -1,4 +1,4 @@
-module gadmin
+module github.com/pedia/gadmin
 
 go 1.22
 
