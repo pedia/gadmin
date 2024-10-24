@@ -5,20 +5,6 @@ import (
 	"strings"
 )
 
-type Menu struct {
-	Name  string // category?
-	Views []View
-	class string
-}
-
-func (m *Menu) dict() map[string]any {
-	return map[string]any{
-		"name":  m.Name,
-		"class": m.class,
-		"icon":  "TODO",
-	}
-}
-
 // Like Flask.url_for
 func (*Admin) urlFor(model, endpoint string, args map[string]any) (string, error) {
 	// endpoint to path

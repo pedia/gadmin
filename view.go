@@ -8,30 +8,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/samber/lo"
 )
-
-// Tree liked structure
-type MenuItem struct {
-	Category string // parent item Name
-	Name     string
-	Url      string
-	Icon     string
-	Class    string
-	Children []MenuItem
-	IsActive bool
-}
-
-func (M MenuItem) dict() map[string]any {
-	return map[string]any{
-		"name":  M.Name,
-		"icon":  M.Icon,
-		"class": M.Class,
-		"children": lo.Map(M.Children, func(m MenuItem, _ int) map[string]any {
-			return m.dict()
-		}),
-	}
-}
 
 type View interface {
 	// Add custom handler, eg: /admin/{model}/path
@@ -93,7 +70,7 @@ func (V *BaseView) Render(w http.ResponseWriter, template string, data map[strin
 		"templates/model_row_actions.gotmpl",
 	}
 	bases = append(bases, "templates/"+template)
-	if err := V.ts(bases...).Lookup(template).Execute(w, data); err != nil {
+	if err := V.createTemplate(bases...).Lookup(template).Execute(w, data); err != nil {
 		panic(err)
 	}
 }
@@ -114,7 +91,40 @@ func (V *BaseView) dict(others ...map[string]any) map[string]any {
 	return o
 }
 
-func (V *BaseView) ts(fs ...string) *template.Template {
+func templateFuncs(admin *Admin) template.FuncMap {
+	fm := merge(sprig.FuncMap(), Funcs)
+	merge(fm, template.FuncMap{
+		"admin_static_url": admin.staticURL, // used
+		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
+			if len(args) == 0 {
+				args = []map[string]any{{}}
+			}
+			return admin.urlFor("", endpoint, args[0])
+		},
+		"marshal":    admin.marshal, // test
+		"config":     admin.config,  // used
+		"gettext":    admin.gettext, //
+		"csrf_token": func() string { return "xxxx-csrf-token" },
+		// escape safe
+		"safehtml": func(s string) template.HTML { return template.HTML(s) },
+		"comment": func(format string, args ...any) template.HTML {
+			return template.HTML(
+				"<!-- " + fmt.Sprintf(format, args...) + " -->",
+			)
+		},
+		"safejs": func(s string) template.JS { return template.JS(s) },
+		"json": func(v any) (template.JS, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return template.JS(string(bs)), nil
+		},
+	})
+	return fm
+}
+
+func (V *BaseView) createTemplate(fs ...string) *template.Template {
 	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
 		"admin_static_url": V.admin.staticURL, // used

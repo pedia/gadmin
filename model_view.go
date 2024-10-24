@@ -45,6 +45,7 @@ type ModelView struct {
 	list_forms []base_form
 }
 
+// TODO: ensure m not ptr
 func NewModelView(m any, category ...string) *ModelView {
 	model := new_model(m)
 
@@ -54,10 +55,7 @@ func NewModelView(m any, category ...string) *ModelView {
 	}
 
 	mv := ModelView{
-		BaseView: NewView(MenuItem{
-			Category: cate,
-			Name:     model.name(),
-		}),
+		BaseView:               NewView(MenuItem{Name: cate}),
 		model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -94,11 +92,6 @@ func NewModelView(m any, category ...string) *ModelView {
 	mv.column_sortable_list = mv.model.sortable_list()
 
 	return &mv
-}
-
-func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
-	mv.Render(w, "index.gotmpl", mv.dict())
 }
 
 // Permissions
@@ -183,7 +176,7 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, "debug.gotmpl", mv.dict())
 }
-func (mv *ModelView) index2(w http.ResponseWriter, r *http.Request) {
+func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	q := mv.query_from(r)
 
 	total, data, err := mv.model.get_list(mv.admin.DB, q)

@@ -1,10 +1,52 @@
+{{/*
+    nav-link
+    dropdown-toggle
+*/}}
 {{ block "menu" .}}
     {{ range .admin.menus }}
+        {{ if .children }}
         <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
-            <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">
-                <span class="{{ .class }}">{{ .name }}</span>
-            </a>
+            <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
+            <ul class="dropdown-menu">
+                {{ range .children }}
+                    {{ template "menu_item" . }}
+                {{ end }}
+            </ul>
         </li>
-        <ul class="dropdown-menu"></ul>
+
+        {{ else }}{{/* no children */}}
+
+        <li{{ if .class }} class="{{ .class }}"{{ end }}>
+            <a class="nav-link" href="{{ .path }}">{{ .name }}</a>
+        </li>
+        {{ end }}
+    {{ end }}
+{{ end }}
+
+
+{{/* 
+    nav-link
+    dropdown-menu
+*/}}
+{{ define "menu_item" }}
+    {{ if .children }}
+
+    <li class="dropdown  dropdown-submenu dropright">
+      <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
+        <span class=" dropdown-submenu dropright"></span>{{ .name }}<i class="glyphicon glyphicon-chevron-right small"></i>
+      </a>
+      <ul class="dropdown-menu">
+        {{ range .children -}}
+            {{- template "menu_item" . -}}
+        {{- end }}
+      </ul>
+    </li>
+
+    {{ else }}
+    
+    <li>
+        <a class="dropdown-item" href="{{ .path }}">{{ .name }}</a>
+    </li>
+
     {{ end }}
 {{ end }}

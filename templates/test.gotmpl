@@ -1,25 +1,34 @@
 <html>
-
 <body>
+	<h1>template features</h1>
 
-	<ul>else if</ul>
 
+	<ul><h4>if</h4>
+		<li>{{if .emptyString}}🔴{{else}}emptyString{{end}}
+		<li>{{if .foo}}foo{{else}}🔴{{end}}
+		<li>{{if .emptyInt}}🔴{{else}}emptyInt{{end}}
+		<li>{{if .emptyIntArray}}🔴{{else}}emptyIntArray{{end}}
+	</ul>
+
+
+	<ul><h4>else if</h4>
 	{{ if eq .int 34 }}
 	34
 	{{ else if eq .int 43 }}
-	43
+	43🔴
 	{{ end }}
+	</ul>
 
-	<ul>call functions<br />
-		<li>{{ .bool1 }}</li>
-		<li>{{call .bool1}}</li>
-		<li>{{call .bool2}}</li>
+	<ul><h4>call functions</h4><br />
+		<li>func ptr: {{ .boolf }}</li>
+		<li>{{call .boolf}} :return false</li>
+		<li>{{call .boolt}} :return true</li>
 		<li>{{call .rs}} :struct worked</li>
-		<li>{{$a:= call .rs }}{{$a.Label}} :struct.name not work</li>
-		<li>{{$a:= call .map }}{{$a.name}} :map</li>
-		<li>{{$a:= call .msa }}{{$a.name}} :msa.name worked</li>
-		<li>{{$a:= index (call .msas) 0 }}{{$a.name}} :msas[0].name worked</li>
-		<li>{{$a:= index (call .msas2) 0 }}{{$a.name}} :msas[0].name worked</li>
+		<li>{{$a:= call .rs }}{{$a.Upper}} :struct.lower not work</li>
+		<li>{{$a:= call .map }}{{$a.lower}} :map</li>
+		<li>{{$a:= call .msa }}{{$a.lower}} :msa.lower worked</li>
+		<li>{{$a:= index (call .msas) 0 }}{{$a.lower}} :msas[0].lower worked</li>
+		<li>{{$a:= index (call .msas2) 0 }}{{$a.lower}} :msas[0].lower worked</li>
 	</ul>
 
 	<ul>admin:<br />

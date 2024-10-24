@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/Masterminds/sprig/v3"
-	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
@@ -16,7 +14,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 	A := Admin{
 		DB: db,
 
-		menus: []MenuItem{},
+		menu:  []*MenuItem{},
 		views: []View{},
 
 		debug:     true,
@@ -34,8 +32,13 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			// TODO: A.debug
 			"debug": {
 				Endpoint: "debug",
-				Path:     "/debug.html",
+				Path:     "/debug.json",
 				Handler:  A.debug_handle,
+			},
+			"test": {
+				Endpoint: "test",
+				Path:     "/test.html",
+				Handler:  A.test_handle,
 			},
 			"static": {
 				Endpoint: "static",
@@ -55,10 +58,11 @@ type Admin struct {
 	*Blueprint
 
 	DB    *gorm.DB
-	menus []MenuItem
+	menu  Menu
 	views []View
 
-	debug bool
+	debug        bool
+	auto_migrate bool
 
 	// Url prefix for all static resource, default as `/static`
 	// with Admin.name, default as `/admin/static`
@@ -74,23 +78,25 @@ func (A *Admin) register(b *Blueprint) {
 }
 
 func (A *Admin) AddView(view View) error {
+	// not work:
 	// if bv, ok := view.(*BaseView); ok {}
 
-	// TODO: flag for migrate
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
 
-		if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
-			return err
+		if A.auto_migrate {
+			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
+				return err
+			}
 		}
 	}
 
 	b := view.GetBlueprint()
 	if b != nil {
 		A.views = append(A.views, view)
-		A.addViewToMenu(view)
-
 		A.register(b)
+
+		A.addViewToMenu(view)
 	}
 	return nil
 }
@@ -98,13 +104,22 @@ func (A *Admin) AddView(view View) error {
 func (A *Admin) addViewToMenu(view View) {
 	menu := view.GetMenu()
 	if menu != nil {
-		A.menus = append(A.menus, *menu)
+		// patch MenuItem.Path
+		if menu.Path == "" {
+			menu.Path = A.GetUrl(view.GetBlueprint().Endpoint + ".index")
+		}
+		A.menu.Add(menu)
 	}
 }
 
-// Return the menu hierarchy.
-func (A *Admin) Menu() []MenuItem {
-	return A.menus
+func (A *Admin) AddLink(cate, name, path string) {
+	A.menu.Add(&MenuItem{Category: cate, Name: name, Path: path})
+}
+func (A *Admin) AddCategory(cate string) {
+	A.menu.Add(&MenuItem{Category: cate, Name: cate})
+}
+func (A *Admin) AddMenuItem(mi MenuItem) {
+	A.menu.Add(&mi)
 }
 
 // AddCategory/AddLink/AddMenuItem
@@ -159,9 +174,7 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 		"swatch":              "cerulean", // "default",
 		// {{ .admin_static_url x y }}
 		// "admin_static_url": a.staticUrl,
-		"menus": lo.Map(A.menus, func(m MenuItem, _ int) map[string]any {
-			return m.dict()
-		}),
+		"menus": A.menu.dict(),
 	}
 
 	if len(others) > 0 {
@@ -170,41 +183,6 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 	return o
 }
 
-func (A *Admin) render(fs ...string) *template.Template {
-	fm := merge(sprig.FuncMap(), Funcs)
-	merge(fm, template.FuncMap{
-		"admin_static_url": A.staticURL, // used
-		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
-			return A.UrlFor(endpoint, ""), nil
-		},
-		"marshal":    A.marshal, // test
-		"config":     A.config,  // used
-		"gettext":    A.gettext, //
-		"csrf_token": func() string { return "xxxx-csrf-token" },
-		// escape safe
-		"safehtml": func(s string) template.HTML { return template.HTML(s) },
-		"comment": func(format string, args ...any) template.HTML {
-			return template.HTML(
-				"<!-- " + fmt.Sprintf(format, args...) + " -->",
-			)
-		},
-		"safejs": func(s string) template.JS { return template.JS(s) },
-		"json": func(v any) (template.JS, error) {
-			bs, err := json.Marshal(v)
-			if err != nil {
-				return "", err
-			}
-			return template.JS(string(bs)), nil
-		},
-	})
-
-	tx := template.Must(template.New("all").
-		Option("missingkey=error").
-		Funcs(fm).
-		ParseFiles(fs...))
-	// log.Println(tx.DefinedTemplates())
-	return tx
-}
 func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
 	// A.Render(w, "index.gotmpl", A.dict())
 }
@@ -213,6 +191,56 @@ func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
 	replyJson(w, 200, A.dict(map[string]any{
 		"blueprints": A.Blueprint.dict(),
 	}))
+}
+func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", contentTypeUtf8Html)
+	tx, err := template.New("test").
+		Option("missingkey=error").
+		Funcs(templateFuncs(A)).
+		ParseFiles("templates/test.gotmpl")
+	if err == nil {
+		type foo struct {
+			lower string
+			Upper string
+		}
+		type msa map[string]any
+
+		err = tx.Lookup("test.gotmpl").Execute(w, map[string]any{
+			"foo":              "bar",
+			"emptyString":      "",
+			"emptyInt":         0,
+			"emptyIntArray":    []int{},
+			"emptyStringArray": []string{},
+			"null":             nil,
+			"Zoo":              "Bar",
+			"list":             []string{"a", "b"},
+			"ss":               []struct{ A string }{{A: "a"}, {A: "b"}},
+			"ls":               []map[string]any{{"A": "a"}, {"B": "b"}},
+			"conda":            true,
+			"condb":            false,
+			"int":              34,
+			"boolf":            func() bool { return false },
+			"boolt":            func() bool { return true },
+			"rs":               func() foo { return foo{lower: "lower", Upper: "Upper"} },
+			"map":              func() map[string]any { return map[string]any{"lower": "Lower", "Upper": "Upper"} },
+			"msa":              func() msa { return msa{"lower": "Lower", "Upper": "Upper"} },
+			"msas":             func() []msa { return []msa{{"lower": "Lower", "Upper": "Upper"}} },
+			"msas2":            func() ([]msa, error) { return []msa{{"lower": "Lower", "Upper": "Upper"}}, nil },
+
+			// map is better than struct
+			"admin":   A.dict(),
+			"request": rd(r),
+			// bad
+			// {{ .admin_static.Url x y}}
+			"admin_static": A,
+			// {{ .admin_static_url x y}}
+			"admin_static_url": A.staticUrl,
+		})
+	}
+
+	if err != nil {
+		w.Write([]byte(err.Error()))
+	}
 }
 
 // serve admin.static
@@ -228,6 +256,4 @@ func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
 //	        path := r.PathValue("path")
 //	        http.ServeFileFS(w, r, os.DirFS("static"), path)
 //	})
-func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {
-
-}
+// func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {}

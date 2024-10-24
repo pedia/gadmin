@@ -17,7 +17,6 @@ func main() {
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info),
 		})
-
 	A := gadmin.NewAdmin("Test Site", db)
 
 	type Foo struct {
@@ -32,6 +31,22 @@ func main() {
 		ActivatedAt  sql.NullTime
 		CreatedAt    time.Time `gorm:"autoCreateTime"`
 		UpdatedAt    time.Time `gorm:"autoUpdateTime:nano"`
+	}
+
+	var c int64
+	db.Model(&Foo{}).Count(&c)
+	if c == 0 {
+		e1 := "foo@foo.com"
+		d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, nil)
+		e2 := "bar@foo.com"
+		d2 := time.Date(2024, 3, 1, 0, 0, 0, 0, nil)
+		fs := []Foo{
+			{Name: "foo", Email: &e1, Age: 42, Normal: true, Birthday: &d1,
+				MemberNumber: sql.NullString{String: "9527", Valid: true}},
+			{Name: "bar", Email: &e2, Age: 21, Normal: false, Birthday: &d2,
+				MemberNumber: sql.NullString{String: "3699", Valid: true}},
+		}
+		db.Create(&fs)
 	}
 
 	A.AddView(gadmin.NewModelView(Foo{}))
