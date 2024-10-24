@@ -50,6 +50,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			},
 		}}
 	A.RegisterTo(A.mux, "")
+	// TODO: gettext("Home")
+	A.menu.Add(&MenuItem{Path: "/admin/", Name: "Home"})
 
 	return &A
 }

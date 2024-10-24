@@ -74,7 +74,7 @@
 
         {{ if .actions }}
         <li class="nav-item dropdown">
-            {{ template "actionlib_dropdown" .actions }}
+            {{/* template "actionlib_dropdown" .actions */}}
         </li>
         {{ end }}
 
@@ -108,7 +108,7 @@
                     <th class="">&nbsp;</th>
                 {{ end }}
                     
-                {{ range $index, $c := call .list_columns }}
+                {{ range $index, $c := .list_columns }}
                     <th class="column-header col-{{$c.name}}">
                         {{- if call $g.is_sortable $c.name -}}
                             {{- if eq $g.sort_column $c.name -}}
@@ -145,7 +145,7 @@
                 {{ end }}
                 {{ if $g.column_display_actions }}
                     <td class="list-buttons-column">
-                            {{ range $action := call $g.list_row_actions }}
+                            {{ range $action := $g.list_row_actions }}
                                 {{ template "render_action" .
                                 | arg "action" $action
                                 | arg "row_id" (call $g.get_pk_value $row)
@@ -156,7 +156,7 @@
                 {{- end -}}
                 
 
-                {{ range $c := call $g.list_columns }}
+                {{ range $c := $g.list_columns }}
                     <td class="col-{{$c.name}}">
                     {{- if call $g.is_editable $c.name }}
                         {{ call $g.list_form $c $row }}
@@ -191,7 +191,7 @@
 
     {{ block "actions" .}}
         {{/* actions ( get_url ".action_view" ) */}}
-        {{ template "actionlib_form" . }}
+        {{/* template "actionlib_form" . */}}
     {{ end }}
 
     {{- if or .edit_modal  (or .create_modal .details_modal) -}}
@@ -200,6 +200,32 @@
 {{ end }}
 {{ end }}
 
+
 {{ comment "page: %d page_size: %d num_pages: %d" .page .page_size .num_pages }}
+
+
+
+<h3>debug:</h3>
+
+    <li> actions: {{ .actions }}
+
+    <li> list_columns: {{ .list_columns | len }} <br />
+    {{ range .list_columns }}
+        {{ . }} <br />
+    {{ end }}
+
+    <li>list_row_actions: {{ .list_row_actions | len }} <br />
+    {{ range .list_row_actions }}
+       {{ . }} <br />
+    {{ end }}
+
+    <li>data: {{ .data | len }}
+
+    <li>{{ index .data 0 }}
+
+    <li> all: <br />
+    <textarea rows="10" cols="100">
+    {{ . }}
+    </textarea>
 
 {{ end }}

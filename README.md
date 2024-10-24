@@ -18,8 +18,11 @@ mv := gadmin.NewModelView(User{}).
 admin.AddView(mv)
 ```
 
+
 # Flask-Admin
-`Flask-Admin` inspires this project. We copy the template files from flask-admin(bootstrap4 only).
+Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 only).
 
 # Status
 [examples/simple](examples/simple/main.go)
+
+![Demo](screenshot.png)

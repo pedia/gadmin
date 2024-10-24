@@ -61,7 +61,7 @@ func NewModelView(m any, category ...string) *ModelView {
 		can_edit:               true,
 		can_delete:             true,
 		can_view_details:       true,
-		can_export:             true,
+		can_export:             true, // false
 		page_size:              20,
 		can_set_page_size:      false,
 		column_display_actions: true,
@@ -191,28 +191,28 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"page":       q.page,
 			"pages":      1,
 			"num_pages":  num_pages,
-			"return_url": must[string](mv.GetUrl(".index_view", mapToList(mv.query_into_args(q))...)),
+			"return_url": must[string](mv.GetUrl(".index_view", mapToList(mv.queryIntoArgv(q))...)),
 			"pager_url": func(page int) (string, error) {
-				args := mv.query_into_args(q)
+				args := mv.queryIntoArgv(q)
 				args["page"] = page
 				return mv.GetUrl(".index_view", mapToList(args)...), nil
 			},
 			"page_size": q.page_size,
 			"page_size_url": func(page_size int) (string, error) {
-				args := mv.query_into_args(q)
+				args := mv.queryIntoArgv(q)
 				args["page_size"] = page_size
 				return mv.GetUrl(".index_view", mapToList(args)...), nil
 			},
 			"can_set_page_size":        mv.can_set_page_size,
-			"actions":                  []string{},
 			"data":                     data,
 			"request":                  rd(r),
 			"get_pk_value":             mv.model.get_pk_value,
 			"column_display_pk":        mv.column_display_pk,
 			"column_display_actions":   mv.column_display_actions,
 			"column_extra_row_actions": nil,
-			"list_row_actions":         mv.list_row_actions,
-			"list_columns":             mv.list_columns,
+			"list_row_actions":         mv.list_row_actions(),
+			"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
+			"list_columns":             mv.list_columns(),
 			"is_sortable": func(name string) bool {
 				_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
 					return s == name
@@ -229,7 +229,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				} else {
 					q.sort = Asc(name)
 				}
-				args := mv.query_into_args(&q)
+				args := mv.queryIntoArgv(&q)
 				return mv.GetUrl(".index_view", mapToList(args)...), nil
 			},
 			"is_editable": mv.is_editable,
@@ -262,19 +262,19 @@ func (mv *ModelView) query(q *query) url.Values {
 	return args
 }
 
-func (mv *ModelView) query_into_args(q *query) map[string]any {
-	args := map[string]any{}
+func (mv *ModelView) queryIntoArgv(q *query) map[string]any {
+	argv := map[string]any{}
 	if q.page > 0 {
-		args["page"] = strconv.Itoa(q.page)
+		argv["page"] = strconv.Itoa(q.page)
 	}
-	args["page_size"] = strconv.Itoa(q.page_size)
+	argv["page_size"] = strconv.Itoa(q.page_size)
 	if q.sort.Name != "" {
-		args["sort"] = strconv.Itoa(mv.get_column_index(q.sort.Name))
+		argv["sort"] = strconv.Itoa(mv.get_column_index(q.sort.Name))
 		if q.sort.Desc == 1 {
-			args["desc"] = "1"
+			argv["desc"] = "1"
 		}
 	}
-	return args
+	return argv
 }
 
 func (mv *ModelView) query_from(r *http.Request) *query {
@@ -367,17 +367,17 @@ func (mv *ModelView) is_editable(name string) bool {
 }
 
 func (mv *ModelView) list_row_actions() []action {
-	as := []action{}
+	actions := []action{}
 	if mv.can_view_details {
-		as = append(as, view_row_action())
+		actions = append(actions, view_row_action)
 	}
 	if mv.can_edit {
-		as = append(as, edit_row_action())
+		actions = append(actions, edit_row_action)
 	}
 	if mv.can_delete {
-		as = append(as, delete_row_action())
+		actions = append(actions, delete_row_action)
 	}
-	return as
+	return actions
 }
 
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
