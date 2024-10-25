@@ -2,13 +2,15 @@ package gadmin
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBase(t *testing.T) {
+func TestFirstOrEmpty(t *testing.T) {
 	is := assert.New(t)
 
 	is.Equal("a", firstOrEmpty("a", "b"))
@@ -19,36 +21,28 @@ func TestBase(t *testing.T) {
 func TestPairToQuery(t *testing.T) {
 	is := assert.New(t)
 
-	is.Equal("a=1", pairToQueryString("a", "1"))
-	is.Equal("a=1&a=2", pairToQueryString("a", "1", "a", "2"))
-	is.Equal("a=+", pairToQueryString("a", " "))
+	is.Equal("a=1", pairToQuery("a", 1).Encode())
+	is.Equal("a=1&a=2", pairToQuery("a", "1", "a", "2").Encode())
+	is.Equal("a=+", pairToQuery("a", " ").Encode())
 
 	// abnormal input
-	is.Equal("", pairToQueryString("a"))
-	is.Equal("a=b", pairToQueryString("a", "b", "c"))
+	is.Equal("", pairToQuery("a").Encode())
+	is.Equal("a=b", pairToQuery("a", "b", "c").Encode())
 }
 
 func TestBaseMust(t *testing.T) {
 	is := assert.New(t)
 
-	fr := func() (int, error) {
-		return 42, nil
-	}
+	fr := func() (int, error) { return 42, nil }
 	is.Equal(42, must[int](fr()))
 
-	fe := func() (int, error) {
-		return 1, errors.New("sth. wrong")
-	}
+	fe := func() (int, error) { return 1, errors.New("sth. wrong") }
 	is.Panics(func() { must[int](fe()) })
 
-	ft := func() (int, bool) {
-		return 42, true
-	}
+	ft := func() (int, bool) { return 42, true }
 	is.Equal(42, must[int](ft()))
 
-	ff := func() (int, bool) {
-		return 42, false
-	}
+	ff := func() (int, bool) { return 42, false }
 	is.Panics(func() { must[int](ff()) })
 }
 
@@ -72,4 +66,20 @@ func TestStd(t *testing.T) {
 	is.Equal([]string{"a", "b"}, strings.SplitN("a.b", ".", 2))
 	is.Equal([]string{"a", "b.c"}, strings.SplitN("a.b.c", ".", 2))
 	is.Equal([]string{"", "b"}, strings.SplitN(".b", ".", 2))
+
+	e := form.NewEncoder()
+
+	type list_form struct {
+		list_form_pk any
+		CamelCase    string
+	}
+
+	is.Equal("%5Ba%5D=1", must[url.Values](e.Encode(map[string]any{
+		"a": 1,
+	})).Encode())
+
+	is.Equal("CamelCase=abc", must[url.Values](e.Encode(list_form{
+		list_form_pk: "33",
+		CamelCase:    "abc",
+	})).Encode())
 }

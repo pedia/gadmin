@@ -1,10 +1,8 @@
 package gadmin
 
 import (
-	"fmt"
 	"html/template"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 
@@ -83,6 +81,7 @@ func NewModelView(m any, category ...string) *ModelView {
 			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.delete},
 			// not .export_view
 			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
+			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
 		},
 	}
 
@@ -174,10 +173,13 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 }
 
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "debug.gotmpl", mv.dict())
+	mv.Render(w, "debug.gotmpl", mv.dict(map[string]any{
+		"menu":      mv.menu.dict(),
+		"blueprint": mv.Blueprint.dict(),
+	}))
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	q := mv.query_from(r)
+	q := mv.queryFrom(r)
 
 	total, data, err := mv.model.get_list(mv.admin.DB, q)
 	_ = err // TODO: notify error
@@ -191,17 +193,13 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			"page":       q.page,
 			"pages":      1,
 			"num_pages":  num_pages,
-			"return_url": must[string](mv.GetUrl(".index_view", mapToList(mv.queryIntoArgv(q))...)),
-			"pager_url": func(page int) (string, error) {
-				args := mv.queryIntoArgv(q)
-				args["page"] = page
-				return mv.GetUrl(".index_view", mapToList(args)...), nil
+			"return_url": must[string](mv.GetUrl(".index_view", q)),
+			"pager_url": func(page int) string {
+				return mv.GetUrl(".index_view", q, "page", page)
 			},
 			"page_size": q.page_size,
-			"page_size_url": func(page_size int) (string, error) {
-				args := mv.queryIntoArgv(q)
-				args["page_size"] = page_size
-				return mv.GetUrl(".index_view", mapToList(args)...), nil
+			"page_size_url": func(page_size int) string {
+				return mv.GetUrl(".index_view", q, "page_size", page_size)
 			},
 			"can_set_page_size":        mv.can_set_page_size,
 			"data":                     data,
@@ -222,15 +220,14 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			// in template, the sort url is: ?sort={index}
 			"sort_column": q.sort_column(),
 			"sort_desc":   q.sort_desc(),
-			"sort_url": func(name string, invert ...bool) (string, error) {
+			"sort_url": func(name string, invert ...bool) string {
 				q := *q // simply copy
 				if len(invert) > 0 && invert[0] {
 					q.sort = Desc(name)
 				} else {
 					q.sort = Asc(name)
 				}
-				args := mv.queryIntoArgv(&q)
-				return mv.GetUrl(".index_view", mapToList(args)...), nil
+				return mv.GetUrl(".index_view", &q)
 			},
 			"is_editable": mv.is_editable,
 			"column_descriptions": func(name string) string {
@@ -247,37 +244,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-func (mv *ModelView) query(q *query) url.Values {
-	args := url.Values{}
-	if q.page > 0 {
-		args.Set("page", fmt.Sprintf("%d", q.page))
-	}
-	args.Set("page_size", fmt.Sprintf("%d", q.page_size))
-	if q.sort.Name != "" {
-		args.Set("sort", fmt.Sprintf("%d", mv.get_column_index(q.sort.Name)))
-		if q.sort.Desc == 1 {
-			args.Set("desc", "1")
-		}
-	}
-	return args
-}
-
-func (mv *ModelView) queryIntoArgv(q *query) map[string]any {
-	argv := map[string]any{}
-	if q.page > 0 {
-		argv["page"] = strconv.Itoa(q.page)
-	}
-	argv["page_size"] = strconv.Itoa(q.page_size)
-	if q.sort.Name != "" {
-		argv["sort"] = strconv.Itoa(mv.get_column_index(q.sort.Name))
-		if q.sort.Desc == 1 {
-			argv["desc"] = "1"
-		}
-	}
-	return argv
-}
-
-func (mv *ModelView) query_from(r *http.Request) *query {
+func (mv *ModelView) queryFrom(r *http.Request) *query {
 	q := r.URL.Query()
 
 	// ?sort=0&desc=1

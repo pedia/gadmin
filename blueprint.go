@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -19,6 +20,8 @@ type RegisterFunc func(*http.ServeMux, string, *Blueprint)
 // |       | foo.index      | foo/       |
 // | Admin | admin          | /admin     |
 // |       | .index         | /          |
+//
+// A blueprint is A model and dependent pages
 type Blueprint struct {
 	Endpoint string                // {foo}.index
 	Path     string                // /foo
@@ -64,7 +67,7 @@ func (B *Blueprint) RegisterTo(mux *http.ServeMux, path string) {
 	}
 }
 
-func (B *Blueprint) GetUrl(endpoint string, args ...string) string {
+func (B *Blueprint) GetUrl(endpoint string, qs ...url.Values) (string, error) {
 	path := ""
 	arr := strings.SplitN(endpoint, ".", 2)
 	if arr[0] == "" || arr[0] == B.Endpoint {
@@ -72,29 +75,26 @@ func (B *Blueprint) GetUrl(endpoint string, args ...string) string {
 	} else {
 		child, ok := B.Children[arr[0]]
 		if ok {
-			return B.Path + child.GetUrl(endpoint, args...)
+			res, err := child.GetUrl(endpoint, qs...)
+			return B.Path + res, err
 		} else {
-			panic(fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint))
+			return "", fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint)
 		}
 	}
 
 	if len(arr) == 2 {
 		child, ok := B.Children[arr[1]]
 		if ok {
-			return path + child.GetUrl(strings.Join(arr[1:], "."), args...)
+			res, err := child.GetUrl(strings.Join(arr[1:], "."), qs...)
+			return path + res, err
 		} else {
-			panic(fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint))
+			return "", fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint)
 		}
 	}
-	return B.withQuery(B.Path, args...)
-}
-
-// Safe append query to path
-func (B *Blueprint) withQuery(path string, args ...string) string {
-	if qs := pairToQueryString(args...); qs != "" {
-		return path + "?" + qs
+	if len(qs) > 0 && len(qs[0]) > 0 {
+		return B.Path + "?" + qs[0].Encode(), nil
 	}
-	return path
+	return B.Path, nil
 }
 
 func (B *Blueprint) dict() map[string]any {

@@ -23,6 +23,7 @@ admin.AddView(mv)
 Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 only).
 
 # Status
-[examples/simple](examples/simple/main.go)
+✅ [examples/simple](examples/simple/main.go)
+✅ [examples/sqla](examples/sqla/admin/main.go)
 
 ![Demo](screenshot.png)

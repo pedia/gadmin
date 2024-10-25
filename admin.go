@@ -83,15 +83,15 @@ func (A *Admin) AddView(view View) error {
 	// not work:
 	// if bv, ok := view.(*BaseView); ok {}
 
-	if mv, ok := view.(*ModelView); ok {
-		mv.admin = A
+	// if mv, ok := view.(*ModelView); ok {
+	// 	mv.admin = A
 
-		if A.auto_migrate {
-			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
-				return err
-			}
-		}
-	}
+	// 	if A.auto_migrate {
+	// 		if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// }
 
 	b := view.GetBlueprint()
 	if b != nil {
@@ -108,7 +108,7 @@ func (A *Admin) addViewToMenu(view View) {
 	if menu != nil {
 		// patch MenuItem.Path
 		if menu.Path == "" {
-			menu.Path = A.GetUrl(view.GetBlueprint().Endpoint + ".index")
+			menu.Path, _ = A.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
 		A.menu.Add(menu)
 	}
@@ -134,11 +134,27 @@ func (A *Admin) staticURL(filename, ver string) string {
 	return s
 }
 
-// `endpoint` like:
+// Flask.url_for, `endpoint` like:
 // admin.index
 // model.create_view
-func (A *Admin) UrlFor(endpoint string, args ...string) string {
-	return A.GetUrl(endpoint, args...)
+// .create_view
+func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
+	prefix := ""
+	b := A.Blueprint
+	if model != "" {
+		cb, ok := A.Blueprint.Children[model]
+		if !ok {
+			return "", fmt.Errorf("model '%s' miss", model)
+		}
+		prefix = A.Path
+		b = cb
+	}
+
+	res, err := b.GetUrl(endpoint, pairToQuery(args...))
+	if err != nil {
+		return "", err
+	}
+	return prefix + res, nil
 }
 
 func (A *Admin) Run() {
@@ -198,7 +214,7 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", contentTypeUtf8Html)
 	tx, err := template.New("test").
 		Option("missingkey=error").
-		Funcs(templateFuncs(A)).
+		Funcs(templateFuncs("", A)).
 		ParseFiles("templates/test.gotmpl")
 	if err == nil {
 		type foo struct {

@@ -90,11 +90,11 @@ func (m *model) new() any {
 }
 
 // new []t
-func (m *model) new_slice() reflect.Value {
+func (m *model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.typo))
 }
 
-func (m *model) into_row(a any) row {
+func (m *model) intoRow(a any) row {
 	ctx := context.TODO()
 	v := reflect.ValueOf(a)
 
@@ -121,20 +121,6 @@ func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk.name())
 }
 
-type query struct {
-	page      int
-	page_size int
-	sort      Order
-	// search string
-	// filters []
-}
-
-func (q *query) sort_desc() int {
-	return q.sort.Desc
-}
-func (q *query) sort_column() string {
-	return q.sort.Name
-}
 func (q *query) apply(db *gorm.DB, count_only bool) *gorm.DB {
 	n := db
 	if !count_only {
@@ -156,7 +142,7 @@ func (q *query) apply(db *gorm.DB, count_only bool) *gorm.DB {
 	return n
 }
 
-func Query() *query {
+func newQuery() *query {
 	return &query{
 		page:      1,
 		page_size: 10,
@@ -170,7 +156,7 @@ func (m *model) get_list(db *gorm.DB, q *query) (int, []row, error) {
 		return 0, nil, err
 	}
 
-	ptr := m.new_slice()
+	ptr := m.newSlice()
 	if err := q.apply(db, false).Find(ptr.Interface()).Error; err != nil {
 		return 0, nil, err
 	}
@@ -180,7 +166,7 @@ func (m *model) get_list(db *gorm.DB, q *query) (int, []row, error) {
 	res := make([]row, len)
 	for i := 0; i < len; i++ {
 		item := ptr.Elem().Index(i).Interface()
-		res[i] = m.into_row(item)
+		res[i] = m.intoRow(item)
 	}
 	return int(total), res, nil
 }
@@ -190,7 +176,7 @@ func (m *model) get(db *gorm.DB, pk any) (row, error) {
 	if err := db.First(ptr, pk).Error; err != nil {
 		return nil, err
 	}
-	return m.into_row(ptr), nil
+	return m.intoRow(ptr), nil
 }
 
 func (m *model) update(db *gorm.DB, pk any, row row) error {
@@ -202,16 +188,4 @@ func (m *model) update(db *gorm.DB, pk any, row row) error {
 		return rc.Error
 	}
 	return nil
-}
-
-type Order struct {
-	Name string
-	Desc int
-}
-
-func Asc(name string) Order {
-	return Order{Name: name}
-}
-func Desc(name string) Order {
-	return Order{Name: name, Desc: 1}
 }

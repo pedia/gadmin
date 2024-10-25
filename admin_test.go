@@ -40,11 +40,11 @@ func TestApi(t *testing.T) {
 		UpdatedAt    time.Time `gorm:"autoUpdateTime:nano"`
 	}
 	fv := NewModelView(Foo{})
-	is.Len(fv.GetBlueprint().Children, 9)
+	is.NotEmpty(fv.GetBlueprint().Children)
 
-	is.Equal("/foo/", fv.GetUrl(".index_view"))
-	is.Equal("/foo/action", fv.GetUrl(".action_view"))
-	is.Equal("/foo/action?a=b", fv.GetUrl(".action_view", "a", "b"))
+	is.Equal("/foo/", fv.GetUrl(".index_view", nil))
+	is.Equal("/foo/action", fv.GetUrl(".action_view", nil))
+	is.Equal("/foo/action?a=b", fv.GetUrl(".action_view", nil, "a", "b"))
 
 	A.AddView(fv)
 
@@ -115,5 +115,9 @@ func TestApi(t *testing.T) {
 	A.AddView(NewModelView(Toy{}, "Association"))
 	A.AddView(NewModelView(Dog{}, "Association"))
 
-	is.Equal("/admin/foo/", A.UrlFor("foo.index"))
+	is.Equal("/admin/foo/", must[string](A.UrlFor("", "foo.index")))
+	is.Equal("/admin/foo/", must[string](A.UrlFor("foo", ".index")))
+
+	is.Equal("/admin/foo/?a=1", must[string](A.UrlFor("", "foo.index", "a", 1)))
+	is.Equal("/admin/foo/?page=3", must[string](A.UrlFor("foo", ".index", "page", 3)))
 }

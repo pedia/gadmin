@@ -41,25 +41,21 @@ func anyMapToQuery(m map[string]any) url.Values {
 	return uv
 }
 
-func mapToList(m map[string]any) []string {
-	arr := []string{}
-	for k, v := range m {
-		arr = append(arr, k)
-		arr = append(arr, fmt.Sprint(v)) // TODO:
-	}
-	return arr
-}
-
-// Input a,b,c,d got "a=b&c=d"
-func pairToQueryString(args ...string) string {
+// Input paired args, like: a,b,c,d return "a=b&c=d"
+func pairToQuery(args ...any) url.Values {
 	uv := url.Values{}
 	for i := 0; i < len(args); i += 2 {
 		if i+1 < len(args) {
+			key, ok := args[i].(string)
+			if !ok {
+				panic(fmt.Errorf("paired-args key not string %v", args[i]))
+			}
+
 			// `Add` is better than `Set`
-			uv.Add(args[i], args[i+1])
+			uv.Add(key, fmt.Sprint(args[i+1]))
 		}
 	}
-	return uv.Encode()
+	return uv
 }
 
 // Merge b map to a

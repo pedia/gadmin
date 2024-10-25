@@ -88,16 +88,16 @@ type field struct {
 	Validators  []any
 }
 
-var input_tmpl = template.Must(template.New("input").Parse(
-	`<input{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}} />`))
+var inputTemplate = template.Must(template.New("input").Parse(
+	`<input{{ range $k,$v :=.args }} {{$k}}="{{$v}}"{{end}} />`))
 
-func (f *field) into_html() template.HTML {
+func (f *field) intoHtml() template.HTML {
 	args := map[template.HTMLAttr]any{
 		"id":   f.Name,
 		"name": f.Name,
 	}
 	w := bytes.Buffer{}
-	input_tmpl.Execute(&w, map[string]any{
+	inputTemplate.Execute(&w, map[string]any{
 		"args": args,
 	})
 	return template.HTML(w.String())
@@ -107,7 +107,7 @@ type hidden_field struct {
 	*field
 }
 
-func (f *hidden_field) into_html() template.HTML {
+func (f *hidden_field) intoHtml() template.HTML {
 	return ""
 }
 

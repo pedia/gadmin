@@ -5,10 +5,65 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
 )
+
+type Order struct {
+	Name string
+	Desc int
+}
+
+func Asc(name string) Order {
+	return Order{Name: name}
+}
+func Desc(name string) Order {
+	return Order{Name: name, Desc: 1}
+}
+
+type query struct {
+	page      int
+	page_size int
+	sort      Order
+	// search string
+	// filters []
+	args []any
+}
+
+func (q *query) withArgs(args ...any) *query {
+	if q.args == nil {
+		q.args = args
+	} else {
+		q.args = append(q.args, args...)
+	}
+	return q
+}
+func (q *query) toValue() url.Values {
+	uv := url.Values{}
+	if q.page > 0 {
+		uv.Set("page", strconv.Itoa(q.page))
+	}
+	if q.page_size > 0 {
+		uv.Set("page_size", strconv.Itoa(q.page_size))
+	}
+	if q.sort.Name != "" {
+		uv.Set("sort", q.sort.Name) // TODO: mv.get_column_index(q.sort.Name))
+		if q.sort.Desc == 1 {
+			uv.Set("desc", "1")
+		}
+	}
+	return uv
+}
+
+func (q *query) sort_desc() int {
+	return q.sort.Desc
+}
+func (q *query) sort_column() string {
+	return q.sort.Name
+}
 
 type View interface {
 	// Add custom handler, eg: /admin/{model}/path
@@ -18,7 +73,7 @@ type View interface {
 
 	// Generate URL for the endpoint.
 	// In model view, return {model}/{action}
-	GetUrl(ep string, args ...string) string
+	GetUrl(ep string, q *query, args ...any) string
 
 	GetBlueprint() *Blueprint
 	GetMenu() *MenuItem
@@ -54,6 +109,16 @@ func (V *BaseView) Expose(path string, h http.HandlerFunc) {
 	)
 }
 
+func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
+	var uv url.Values
+	if q != nil {
+		uv = q.withArgs(args...).toValue()
+	} else {
+		uv = pairToQuery(args...)
+	}
+	return must[string](V.Blueprint.GetUrl(ep, uv))
+}
+
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
 func (V *BaseView) GetMenu() *MenuItem       { return &V.menu }
 func (V *BaseView) IsVisible() bool          { return true }
@@ -77,8 +142,8 @@ func (V *BaseView) Render(w http.ResponseWriter, template string, data map[strin
 
 func (V *BaseView) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
-		"category":           "V.category",
-		"name":               "V.name",
+		"category":           V.menu.Category,
+		"name":               V.menu.Name,
 		"extra_css":          []string{},
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
@@ -91,15 +156,12 @@ func (V *BaseView) dict(others ...map[string]any) map[string]any {
 	return o
 }
 
-func templateFuncs(admin *Admin) template.FuncMap {
+func templateFuncs(model string, admin *Admin) template.FuncMap {
 	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
 		"admin_static_url": admin.staticURL, // used
-		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
-			if len(args) == 0 {
-				args = []map[string]any{{}}
-			}
-			return admin.urlFor("", endpoint, args[0])
+		"get_url": func(endpoint string, args ...any) (string, error) {
+			return admin.UrlFor(model, endpoint, args...)
 		},
 		"marshal":    admin.marshal, // test
 		"config":     admin.config,  // used
@@ -128,11 +190,8 @@ func (V *BaseView) createTemplate(fs ...string) *template.Template {
 	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
 		"admin_static_url": V.admin.staticURL, // used
-		"get_url": func(endpoint string, args ...map[string]any) (string, error) {
-			if len(args) == 0 {
-				args = []map[string]any{{}}
-			}
-			return V.admin.urlFor("", endpoint, args[0])
+		"get_url": func(endpoint string, args ...any) (string, error) {
+			return V.admin.UrlFor("", endpoint, args...)
 		},
 		"marshal":    V.admin.marshal, // test
 		"config":     V.admin.config,  // used
