@@ -45,7 +45,7 @@ type ModelView struct {
 
 // TODO: ensure m not ptr
 func NewModelView(m any, category ...string) *ModelView {
-	model := new_model(m)
+	model := newModel(m)
 
 	cate := reflect.ValueOf(m).Type().Name()
 	if len(category) > 0 {
@@ -181,19 +181,18 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	q := mv.queryFrom(r)
 
-	total, data, err := mv.model.get_list(mv.admin.DB, q)
-	_ = err // TODO: notify error
+	total, data, err := mv.model.get_list(mv.admin.DB, q, mv.page_size)
+	_ = err // TODO: messages
 
-	num_pages := 1 + (total-1)/q.page_size
-	// num_pages := math.Ceil(float64(total) / float64(q.limit))
+	q.setTotal(total)
 
 	mv.Render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
 			"count":      len(data),
 			"page":       q.page,
-			"pages":      1,
-			"num_pages":  num_pages,
-			"return_url": must[string](mv.GetUrl(".index_view", q)),
+			"pages":      1, // TODO: ?
+			"num_pages":  q.num_pages,
+			"return_url": mv.GetUrl(".index_view", q),
 			"pager_url": func(page int) string {
 				return mv.GetUrl(".index_view", q, "page", page)
 			},
@@ -217,9 +216,9 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				})
 				return ok
 			},
-			// in template, the sort url is: ?sort={index}
-			"sort_column": q.sort_column(),
-			"sort_desc":   q.sort_desc(),
+			// in template, `sort url` is: ?sort={index}
+			"sort_column": q.sortColumn(),
+			"sort_desc":   q.sortDesc(),
 			"sort_url": func(name string, invert ...bool) string {
 				q := *q // simply copy
 				if len(invert) > 0 && invert[0] {
@@ -268,7 +267,7 @@ func (mv *ModelView) queryFrom(r *http.Request) *query {
 		}
 	}
 
-	limit := mv.page_size
+	var limit int
 	if mv.can_set_page_size && q.Has("page_size") {
 		i := must[int](strconv.Atoi(q.Get("page_size")))
 		limit = i
@@ -280,9 +279,10 @@ func (mv *ModelView) queryFrom(r *http.Request) *query {
 		page = i
 	}
 	return &query{
-		page:      page,
-		page_size: limit,
-		sort:      o,
+		page:              page,
+		page_size:         limit,
+		default_page_size: mv.page_size,
+		sort:              o,
 	}
 }
 

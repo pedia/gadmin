@@ -45,7 +45,7 @@
             | arg "modal_window_id" "fa_modal_window"
             | arg "content" (gettext "Create") | args}}
           {{ else }}
-            <a href="{{ get_url ".create_view" (map "url" .return_url) }}" title="{{ gettext "Create New Record" }}" class="nav-link">{{ gettext "Create" }}</a>
+            <a href="{{ get_url ".create_view" "url" .return_url }}" title="{{ gettext "Create New Record" }}" class="nav-link">{{ gettext "Create" }}</a>
           {{- end -}}
         </li>
         {{ end }}

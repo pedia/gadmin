@@ -33,7 +33,7 @@ type model struct {
 
 var schemaStore = sync.Map{}
 
-func new_model(m any) *model {
+func newModel(m any) *model {
 	s := must[*schema.Schema](schema.Parse(m, &schemaStore, schema.NamingStrategy{}))
 
 	columns := lo.Map(s.Fields, func(field *schema.Field, _ int) column {
@@ -121,43 +121,42 @@ func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk.name())
 }
 
-func (q *query) apply(db *gorm.DB, count_only bool) *gorm.DB {
-	n := db
+func (m *model) apply(db *gorm.DB,
+	q *query,
+	count_only bool,
+	default_page_size int) *gorm.DB {
+	ndb := db
+	limit := lo.Ternary(q.page_size != 0, q.page_size, default_page_size)
 	if !count_only {
-		n = n.Limit(q.page_size)
+		ndb = ndb.Limit(limit)
 
 		if q.page > 0 {
-			n = n.Offset(q.page_size * q.page)
+			ndb = ndb.Offset(limit * q.page)
 		}
 
-		if q.sort_column() != "" {
-			n = n.Order(clause.OrderByColumn{
-				Column: clause.Column{Name: q.sort_column()},
-				Desc:   q.sort_desc() == 1,
+		if q.sortColumn() != "" {
+			ndb = ndb.Order(clause.OrderByColumn{
+				Column: clause.Column{Name: q.sortColumn()},
+				Desc:   q.sortDesc() == 1,
 			})
 		}
 	}
 
 	// filter or search
-	return n
+	return ndb
 }
 
-func newQuery() *query {
-	return &query{
-		page:      1,
-		page_size: 10,
-		sort:      Asc(""),
-	}
-}
-
-func (m *model) get_list(db *gorm.DB, q *query) (int, []row, error) {
+func (m *model) get_list(db *gorm.DB, q *query, default_page_size int) (int, []row, error) {
 	var total int64
-	if err := q.apply(db, true).Model(m.new()).Count(&total).Error; err != nil {
+	if err := m.apply(db, q, true, default_page_size).
+		Model(m.new()).
+		Count(&total).Error; err != nil {
 		return 0, nil, err
 	}
 
 	ptr := m.newSlice()
-	if err := q.apply(db, false).Find(ptr.Interface()).Error; err != nil {
+	if err := m.apply(db, q, false, default_page_size).
+		Find(ptr.Interface()).Error; err != nil {
 		return 0, nil, err
 	}
 

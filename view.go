@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/samber/lo"
 )
 
 type Order struct {
@@ -30,7 +31,11 @@ type query struct {
 	sort      Order
 	// search string
 	// filters []
+
 	args []any
+
+	default_page_size int
+	num_pages         int
 }
 
 func (q *query) withArgs(args ...any) *query {
@@ -57,11 +62,15 @@ func (q *query) toValue() url.Values {
 	}
 	return uv
 }
+func (q *query) setTotal(total int) {
+	// num_pages := math.Ceil(float64(total) / float64(q.limit))
+	q.num_pages = 1 + (total-1)/lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
+}
 
-func (q *query) sort_desc() int {
+func (q *query) sortDesc() int {
 	return q.sort.Desc
 }
-func (q *query) sort_column() string {
+func (q *query) sortColumn() string {
 	return q.sort.Name
 }
 
@@ -116,7 +125,11 @@ func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
 	} else {
 		uv = pairToQuery(args...)
 	}
-	return must[string](V.Blueprint.GetUrl(ep, uv))
+	if strings.HasPrefix(ep, ".") {
+		ep = V.Endpoint + ep
+	}
+	return must[string](V.admin.GetUrl(ep, uv))
+	// return must[string](V.Blueprint.GetUrl(ep, uv))
 }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
@@ -191,7 +204,7 @@ func (V *BaseView) createTemplate(fs ...string) *template.Template {
 	merge(fm, template.FuncMap{
 		"admin_static_url": V.admin.staticURL, // used
 		"get_url": func(endpoint string, args ...any) (string, error) {
-			return V.admin.UrlFor("", endpoint, args...)
+			return V.GetUrl(endpoint, nil, args...), nil
 		},
 		"marshal":    V.admin.marshal, // test
 		"config":     V.admin.config,  // used

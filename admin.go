@@ -83,15 +83,15 @@ func (A *Admin) AddView(view View) error {
 	// not work:
 	// if bv, ok := view.(*BaseView); ok {}
 
-	// if mv, ok := view.(*ModelView); ok {
-	// 	mv.admin = A
+	if mv, ok := view.(*ModelView); ok {
+		mv.admin = A
 
-	// 	if A.auto_migrate {
-	// 		if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
-	// 			return err
-	// 		}
-	// 	}
-	// }
+		if A.auto_migrate {
+			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
+				return err
+			}
+		}
+	}
 
 	b := view.GetBlueprint()
 	if b != nil {

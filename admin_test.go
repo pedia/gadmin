@@ -1,9 +1,7 @@
 package gadmin
 
 import (
-	"database/sql"
 	"testing"
-	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -26,19 +24,6 @@ func TestApi(t *testing.T) {
 
 	A := NewAdmin("Test Site", db)
 
-	type Foo struct {
-		ID           uint `gorm:"primaryKey"`
-		Name         string
-		Email        *string
-		Age          uint8
-		Normal       bool
-		Valid        *bool `gorm:"default:true"`
-		Birthday     *time.Time
-		MemberNumber sql.NullString
-		ActivatedAt  sql.NullTime
-		CreatedAt    time.Time `gorm:"autoCreateTime"`
-		UpdatedAt    time.Time `gorm:"autoUpdateTime:nano"`
-	}
 	fv := NewModelView(Foo{})
 	is.NotEmpty(fv.GetBlueprint().Children)
 
@@ -47,6 +32,7 @@ func TestApi(t *testing.T) {
 	is.Equal("/foo/action?a=b", fv.GetUrl(".action_view", nil, "a", "b"))
 
 	A.AddView(fv)
+	is.NotNil(fv.admin)
 
 	// belongs to https://gorm.io/docs/belongs_to.html
 	type Company struct {
