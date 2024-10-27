@@ -12,7 +12,6 @@ require (
 	github.com/shopspring/decimal v1.2.0
 	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.8.4
-	gopkg.in/guregu/null.v4 v4.0.0
 	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.8
 )

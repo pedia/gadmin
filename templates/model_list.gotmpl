@@ -1,10 +1,10 @@
-{{ template "master.gotmpl" .}}
-{{ template "actions.gotmpl" .}}
-{{ template "lib.gotmpl" .}}
+{{ template "master.gotmpl" . }}
+{{ template "actions.gotmpl" . }}
+{{ template "lib.gotmpl" . }}
 
 {{ define "head" }}
     {{ comment "call head" }}
-    {{ template "form_css" .}}
+    {{ template "form_css" . }}
 {{ end }}
 
 
@@ -18,73 +18,81 @@
     {{ template "form_js" . }}
     <script src="{{ admin_static_url "admin/js/bs4_modal.js" "1.0.0" }}"></script>
     <script src="{{ admin_static_url "admin/js/bs4_filters.js" "1.0.0" }}"></script>
-    
 
     {{ template "actionlib_script" .| arg "message" (gettext "Please select at least one record.") 
                         | arg "actions" .actions
-                        | arg "actions_confirmation" .actions_confirmation | args}}
+                        | arg "actions_confirmation" .actions_confirmation | args  }}
 {{ end }}
 
 
 {{ define "body" }}
     {{ comment "model_list::body" }}
-    {{ if .table_prefix_html}}{{ safehtml .table_prefix_html }}{{ end }}
+
+    {{ comment "prefix html as alert: %s" .table_prefix_html }}
+    {{ if .table_prefix_html }}
+    <div class="alert alert-info alert-dismissable">
+        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+        {{ safehtml .table_prefix_html }}
+    </div>
+    {{ end }}
+
     {{ block "model_menu_bar" . }}
-    <ul class="nav nav-tabs">
-        <li class="nav-item">
-            <a href="javascript:void(0)" class="nav-link active">{{ gettext "List" }}{{ if .count }} ({{ .count }}){{ end }}</a>
-        </li>
+        <ul class="nav nav-tabs">
+            <li class="nav-item">
+                <a href="javascript:void(0)" class="nav-link active">{{ gettext "List" }}{{ if .count }} ({{ .count }}){{ end }}</a>
+            </li>
 
         {{ if .can_create }}
-        <li class="nav-item">
-          {{- if .create_modal -}}
-            {{ template "add_modal_button" .
-            | arg "url" (get_url ".create_view" .return_url)
-            | arg "btn_class" "nav-link"
-            | arg "title" (gettext "Create New Record")
-            | arg "modal_window_id" "fa_modal_window"
-            | arg "content" (gettext "Create") | args}}
-          {{ else }}
-            <a href="{{ get_url ".create_view" "url" .return_url }}" title="{{ gettext "Create New Record" }}" class="nav-link">{{ gettext "Create" }}</a>
-          {{- end -}}
-        </li>
-        {{ end }}
-        {{ end }}
-
-        {{ if .can_export }}
-            {{ template "export_options" . | set "btn_class" "dropdown-toggle" | set "request" .request }}
+            <li class="nav-item">
+            {{- if .create_modal -}}
+                {{ template "add_modal_button" .
+                | arg "url" (get_url ".create_view" .return_url)
+                | arg "btn_class" "nav-link"
+                | arg "title" (gettext "Create New Record")
+                | arg "modal_window_id" "fa_modal_window"
+                | arg "content" (gettext "Create") | args}}
+            {{ else }}
+                <a href="{{ get_url ".create_view" "url" .return_url }}" title="{{ gettext "Create New Record" }}" class="nav-link">{{ gettext "Create" }}</a>
+            {{- end -}}
+            </li>
         {{ end }}
 
-        {{ block "model_menu_bar_before_filters" . }}
+    {{ end }}
+
+    {{ if .can_export }}
+        {{ template "export_options" . | set "btn_class" "dropdown-toggle" | set "request" .request }}
+    {{ end }}
+
+    {{ block "model_menu_bar_before_filters" . }}
 
         {{ if .filters }}
-        <li class="nav-item dropdown">
-            {{ template "filter_options" . | arg "btn_class" "dropdown-toggle" | args }}
-        </li>
+            <li class="nav-item dropdown">
+                {{ template "filter_options" . | arg "btn_class" "dropdown-toggle" | args }}
+            </li>
         {{ end }}
 
         {{ if .can_set_page_size }}
-        <li class="nav-item dropdown">
-            {{ template "page_size_form" . 
-            | arg "btn_class" "nav-link dropdown-toggle"
-            | arg "page_size" .page_size
-            | arg "generator" .page_size_url | args}}
-        </li>
+            <li class="nav-item dropdown">
+                {{ template "page_size_form" .
+                | arg "btn_class" "nav-link dropdown-toggle"
+                | arg "page_size" .page_size
+                | arg "generator" .page_size_url | args}}
+            </li>
         {{ end }}
 
         {{ if .actions }}
-        <li class="nav-item dropdown">
-            {{/* template "actionlib_dropdown" .actions */}}
-        </li>
+            <li class="nav-item dropdown">
+                {{/* template "actionlib_dropdown" .actions */}}
+            </li>
         {{ end }}
 
         {{ if .search_supported }}
-        <li class="nav-item ml-2">
-            {{ template "search_form" . }}
-        </li>
+            <li class="nav-item ml-2">
+                {{ template "search_form" . }}
+            </li>
         {{ end }}
         {{ block "model_menu_bar_after_filters" . }}
-    </ul>
+        </ul>
     {{ end }}
 
     {{ if .filters }}
@@ -93,119 +101,124 @@
     {{ end }}
 
     {{ block "model_list_table" . }}
-    {{ $g := . }}
-    <div class="table-responsive">
-    <table class="table table-striped table-bordered table-hover model-list">
-        <thead>
-            <tr>
-                {{ if .actions }}
-                    <th class="list-checkbox-column">
-                        <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="{{ gettext "Select all records" }}" />
-                    </th>
-                {{ end }}
-                    
-                {{ if .column_display_actions }}
-                    <th class="">&nbsp;</th>
-                {{ end }}
-                    
-                {{ range $index, $c := .list_columns }}
-                    <th class="column-header col-{{$c.name}}">
-                        {{- if call $g.is_sortable $c.name -}}
-                            {{- if eq $g.sort_column $c.name -}}
-                                <a href="{{ call $g.sort_url $c.name true }}" title="{{ gettext "Sort by %s" $c.label }}">
-                                    {{ $c.label }}
-                                    {{- if $g.sort_desc -}}
-                                        <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
-                                    {{- else -}}
-                                        <span class="fa fa-chevron-down glyphicon glyphicon-chevron-down"></span>
-                                    {{- end }}
-                                </a>
-                            {{ else }}
-                                <a href="{{ call $g.sort_url $c.name }}" title="{{ gettext "Sort by %s" $c.label }}">{{ $c.label }}</a>
-                            {{ end -}}
-                        {{ else -}}
-                            {{- $c.label -}}
-                        {{- end -}}
-                        {{ if call $g.column_descriptions $c.name }}
-                            <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
-                               title="{{ call $g.column_descriptions $c.name }}"
-                               href="javascript:void(0)" data-role="tooltip"
-                            ></a>
-                        {{- end }}
-                    </th>
-                {{ end }}
-            </tr>
-        </thead>
-        {{ range $row := .data }}
-        <tr>
-                {{ if $g.actions }}
-                <td>
-                    <input type="checkbox" name="rowid" class="action-checkbox" value="{{ call $g.get_pk_value $row }}" title="{{ gettext "Select record" }}" />
-                </td>
-                {{ end }}
-                {{ if $g.column_display_actions }}
-                    <td class="list-buttons-column">
-                            {{ range $action := $g.list_row_actions }}
-                                {{ template "render_action" .
-                                | arg "action" $action
-                                | arg "row_id" (call $g.get_pk_value $row)
-                                | arg "row" $row
-                                | arg "return_url" $g.return_url | args }}
-                            {{ end }}
-                    </td>
-                {{- end -}}
-                
-
-                {{ range $c := $g.list_columns }}
-                    <td class="col-{{$c.name}}">
-                    {{- if call $g.is_editable $c.name }}
-                        {{ call $g.list_form $c $row }}
-                    {{ else }}
-                        {{- call $g.get_value $row $c -}}
+        {{ $g := . }}
+        <div class="table-responsive">
+        <table class="table table-striped table-bordered table-hover model-list">
+            <thead>
+                <tr>
+                    {{ if .actions }}
+                        <th class="list-checkbox-column">
+                            <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="{{ gettext "Select all records" }}" />
+                        </th>
                     {{ end -}}
+
+                    {{- if .column_display_actions }}
+                        <th class="">&nbsp;</th>
+                    {{ end }}
+
+                    {{ range $index, $c := .list_columns }}
+                        <th class="column-header col-{{$c.name}}">
+                            {{- if call $g.is_sortable $c.name -}}
+                                {{- if eq $g.sort_column $c.name -}}
+                                    <a href="{{ call $g.sort_url $c.name true }}" title="{{ gettext "Sort by %s" $c.label }}">
+                                        {{ $c.label }}
+                                        {{- if $g.sort_desc -}}
+                                            <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
+                                        {{- else -}}
+                                            <span class="fa fa-chevron-down glyphicon glyphicon-chevron-down"></span>
+                                        {{- end }}
+                                    </a>
+                                {{ else }}
+                                    <a href="{{ call $g.sort_url $c.name }}" title="{{ gettext "Sort by %s" $c.label }}">{{ $c.label }}</a>
+                                {{ end -}}
+                            {{ else -}}
+                                {{- $c.label -}}
+                            {{- end -}}
+                            {{ if call $g.column_descriptions $c.name }}
+                                <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
+                                title="{{ call $g.column_descriptions $c.name }}"
+                                href="javascript:void(0)" data-role="tooltip"
+                                ></a>
+                            {{- end }}
+                        </th>
+                    {{ end }}
+                </tr>
+            </thead>
+            {{ range $row := .data }}
+            <tr>
+                    {{ if $g.actions }}
+                    <td>
+                        <input type="checkbox" name="rowid" class="action-checkbox" value="{{ call $g.get_pk_value $row }}" title="{{ gettext "Select record" }}" />
                     </td>
-                {{ end }}
-        </tr>
+                    {{ end }}
+                    {{ if $g.column_display_actions }}
+                        <td class="list-buttons-column">
+                                {{ range $action := $g.list_row_actions }}
+                                    {{ template "render_action" .
+                                    | arg "action" $action
+                                    | arg "row_id" (call $g.get_pk_value $row)
+                                    | arg "row" $row
+                                    | arg "return_url" $g.return_url | args }}
+                                {{ end }}
+                        </td>
+                    {{- end -}}
+
+                    {{ range $c := $g.list_columns }}
+                        <td class="col-{{$c.name}}">
+                        {{- if call $g.is_editable $c.name }}
+                            {{ call $g.list_form $c $row }}
+                        {{ else }}
+                            {{- call $g.get_value $row $c -}}
+                        {{ end -}}
+                        </td>
+                    {{ end }}
+            </tr>
+            {{ end }}
+            {{ if not $g.data }}
+            <tr>
+                <td colspan="999">
+                    <div class="text-center">
+                        {{ gettext "There are no items in the table." }}
+                    </div>
+                </td>
+            </tr>
+            {{ end }}
+        </table>
+        </div>
+
+        {{ block "list_pager" . }}
+            {{ if gt .num_pages 0  }}
+                {{ template "pager" . | arg "page" .page 
+                | arg "pages" .num_pages
+                | arg "generator" .pager_url |args }}
+            {{ else }}
+                {{ template "simple_pager" . }}
+            {{ end }}
         {{ end }}
-        {{ if not $g.data }}
-        <tr>
-            <td colspan="999">
-                <div class="text-center">
-                    {{ gettext "There are no items in the table." }}
-                </div>
-                
-            </td>
-        </tr>
+
+        {{ block "actions" . }}
+            {{/* actions ( get_url ".action_view" ) */}}
+            {{/* template "actionlib_form" . */}}
         {{ end }}
-    </table>
-    </div>
-    {{ block "list_pager" . }}
-        {{ if gt .num_pages 0  }}
-            {{ template "pager" . | arg "page" .page 
-            | arg "pages" .num_pages
-            | arg "generator" .pager_url |args }}
-        {{ else }}
-            {{ template "simple_pager" . }}
-        {{ end }}
+
+        {{- if or .edit_modal  (or .create_modal .details_modal) -}}
+            {{ template "add_modal_window" . }}
+        {{- end -}}
+
     {{ end }}
 
-    {{ block "actions" .}}
-        {{/* actions ( get_url ".action_view" ) */}}
-        {{/* template "actionlib_form" . */}}
-    {{ end }}
-
-    {{- if or .edit_modal  (or .create_modal .details_modal) -}}
-        {{ template "add_modal_window" . }}
-    {{- end -}}
-{{ end }}
 {{ end }}
 
 
-{{ comment "page: %d page_size: %d num_pages: %d" .page .page_size .num_pages }}
+    {{ comment "page: %d page_size: %d num_pages: %d" .page .page_size .num_pages }}
 
+    <h3>debug:</h3>
 
+    <li> message: {{ call .get_flashed_messages }}
 
-<h3>debug:</h3>
+    <li> return_url: {{ .return_url }}
+
+    <li> get_url: {{ get_url ".create_view" "url" .return_url }}
 
     <li> actions: {{ .actions }}
 

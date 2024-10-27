@@ -13,9 +13,9 @@ import (
 func TestFirstOrEmpty(t *testing.T) {
 	is := assert.New(t)
 
-	is.Equal("a", firstOrEmpty("a", "b"))
-	is.Equal("", firstOrEmpty[string]())
-	is.Equal(0, firstOrEmpty[int]())
+	is.Equal("a", firstOr([]string{"a", "b"}, "c"))
+	is.Equal("c", firstOr([]string{}, "c"))
+	is.Equal(0, firstOr([]int{}, 0))
 }
 
 func TestPairToQuery(t *testing.T) {
@@ -68,16 +68,14 @@ func TestStd(t *testing.T) {
 	is.Equal([]string{"", "b"}, strings.SplitN(".b", ".", 2))
 
 	e := form.NewEncoder()
+	is.Equal("%5Ba%5D=1", must[url.Values](e.Encode(map[string]any{
+		"a": 1,
+	})).Encode())
 
 	type list_form struct {
 		list_form_pk any
 		CamelCase    string
 	}
-
-	is.Equal("%5Ba%5D=1", must[url.Values](e.Encode(map[string]any{
-		"a": 1,
-	})).Encode())
-
 	is.Equal("CamelCase=abc", must[url.Values](e.Encode(list_form{
 		list_form_pk: "33",
 		CamelCase:    "abc",

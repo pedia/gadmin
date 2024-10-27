@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -134,10 +135,13 @@ func (m *model) apply(db *gorm.DB,
 			ndb = ndb.Offset(limit * q.page)
 		}
 
-		if q.sortColumn() != "" {
+		if q.sort != "" {
+			column_index := must[int](strconv.Atoi(q.sort))
+			column_name := m.columns[column_index].name()
+
 			ndb = ndb.Order(clause.OrderByColumn{
-				Column: clause.Column{Name: q.sortColumn()},
-				Desc:   q.sortDesc() == 1,
+				Column: clause.Column{Name: column_name},
+				Desc:   q.desc,
 			})
 		}
 	}

@@ -240,7 +240,7 @@ func deleteItem(k string, args ...any) (map[string]any, error) {
 	return pm, nil
 }
 
-// {{ add "key" "val"}}
+// {{ set "key" "val"}}
 func mapSet(k string, v any, args ...any) (map[string]any, error) {
 	if len(args) != 1 {
 		return nil, errors.New("add need more args")

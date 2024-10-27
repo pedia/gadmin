@@ -7,9 +7,12 @@ import (
 	"net/url"
 )
 
-func firstOrEmpty[T any](as ...T) T {
+func firstOr[T any](as []T, or ...T) T {
 	if len(as) > 0 {
 		return as[0]
+	}
+	if len(or) > 0 {
+		return or[0]
 	}
 	var t T
 	return t

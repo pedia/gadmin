@@ -60,7 +60,7 @@
         </nav>
 
         {{ block "messages" .}}
-            {{/* layout.messages() */}}
+            {{ template "layout_messages" . }}
         {{ end -}}
 
         {{/* store the jinja2 context for form_rules rendering logic #}

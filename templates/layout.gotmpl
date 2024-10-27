@@ -51,3 +51,12 @@
 
     {{ end }}
 {{ end }}
+
+{{ define "layout_messages" }}
+    {{ range call .get_flashed_messages }}
+    <div class="alert alert-{{ .category }} alert-dismissable">
+        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+        {{ .data }}
+    </div>
+    {{ end }}
+{{ end }}

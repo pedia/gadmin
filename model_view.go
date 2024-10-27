@@ -179,6 +179,10 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
+	r = PatchFlashed(r)
+	Flash(r, "hello")
+	Flash(r, "Worked", "success")
+	Flash(r, "Caution", "danger")
 	q := mv.queryFrom(r)
 
 	total, data, err := mv.model.get_list(mv.admin.DB, q, mv.page_size)
@@ -217,14 +221,12 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				return ok
 			},
 			// in template, `sort url` is: ?sort={index}
-			"sort_column": q.sortColumn(),
-			"sort_desc":   q.sortDesc(),
+			"sort_column": q.sort,
+			"sort_desc":   q.desc,
 			"sort_url": func(name string, invert ...bool) string {
 				q := *q // simply copy
 				if len(invert) > 0 && invert[0] {
-					q.sort = Desc(name)
-				} else {
-					q.sort = Asc(name)
+					q.desc = invert[0]
 				}
 				return mv.GetUrl(".index_view", &q)
 			},
@@ -239,51 +241,35 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				return m[col.name()]
 			},
 			"list_form": mv.list_form,
+
+			"get_flashed_messages": func() []map[string]any {
+				return FlashedFrom(r).GetMessages()
+			},
 		},
 	))
 }
 
 func (mv *ModelView) queryFrom(r *http.Request) *query {
-	q := r.URL.Query()
+	q := query{default_page_size: mv.page_size}
+	uv := r.URL.Query()
 
 	// ?sort=0&desc=1
-	var sort_column string
-	if q.Has("sort") {
-		i := must[int](strconv.Atoi(q.Get("sort")))
-		sort_column = mv.column_list[i]
+	if uv.Has("sort") {
+		q.sort = uv.Get("sort")
+	}
+	if uv.Has("desc") {
+		q.desc = true
 	}
 
-	var sort_desc int
-	if q.Has("desc") {
-		sort_desc = 1
+	if uv.Has("page_size") {
+		q.page_size = must[int](strconv.Atoi(uv.Get("page_size")))
+	}
+	if uv.Has("page") {
+		q.page = must[int](strconv.Atoi(uv.Get("page")))
 	}
 
-	o := Asc("")
-	if sort_column != "" {
-		if sort_desc == 0 {
-			o = Asc(sort_column)
-		} else {
-			o = Desc(sort_column)
-		}
-	}
-
-	var limit int
-	if mv.can_set_page_size && q.Has("page_size") {
-		i := must[int](strconv.Atoi(q.Get("page_size")))
-		limit = i
-	}
-
-	var page int
-	if q.Has("page") {
-		i := must[int](strconv.Atoi(q.Get("page")))
-		page = i
-	}
-	return &query{
-		page:              page,
-		page_size:         limit,
-		default_page_size: mv.page_size,
-		sort:              o,
-	}
+	// TODO: flt1_0=1&search=Alfie
+	return &q
 }
 
 func (mv *ModelView) list_columns() []column {

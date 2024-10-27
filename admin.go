@@ -79,7 +79,7 @@ func (A *Admin) register(b *Blueprint) {
 	b.RegisterTo(A.mux, A.Path)
 }
 
-func (A *Admin) AddView(view View) error {
+func (A *Admin) AddView(view View) View {
 	// not work:
 	// if bv, ok := view.(*BaseView); ok {}
 
@@ -88,7 +88,7 @@ func (A *Admin) AddView(view View) error {
 
 		if A.auto_migrate {
 			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
-				return err
+				return nil
 			}
 		}
 	}
@@ -100,7 +100,7 @@ func (A *Admin) AddView(view View) error {
 
 		A.addViewToMenu(view)
 	}
-	return nil
+	return view
 }
 
 func (A *Admin) addViewToMenu(view View) {
@@ -221,38 +221,28 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 			lower string
 			Upper string
 		}
-		type msa map[string]any
 
 		err = tx.Lookup("test.gotmpl").Execute(w, map[string]any{
-			"foo":              "bar",
+			"lower":            "bar",
+			"Upper":            "Bar",
+			"int":              34,
 			"emptyString":      "",
 			"emptyInt":         0,
 			"emptyIntArray":    []int{},
 			"emptyStringArray": []string{},
-			"null":             nil,
-			"Zoo":              "Bar",
-			"list":             []string{"a", "b"},
-			"ss":               []struct{ A string }{{A: "a"}, {A: "b"}},
-			"ls":               []map[string]any{{"A": "a"}, {"B": "b"}},
-			"conda":            true,
-			"condb":            false,
-			"int":              34,
-			"boolf":            func() bool { return false },
-			"boolt":            func() bool { return true },
-			"rs":               func() foo { return foo{lower: "lower", Upper: "Upper"} },
-			"map":              func() map[string]any { return map[string]any{"lower": "Lower", "Upper": "Upper"} },
-			"msa":              func() msa { return msa{"lower": "Lower", "Upper": "Upper"} },
-			"msas":             func() []msa { return []msa{{"lower": "Lower", "Upper": "Upper"}} },
-			"msas2":            func() ([]msa, error) { return []msa{{"lower": "Lower", "Upper": "Upper"}}, nil },
+			//
+			"rfoo": foo{Upper: "Bar", lower: "bar"},
+			"ffoo": func() foo { return foo{Upper: "Bar", lower: "bar"} },
 
-			// map is better than struct
-			"admin":   A.dict(),
-			"request": rd(r),
-			// bad
-			// {{ .admin_static.Url x y}}
-			"admin_static": A,
-			// {{ .admin_static_url x y}}
-			"admin_static_url": A.staticUrl,
+			//
+			"msa": map[string]any{"Upper": "Bar", "lower": "bar"},
+
+			"null":  nil,
+			"list":  []string{"a", "b"},
+			"ss":    []struct{ A string }{{A: "a"}, {A: "b"}},
+			"ls":    []map[string]any{{"A": "a"}, {"B": "b"}},
+			"boolf": func() bool { return false },
+			"boolt": func() bool { return true },
 		})
 	}
 

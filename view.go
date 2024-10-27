@@ -13,22 +13,11 @@ import (
 	"github.com/samber/lo"
 )
 
-type Order struct {
-	Name string
-	Desc int
-}
-
-func Asc(name string) Order {
-	return Order{Name: name}
-}
-func Desc(name string) Order {
-	return Order{Name: name, Desc: 1}
-}
-
 type query struct {
 	page      int
 	page_size int
-	sort      Order
+	sort      string // column index: 0,1,...
+	desc      bool   // desc or asc, default is asc
 	// search string
 	// filters []
 
@@ -54,9 +43,9 @@ func (q *query) toValue() url.Values {
 	if q.page_size > 0 {
 		uv.Set("page_size", strconv.Itoa(q.page_size))
 	}
-	if q.sort.Name != "" {
-		uv.Set("sort", q.sort.Name) // TODO: mv.get_column_index(q.sort.Name))
-		if q.sort.Desc == 1 {
+	if q.sort != "" {
+		uv.Set("sort", q.sort)
+		if q.desc {
 			uv.Set("desc", "1")
 		}
 	}
@@ -65,13 +54,6 @@ func (q *query) toValue() url.Values {
 func (q *query) setTotal(total int) {
 	// num_pages := math.Ceil(float64(total) / float64(q.limit))
 	q.num_pages = 1 + (total-1)/lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
-}
-
-func (q *query) sortDesc() int {
-	return q.sort.Desc
-}
-func (q *query) sortColumn() string {
-	return q.sort.Name
 }
 
 type View interface {

@@ -4,87 +4,34 @@
 
 
 	<ul><h4>if</h4>
-		<li>{{if .emptyString}}🔴{{else}}emptyString{{end}}
-		<li>{{if .foo}}foo{{else}}🔴{{end}}
-		<li>{{if .emptyInt}}🔴{{else}}emptyInt{{end}}
-		<li>{{if .emptyIntArray}}🔴{{else}}emptyIntArray{{end}}
+		<li>emptyString: {{ if not .emptyString }} 🟢 {{ else }} not work {{ end }}
+		<li>lower {{ if .lower }} 🟢 {{ else }} not work  {{ end }}
+		<li>emptyInt: {{if not .emptyInt }} 🟢 {{ else }} not work {{ end }}
+		<li>emptyIntArray: {{if not .emptyIntArray }} 🟢 {{ else }} not work {{ end }}
 	</ul>
 
 
 	<ul><h4>else if</h4>
 	{{ if eq .int 34 }}
-	34
+	🟢
 	{{ else if eq .int 43 }}
-	43🔴
+	not work
 	{{ end }}
 	</ul>
 
-	<ul><h4>call functions</h4><br />
-		<li>func ptr: {{ .boolf }}</li>
-		<li>{{call .boolf}} :return false</li>
-		<li>{{call .boolt}} :return true</li>
-		<li>{{call .rs}} :struct worked</li>
-		<li>{{$a:= call .rs }}{{$a.Upper}} :struct.lower not work</li>
-		<li>{{$a:= call .map }}{{$a.lower}} :map</li>
-		<li>{{$a:= call .msa }}{{$a.lower}} :msa.lower worked</li>
-		<li>{{$a:= index (call .msas) 0 }}{{$a.lower}} :msas[0].lower worked</li>
-		<li>{{$a:= index (call .msas2) 0 }}{{$a.lower}} :msas[0].lower worked</li>
-	</ul>
 
-	<ul>admin:<br />
-		<textarea rows="10" cols="50">{{ safehtml (marshal .admin) }}</textarea>
-	</ul>
-
-	<ul>request:<br />
-		<textarea rows="4" cols="50">{{ safehtml (marshal .request) }}</textarea>
-	</ul>
-
-	<ul>require<br />
-		{{ define "foo"}}
-		all: {{ . | require "arg1" | require "arg2" | arg "arg1" "replaced" | args}} <br />
-		origin:
-		{{ with .Origin }}
-		{{ .Zoo }}
-		{{ end }}
-		{{ end }}
-
-		{{ template "foo" .| arg "arg1" "v1" | arg "arg2" "v2" |arg "arg3" "v3" }}
-
-		<li>reduce args(not worked)</li>
-		{{define "bar"}}
-		all: {{ . }} <br />
-		{{ end }}
-
-		{{ template "bar" . }}
-
-		<li>only</li>
-		{{define "bar3"}}
-		all: {{ . }} <br />
-		{{ end }}
-
-		{{ template "bar3" . | only "foo" "Zoo" }}
+	<ul><h4>struct</h4></ul>
+	<li>value: {{ .rfoo }} {{ .rfoo.Upper }} {{/* .rfoo.lower */}}
+	<li>func return: {{ call .ffoo }} {{ (call .ffoo).Upper }} {{/* (call .ffoo).lower */}}
 
 
-		{{ . | arg "foo" 1 | arg "bar" 2 | only "foo" "Zoo" }}
+	<ul><h4>map[string]any</h4></ul>
+	<li>value: {{ .msa }}
+	<li>.Upper: {{ .msa.Upper }}
+	<li>.lower: {{ .msa.lower }}
+	<li>map.set: {{ .msa | set "a" "b" }} after: {{ .msa }}
 
-		<li>html safe</li>
-		{{ safehtml "<span>foo</span>"}}
 
-		<li>js safe</li>
-		<script>
-			var a={{ .null }}, b={{ .list }}, c={{ .ss }};
-			var ls={{ index .ls 0 }};
-			var ls={{ safejs (marshal (index .ls 0)) }};
-			var ss={{ safejs (marshal (index .ss 0)) }};
-			var js={{ json (index .ss 0) }};
-		</script>
-
-		<li>default arg</li>
-		{{ block "default_arg" . }}
-			not exists: {{ default . "san" "dv" }}<br />
-			exists: {{ default . "Zoo" "dv" }}
-		{{ end }}
-	</ul>
 </body>
 
 </html>
