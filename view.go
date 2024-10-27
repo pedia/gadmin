@@ -51,9 +51,10 @@ func (q *query) toValue() url.Values {
 	}
 	return uv
 }
-func (q *query) setTotal(total int) {
+func (q *query) setTotal(total int64) {
 	// num_pages := math.Ceil(float64(total) / float64(q.limit))
-	q.num_pages = 1 + (total-1)/lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
+	page_size := lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
+	q.num_pages = int(1 + (total-1)/int64(page_size))
 }
 
 type View interface {
@@ -111,7 +112,10 @@ func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
 	if strings.HasPrefix(ep, ".") {
 		ep = V.Endpoint + ep
 	}
-	return must[string](V.admin.GetUrl(ep, uv))
+	if V.admin != nil {
+		return must[string](V.admin.GetUrl(ep, uv))
+	}
+	return must[string](V.Blueprint.GetUrl(ep, uv))
 }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
@@ -119,7 +123,7 @@ func (V *BaseView) GetMenu() *MenuItem       { return &V.menu }
 func (V *BaseView) IsVisible() bool          { return true }
 func (V *BaseView) IsAccessible() bool       { return true }
 func (V *BaseView) Render(w http.ResponseWriter, template string, data map[string]any) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 	bases := []string{
 		"templates/layout.gotmpl",
 		"templates/master.gotmpl",

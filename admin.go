@@ -85,21 +85,28 @@ func (A *Admin) AddView(view View) View {
 
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
-
 		if A.auto_migrate {
 			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
 				return nil
 			}
 		}
-	}
 
-	b := view.GetBlueprint()
-	if b != nil {
+		b := mv.GetBlueprint()
+		if b != nil {
+			A.views = append(A.views, mv)
+			A.register(b)
+
+			A.addViewToMenu(mv)
+		}
+	} else {
+		bv, ok := view.(*BaseView)
+		if ok {
+			bv.admin = A
+		}
 		A.views = append(A.views, view)
-		A.register(b)
-
-		A.addViewToMenu(view)
+		view.GetBlueprint().RegisterTo(A.mux, "")
 	}
+
 	return view
 }
 
@@ -206,12 +213,12 @@ func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
-	replyJson(w, 200, A.dict(map[string]any{
+	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprints": A.Blueprint.dict(),
 	}))
 }
 func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("test").
 		Option("missingkey=error").
 		Funcs(templateFuncs("", A)).

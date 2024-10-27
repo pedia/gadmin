@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,27 @@ type Tag struct {
 	Name string `gorm:"uniqueIndex;size:64"`
 }
 
+func NewHomeView() *HomeView {
+	h := HomeView{
+		gadmin.NewView(gadmin.MenuItem{}),
+	}
+	h.Blueprint = &gadmin.Blueprint{
+		Path:     "/",
+		Endpoint: "index",
+		Handler:  h.index,
+	}
+	return &h
+}
+
+type HomeView struct {
+	*gadmin.BaseView
+}
+
+func (H *HomeView) index(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", gadmin.ContentTypeUtf8Html)
+	w.Write([]byte(`<h1>home</h1> goto <a href="/admin">/admin</a>`))
+}
+
 func main() {
 	db, _ := gorm.Open(sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
 		&gorm.Config{
@@ -65,5 +87,6 @@ func main() {
 		{Name: "External Link", Path: "http://www.example.com/"},
 	}})
 
+	a.AddView(NewHomeView())
 	a.Run()
 }

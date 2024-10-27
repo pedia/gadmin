@@ -82,6 +82,8 @@ func NewModelView(m any, category ...string) *ModelView {
 			// not .export_view
 			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
 			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
+			// for json
+			"list": {Endpoint: "list", Path: "/list", Handler: mv.list},
 		},
 	}
 
@@ -183,7 +185,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	Flash(r, "Caution", "danger")
 	q := mv.queryFrom(r)
 
-	total, data, err := mv.model.get_list(mv.admin.DB, q, mv.page_size)
+	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
 	_ = err // TODO: messages
 
 	q.setTotal(total)
@@ -253,6 +255,17 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	))
+}
+func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
+	q := mv.queryFrom(r)
+
+	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
+	if err != nil {
+		ReplyJson(w, 200, map[string]any{"error": err.Error()})
+		return
+	}
+	// q.setTotal(total)
+	ReplyJson(w, 200, map[string]any{"total": total, "data": data})
 }
 
 func (mv *ModelView) queryFrom(r *http.Request) *query {
@@ -332,23 +345,30 @@ func (mv *ModelView) list_row_actions() []action {
 	return actions
 }
 
+// row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, "model_create.gotmpl", mv.dict(map[string]any{
 		"request": rd(r)},
 	))
 }
+
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 }
+
+// Model().Where(pk field = pk value).Delete()
 func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 }
+
+// Model().Where(pk field = pk value).First()
 func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 }
 
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
 // Record was successfully saved.
+// Model().Where().Update(currency=USD)
 func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)

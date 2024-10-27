@@ -7,6 +7,7 @@ The basic concept behind `gadmin`, is that it lets you build complicated interfa
 We write `gadmin` in Go, depend on `net/http`, `template/html` and `gorm`.
 
 ## Example
+- Mmodel view
 ```go
 mv := gadmin.NewModelView(User{}).
     SetColumnList("type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number").
@@ -16,6 +17,10 @@ mv := gadmin.NewModelView(User{}).
     SetPageSize(5).
     SetTablePrefixHtml(`<h4>Some Caution</h4>`)
 admin.AddView(mv)
+```
+
+- View
+```go
 ```
 
 

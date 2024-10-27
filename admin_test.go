@@ -14,7 +14,8 @@ import (
 func TestApi(t *testing.T) {
 	is := assert.New(t)
 
-	db := must[*gorm.DB](gorm.Open(sqlite.Open("db.sqlite"),
+	db := must[*gorm.DB](gorm.Open(
+		sqlite.Open("db.sqlite"),
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info),
