@@ -75,7 +75,7 @@ func NewModelView(m any, category ...string) *ModelView {
 			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.index},
 			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.new},
 			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.details},
-			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.index},
+			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajax_update},
 			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.index},
 			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.edit},
 			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.delete},
@@ -162,8 +162,6 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		"filter_groups":        []string{},
 		"actions_confirmation": []string{},
 		"search_supported":     false,
-		// will replace
-		"return_url": "../",
 	})
 
 	if len(others) > 0 {
@@ -179,7 +177,7 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	r = PatchFlashed(r)
+	// test
 	Flash(r, "hello")
 	Flash(r, "Worked", "success")
 	Flash(r, "Caution", "danger")
@@ -221,13 +219,21 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				return ok
 			},
 			// in template, `sort url` is: ?sort={index}
-			"sort_column": q.sort,
-			"sort_desc":   q.desc,
+			// transform `index` to `column name`
+			"sort_column": func() string {
+				if q.sort != "" {
+					idx := must[int](strconv.Atoi(q.sort))
+					if idx != -1 {
+						return mv.column_list[idx]
+					}
+				}
+				return ""
+			}(),
+			"sort_desc": q.desc,
 			"sort_url": func(name string, invert ...bool) string {
 				q := *q // simply copy
-				if len(invert) > 0 && invert[0] {
-					q.desc = invert[0]
-				}
+				q.sort = strconv.Itoa(mv.get_column_index(name))
+				q.desc = firstOr(invert)
 				return mv.GetUrl(".index_view", &q)
 			},
 			"is_editable": mv.is_editable,
@@ -235,7 +241,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				if desc, ok := mv.column_descriptions[name]; ok {
 					return desc
 				}
-				return mv.get_column(name)["description"].(string)
+				return mv.model.find(name)["description"].(string)
 			},
 			"get_value": func(m map[string]any, col column) any {
 				return m[col.name()]
@@ -258,7 +264,9 @@ func (mv *ModelView) queryFrom(r *http.Request) *query {
 		q.sort = uv.Get("sort")
 	}
 	if uv.Has("desc") {
-		q.desc = true
+		if v, err := strconv.ParseBool(uv.Get("desc")); err == nil {
+			q.desc = v
+		}
 	}
 
 	if uv.Has("page_size") {
@@ -274,14 +282,12 @@ func (mv *ModelView) queryFrom(r *http.Request) *query {
 
 func (mv *ModelView) list_columns() []column {
 	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
-		// in column_list
-		ok := true
-		if len(mv.column_list) > 0 {
-			_, ok = lo.Find(mv.column_list, func(c string) bool {
-				return c == col.name()
-			})
-		}
-		// not in column_exclude_list
+		// in `column_list`
+		_, ok := lo.Find(mv.column_list, func(c string) bool {
+			return c == col.name()
+		})
+
+		// not in `column_exclude_list`
 		_, exclude := lo.Find(mv.column_exclude_list, func(c string) bool {
 			return c == col.name()
 		})
@@ -289,14 +295,6 @@ func (mv *ModelView) list_columns() []column {
 	})
 }
 
-func (mv *ModelView) get_column(name string) column {
-	if col, ok := lo.Find(mv.model.columns, func(col column) bool {
-		return col.name() == name
-	}); ok {
-		return col
-	}
-	return nil
-}
 func (mv *ModelView) get_column_index(name string) int {
 	if _, i, ok := lo.FindIndexOf(mv.column_list, func(c string) bool {
 		return c == name
@@ -305,6 +303,7 @@ func (mv *ModelView) get_column_index(name string) int {
 	}
 	return -1
 }
+
 func (mv *ModelView) list_form(col column, r row) template.HTML {
 	x := XEditableWidget{model: mv.model, column: col}
 	return x.html(r)

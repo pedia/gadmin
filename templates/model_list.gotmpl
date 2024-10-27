@@ -120,7 +120,7 @@
                         <th class="column-header col-{{$c.name}}">
                             {{- if call $g.is_sortable $c.name -}}
                                 {{- if eq $g.sort_column $c.name -}}
-                                    <a href="{{ call $g.sort_url $c.name true }}" title="{{ gettext "Sort by %s" $c.label }}">
+                                    <a href="{{ call $g.sort_url $c.name (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.label }}">
                                         {{ $c.label }}
                                         {{- if $g.sort_desc -}}
                                             <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>

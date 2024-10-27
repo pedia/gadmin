@@ -107,6 +107,15 @@ func (m *model) intoRow(a any) row {
 	return r
 }
 
+func (m *model) find(name string) column {
+	if col, ok := lo.Find(m.columns, func(col column) bool {
+		return col.name() == name
+	}); ok {
+		return col
+	}
+	return nil
+}
+
 // Return all field can be sorted
 // exclude relationship fields
 func (m *model) sortable_list() []string {

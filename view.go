@@ -14,9 +14,9 @@ import (
 )
 
 type query struct {
-	page      int
+	page      int // 1 based
 	page_size int
-	sort      string // column index: 0,1,...
+	sort      string // column index: 0,1,... maybe `null.String` is better
 	desc      bool   // desc or asc, default is asc
 	// search string
 	// filters []
@@ -100,6 +100,7 @@ func (V *BaseView) Expose(path string, h http.HandlerFunc) {
 	)
 }
 
+// TODO: move query into `ModelView`
 func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
 	var uv url.Values
 	if q != nil {
@@ -111,7 +112,6 @@ func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
 		ep = V.Endpoint + ep
 	}
 	return must[string](V.admin.GetUrl(ep, uv))
-	// return must[string](V.Blueprint.GetUrl(ep, uv))
 }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
