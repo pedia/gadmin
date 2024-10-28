@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/Masterminds/sprig/v3"
 	"gorm.io/gorm"
 )
 
@@ -220,7 +221,7 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("test").
 		Option("missingkey=error").
-		Funcs(templateFuncs("", A)).
+		Funcs(A.funcs()).
 		ParseFiles("templates/test.gotmpl")
 	if err == nil {
 		type foo struct {
@@ -271,3 +272,33 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 //	        http.ServeFileFS(w, r, os.DirFS("static"), path)
 //	})
 // func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {}
+
+func (A *Admin) funcs() template.FuncMap {
+	fm := merge(sprig.FuncMap(), Funcs)
+	merge(fm, template.FuncMap{
+		"admin_static_url": A.staticURL, // used
+		"get_url": func(endpoint string, args ...any) (string, error) {
+			return A.UrlFor("", endpoint, args...)
+		},
+		"marshal":    A.marshal, // test
+		"config":     A.config,  // used
+		"gettext":    A.gettext, //
+		"csrf_token": func() string { return "xxxx-csrf-token" },
+		// escape safe
+		"safehtml": func(s string) template.HTML { return template.HTML(s) },
+		"comment": func(format string, args ...any) template.HTML {
+			return template.HTML(
+				"<!-- " + fmt.Sprintf(format, args...) + " -->",
+			)
+		},
+		"safejs": func(s string) template.JS { return template.JS(s) },
+		"json": func(v any) (template.JS, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return template.JS(string(bs)), nil
+		},
+	})
+	return fm
+}

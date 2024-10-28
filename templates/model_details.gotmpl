@@ -11,7 +11,7 @@
     </li>
     {{- if admin_view.can_create -}}
     <li class="nav-item">
-        <a class="nav-link" href="{{ get_url ".create_view" "url" .return_url }}">{{ gettext "Create" }}</a>
+        <a class="nav-link" href="{{ get_url ".create_view" "url" (call return_url) }}">{{ gettext "Create" }}</a>
     </li>
     {{- end -}}
     {{- if admin_view.can_edit -}}

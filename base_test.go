@@ -2,8 +2,10 @@ package gadmin
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-playground/form/v4"
@@ -101,4 +103,27 @@ func TestQuery(t *testing.T) {
 	is.Equal(0, q2.PageSize)
 
 	is.Equal("desc=1&page=2", q2.toValues().Encode())
+}
+
+func TestOnce(t *testing.T) {
+	is := assert.New(t)
+	oc := 0
+	once := sync.OnceValue(func() int {
+		sum := 0
+		for i := 0; i < 100; i++ {
+			sum += i
+		}
+		fmt.Println("Computed once:", sum)
+		oc += 1
+		return sum
+	})
+	for a := 0; a < 10; a++ {
+		got := once()
+		_ = got
+		for j := 0; j < 10; j++ {
+			got := once()
+			is.Equal(4950, got)
+		}
+	}
+	is.Equal(1, oc)
 }

@@ -143,8 +143,8 @@ func (mv *ModelView) SetPageSize(v int) *ModelView {
 	return mv
 }
 
-func (mv *ModelView) dict(others ...map[string]any) map[string]any {
-	o := mv.BaseView.dict(map[string]any{
+func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
+	o := mv.BaseView.dict(r, map[string]any{
 		"table_prefix_html": mv.table_prefix_html,
 		"editable_columns":  true,
 		"can_create":        mv.can_create,
@@ -174,7 +174,7 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 }
 
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "debug.gotmpl", mv.dict(map[string]any{
+	mv.Render(w, "debug.gotmpl", mv.dict(r, map[string]any{
 		"menu":      mv.menu.dict(),
 		"blueprint": mv.Blueprint.dict(),
 	}))
@@ -191,13 +191,12 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 
 	q.setTotal(total)
 
-	mv.Render(w, "model_list.gotmpl", mv.dict(
+	mv.Render(w, "model_list.gotmpl", mv.dict(r,
 		map[string]any{
-			"count":      len(data),
-			"page":       q.Page,
-			"pages":      1, // TODO: ?
-			"num_pages":  q.num_pages,
-			"return_url": mv.GetUrl(".index_view", q),
+			"count":     len(data),
+			"page":      q.Page,
+			"pages":     1, // TODO: ?
+			"num_pages": q.num_pages,
 			"pager_url": func(page int) string {
 				return mv.GetUrl(".index_view", q, "page", page)
 			},
@@ -250,10 +249,6 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 				return m[col.name()]
 			},
 			"list_form": mv.list_form,
-
-			"get_flashed_messages": func() []map[string]any {
-				return FlashedFrom(r).GetMessages()
-			},
 		},
 	))
 }
@@ -341,7 +336,7 @@ func (mv *ModelView) list_row_actions_confirmation() map[string]string {
 
 // row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "model_create.gotmpl", mv.dict(map[string]any{
+	mv.Render(w, "model_create.gotmpl", mv.dict(r, map[string]any{
 		"request": rd(r)},
 	))
 }
@@ -358,6 +353,9 @@ func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
 // Model().Where(pk field = pk value).First()
 func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
+	mv.Render(w, "model_details.gotmpl", mv.dict(r, map[string]any{
+		"request": rd(r)},
+	))
 }
 
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
@@ -420,5 +418,26 @@ func rd(r *http.Request) map[string]any {
 func (mv *ModelView) get_form() model_form {
 	return model_form{
 		Fields: mv.model.columns,
+	}
+}
+
+func (mv *ModelView) Render(w http.ResponseWriter, name string, data map[string]any) {
+	w.Header().Add("content-type", ContentTypeUtf8Html)
+	fs := []string{
+		"templates/actions.gotmpl",
+		"templates/base.gotmpl",
+		"templates/layout.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/master.gotmpl",
+		"templates/model_details.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/model_row_actions.gotmpl",
+	}
+	if err := createTemplate(fs, template.FuncMap{
+		"return_url": func() (string, error) {
+			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
+		},
+	}).ExecuteTemplate(w, name, data); err != nil {
+		panic(err)
 	}
 }
