@@ -17,8 +17,9 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		menu:  []*MenuItem{},
 		views: []View{},
 
-		debug:     true,
-		staticUrl: "/admin/static",
+		debug:        true,
+		auto_migrate: true,
+		staticUrl:    "/admin/static",
 
 		mux: http.NewServeMux(),
 	}
@@ -80,9 +81,6 @@ func (A *Admin) register(b *Blueprint) {
 }
 
 func (A *Admin) AddView(view View) View {
-	// not work:
-	// if bv, ok := view.(*BaseView); ok {}
-
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
 		if A.auto_migrate {
@@ -104,6 +102,7 @@ func (A *Admin) AddView(view View) View {
 			bv.admin = A
 		}
 		A.views = append(A.views, view)
+		// TODO:
 		view.GetBlueprint().RegisterTo(A.mux, "")
 	}
 

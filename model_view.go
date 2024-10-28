@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
 )
 
@@ -193,14 +194,14 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, "model_list.gotmpl", mv.dict(
 		map[string]any{
 			"count":      len(data),
-			"page":       q.page,
+			"page":       q.Page,
 			"pages":      1, // TODO: ?
 			"num_pages":  q.num_pages,
 			"return_url": mv.GetUrl(".index_view", q),
 			"pager_url": func(page int) string {
 				return mv.GetUrl(".index_view", q, "page", page)
 			},
-			"page_size": q.page_size,
+			"page_size": q.PageSize,
 			"page_size_url": func(page_size int) string {
 				return mv.GetUrl(".index_view", q, "page_size", page_size)
 			},
@@ -223,19 +224,19 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			// in template, `sort url` is: ?sort={index}
 			// transform `index` to `column name`
 			"sort_column": func() string {
-				if q.sort != "" {
-					idx := must[int](strconv.Atoi(q.sort))
+				if q.Sort != "" {
+					idx := must[int](strconv.Atoi(q.Sort))
 					if idx != -1 {
 						return mv.column_list[idx]
 					}
 				}
 				return ""
 			}(),
-			"sort_desc": q.desc,
+			"sort_desc": q.Desc,
 			"sort_url": func(name string, invert ...bool) string {
 				q := *q // simply copy
-				q.sort = strconv.Itoa(mv.get_column_index(name))
-				q.desc = firstOr(invert)
+				q.Sort = strconv.Itoa(mv.get_column_index(name))
+				q.Desc = firstOr(invert)
 				return mv.GetUrl(".index_view", &q)
 			},
 			"is_editable": mv.is_editable,
@@ -268,28 +269,11 @@ func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
 	ReplyJson(w, 200, map[string]any{"total": total, "data": data})
 }
 
-func (mv *ModelView) queryFrom(r *http.Request) *query {
-	q := query{default_page_size: mv.page_size}
+func (mv *ModelView) queryFrom(r *http.Request) *Query {
+	q := Query{default_page_size: mv.page_size}
 	uv := r.URL.Query()
 
-	// ?sort=0&desc=1
-	if uv.Has("sort") {
-		q.sort = uv.Get("sort")
-	}
-	if uv.Has("desc") {
-		if v, err := strconv.ParseBool(uv.Get("desc")); err == nil {
-			q.desc = v
-		}
-	}
-
-	if uv.Has("page_size") {
-		q.page_size = must[int](strconv.Atoi(uv.Get("page_size")))
-	}
-	if uv.Has("page") {
-		q.page = must[int](strconv.Atoi(uv.Get("page")))
-	}
-
-	// TODO: flt1_0=1&search=Alfie
+	form.NewDecoder().Decode(&q, uv)
 	return &q
 }
 

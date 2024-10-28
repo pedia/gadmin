@@ -81,3 +81,24 @@ func TestStd(t *testing.T) {
 		CamelCase:    "abc",
 	})).Encode())
 }
+
+func TestQuery(t *testing.T) {
+	is := assert.New(t)
+
+	q1 := Query{Page: 2}
+	uv1, err1 := form.NewEncoder().Encode(q1)
+	is.Nil(err1)
+	is.Equal("page=2", uv1.Encode())
+
+	var q2 Query
+	form.NewDecoder().Decode(&q2, url.Values{
+		"page": []string{"2"},
+		"desc": []string{"1"},
+	})
+	is.Equal(2, q2.Page)
+	is.Equal(true, q2.Desc)
+	is.Equal("", q2.Sort)
+	is.Equal(0, q2.PageSize)
+
+	is.Equal("desc=1&page=2", q2.toValues().Encode())
+}

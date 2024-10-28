@@ -130,23 +130,23 @@ func (m *model) get_pk_value(row row) any {
 }
 
 // apply query
-func (m *model) apply(db *gorm.DB, q *query, count_only bool) *gorm.DB {
+func (m *model) apply(db *gorm.DB, q *Query, count_only bool) *gorm.DB {
 	ndb := db
-	limit := lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
+	limit := lo.Ternary(q.PageSize != 0, q.PageSize, q.default_page_size)
 	if !count_only {
 		ndb = ndb.Limit(limit)
 
-		if q.page > 0 {
-			ndb = ndb.Offset(limit * q.page)
+		if q.Page > 0 {
+			ndb = ndb.Offset(limit * q.Page)
 		}
 
-		if q.sort != "" {
-			column_index := must[int](strconv.Atoi(q.sort))
+		if q.Sort != "" {
+			column_index := must[int](strconv.Atoi(q.Sort))
 			column_name := m.columns[column_index].name()
 
 			ndb = ndb.Order(clause.OrderByColumn{
 				Column: clause.Column{Name: column_name},
-				Desc:   q.desc,
+				Desc:   q.Desc,
 			})
 		}
 	}
@@ -155,7 +155,7 @@ func (m *model) apply(db *gorm.DB, q *query, count_only bool) *gorm.DB {
 	return ndb
 }
 
-func (m *model) get_list(ctx context.Context, db *gorm.DB, q *query) (int64, []row, error) {
+func (m *model) get_list(ctx context.Context, db *gorm.DB, q *Query) (int64, []row, error) {
 	var total int64
 	if err := m.apply(db, q, true).
 		Model(m.new()).

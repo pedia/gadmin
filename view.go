@@ -6,56 +6,10 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/samber/lo"
 )
-
-type query struct {
-	page      int // 1 based
-	page_size int
-	sort      string // column index: 0,1,... maybe `null.String` is better
-	desc      bool   // desc or asc, default is asc
-	// search string
-	// filters []
-
-	args []any
-
-	default_page_size int
-	num_pages         int
-}
-
-func (q *query) withArgs(args ...any) *query {
-	if q.args == nil {
-		q.args = args
-	} else {
-		q.args = append(q.args, args...)
-	}
-	return q
-}
-func (q *query) toValue() url.Values {
-	uv := url.Values{}
-	if q.page > 0 {
-		uv.Set("page", strconv.Itoa(q.page))
-	}
-	if q.page_size > 0 {
-		uv.Set("page_size", strconv.Itoa(q.page_size))
-	}
-	if q.sort != "" {
-		uv.Set("sort", q.sort)
-		if q.desc {
-			uv.Set("desc", "1")
-		}
-	}
-	return uv
-}
-func (q *query) setTotal(total int64) {
-	// num_pages := math.Ceil(float64(total) / float64(q.limit))
-	page_size := lo.Ternary(q.page_size != 0, q.page_size, q.default_page_size)
-	q.num_pages = int(1 + (total-1)/int64(page_size))
-}
 
 type View interface {
 	// Add custom handler, eg: /admin/{model}/path
@@ -65,7 +19,7 @@ type View interface {
 
 	// Generate URL for the endpoint.
 	// In model view, return {model}/{action}
-	GetUrl(ep string, q *query, args ...any) string
+	GetUrl(ep string, q *Query, args ...any) string
 
 	GetBlueprint() *Blueprint
 	GetMenu() *MenuItem
@@ -102,10 +56,10 @@ func (V *BaseView) Expose(path string, h http.HandlerFunc) {
 }
 
 // TODO: move query into `ModelView`
-func (V *BaseView) GetUrl(ep string, q *query, args ...any) string {
+func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
 	var uv url.Values
 	if q != nil {
-		uv = q.withArgs(args...).toValue()
+		uv = q.withArgs(args...).toValues()
 	} else {
 		uv = pairToQuery(args...)
 	}
@@ -186,36 +140,9 @@ func templateFuncs(model string, admin *Admin) template.FuncMap {
 }
 
 func (V *BaseView) createTemplate(fs ...string) *template.Template {
-	fm := merge(sprig.FuncMap(), Funcs)
-	merge(fm, template.FuncMap{
-		"admin_static_url": V.admin.staticURL, // used
-		"get_url": func(endpoint string, args ...any) (string, error) {
-			return V.GetUrl(endpoint, nil, args...), nil
-		},
-		"marshal":    V.admin.marshal, // test
-		"config":     V.admin.config,  // used
-		"gettext":    V.admin.gettext, //
-		"csrf_token": func() string { return "xxxx-csrf-token" },
-		// escape safe
-		"safehtml": func(s string) template.HTML { return template.HTML(s) },
-		"comment": func(format string, args ...any) template.HTML {
-			return template.HTML(
-				"<!-- " + fmt.Sprintf(format, args...) + " -->",
-			)
-		},
-		"safejs": func(s string) template.JS { return template.JS(s) },
-		"json": func(v any) (template.JS, error) {
-			bs, err := json.Marshal(v)
-			if err != nil {
-				return "", err
-			}
-			return template.JS(string(bs)), nil
-		},
-	})
-
 	tx := template.Must(template.New("all").
 		Option("missingkey=error").
-		Funcs(fm).
+		Funcs(templateFuncs(V.Endpoint, V.admin)).
 		ParseFiles(fs...))
 	// log.Println(tx.DefinedTemplates())
 	return tx
