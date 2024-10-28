@@ -17,9 +17,9 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		menu:  []*MenuItem{},
 		views: []View{},
 
-		debug:        true,
-		auto_migrate: true,
-		staticUrl:    "/admin/static",
+		debug: true,
+		// auto_migrate: true,
+		staticUrl: "/admin/static",
 
 		mux: http.NewServeMux(),
 	}

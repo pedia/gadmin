@@ -28,6 +28,7 @@ type User struct {
 	DiallingCode             int
 	LocalPhoneNumber         string `gorm:"size:10"`
 	FeaturedPostId           int
+	FeaturedPost             *Post `gorm:"foreignKey:FeaturedPostId"`
 }
 
 type Post struct {

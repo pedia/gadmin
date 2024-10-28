@@ -163,7 +163,7 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		},
 		"filters":              []string{},
 		"filter_groups":        []string{},
-		"actions_confirmation": []string{},
+		"actions_confirmation": mv.list_row_actions_confirmation(),
 		"search_supported":     false,
 	})
 
@@ -327,6 +327,16 @@ func (mv *ModelView) list_row_actions() []action {
 		actions = append(actions, delete_row_action)
 	}
 	return actions
+}
+
+func (mv *ModelView) list_row_actions_confirmation() map[string]string {
+	res := map[string]string{}
+	for _, a := range mv.list_row_actions() {
+		if c, ok := a["confirmation"]; ok {
+			res[a["name"].(string)] = c.(string)
+		}
+	}
+	return res
 }
 
 // row -> Model().Create() RETURNING *

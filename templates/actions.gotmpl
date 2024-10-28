@@ -31,8 +31,8 @@
 {{ define "actionlib_script" }}
     {{ comment "actionlib_script.message: %s" .message }}
     {{ if .actions }}
-        <div id="actions-confirmation-data" style="display:none;">{{ .actions_confirmation }}</div>
-        <div id="message-data" style="display:none;">{{ .message }}</div>
+        <div id="actions-confirmation-data" style="display:none;">{{ json .actions_confirmation }}</div>
+        <div id="message-data" style="display:none;">{{ json .message  }}</div>
         <script src="{{ admin_static_url "admin/js/actions.js" "1.0.0" }}"></script>
     {{ end }}
 {{ end }}
