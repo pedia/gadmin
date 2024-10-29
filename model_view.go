@@ -198,7 +198,6 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
 		"count":     len(data),
 		"page":      q.Page,
-		"pages":     q.num_pages, // TODO: ?
 		"num_pages": q.num_pages,
 		"page_size": q.PageSize,
 		"page_size_url": func(page_size int) string {
