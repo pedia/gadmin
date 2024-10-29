@@ -88,6 +88,7 @@ func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, name string, f
 }
 
 func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]any {
+	// TODO: remove r
 	o := map[string]any{
 		"category":           V.menu.Category,
 		"name":               V.menu.Name,
@@ -95,9 +96,6 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
 		"admin_fluid_layout": true,
-		"get_flashed_messages": func() []map[string]any {
-			return FlashedFrom(r).GetMessages()
-		},
 	}
 
 	if len(others) > 0 {

@@ -3,31 +3,31 @@
   <head>
     <title>{{ block "title" .}}{{ if .category }}{{ .category }} - {{ end }}{{ .name }} - {{ .admin.name }}{{ end }}</title>
     {{- block "head_meta" .}}
-        <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="">
-        <meta name="author" content="">
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
     {{ end -}}
     {{- block "head_css" .}}
-        <link href="{{ admin_static_url (printf "%s%s%s" "bootstrap/bootstrap4/swatch/" .admin.swatch "/bootstrap.min.css") "4.2.1" }}"
+    <link href="{{ admin_static_url (printf "%s%s%s" "bootstrap/bootstrap4/swatch/" .admin.swatch "/bootstrap.min.css") "4.2.1" }}"
               rel="stylesheet">
-        {{ if eq .admin.swatch "default" -}}
-        <link href="{{ admin_static_url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1"  }}" rel="stylesheet">
-        {{ end -}}
-        <link href="{{ admin_static_url "admin/css/bootstrap4/admin.css" "1.1.1"  }}" rel="stylesheet">
-        <link href="{{ admin_static_url "bootstrap/bootstrap4/css/font-awesome.min.css" "4.7.0"  }}" rel="stylesheet">
-          {{ range .extra_css }}
-            <link href="{{ . }}" rel="stylesheet">
-          {{ end }}
-        <style>
-            .hide {
-                display: none;
-            }
-        </style>
+    {{ if eq .admin.swatch "default" -}}
+    <link href="{{ admin_static_url "bootstrap/bootstrap4/css/bootstrap.min.css" "4.2.1"  }}" rel="stylesheet">
     {{ end -}}
-    {{ block "head" .}} {{ end }}
-    {{ block "head_tail" .}} {{ end }}
+    <link href="{{ admin_static_url "admin/css/bootstrap4/admin.css" "1.1.1"  }}" rel="stylesheet">
+    <link href="{{ admin_static_url "bootstrap/bootstrap4/css/font-awesome.min.css" "4.7.0"  }}" rel="stylesheet">
+    {{ range .extra_css }}
+    <link href="{{ . }}" rel="stylesheet">
+    {{ end }}
+    <style>
+        .hide {
+            display: none;
+        }
+    </style>
+    {{ end -}}
+    {{ block "head" .}} {{ end -}}
+    {{ block "head_tail" .}} {{ end -}}
   </head>
 <body>
 {{- block "page_body" .}}
@@ -40,12 +40,12 @@
             </button>
             <!-- navbar content -->
             <div class="collapse navbar-collapse" id="admin-navbar-collapse">
-            {{ block "brand" .}}
+            {{- block "brand" .}}
                 <a class="navbar-brand" href="{{ .admin.url }}">{{ .admin.name }}</a>
-            {{ end }}
+            {{- end -}}
             {{ block "main_menu" .}}
                 <ul class="nav navbar-nav mr-auto">
-                    {{ template "menu" .}}
+                    {{ template "menu" . }}
                 </ul>
             {{ end }}
 
@@ -59,14 +59,14 @@
             </div>
         </nav>
 
-        {{ block "messages" .}}
+        {{- block "messages" .}}
             {{ template "layout_messages" . }}
         {{ end -}}
 
-        {{/* store the jinja2 context for form_rules rendering logic #}
+        {{/* //  store the jinja2 context for form_rules rendering logic
         {% set render_ctx = h.resolve_ctx() */}}
 
-        {{ block "body" .}}{{ end -}}
+        {{- block "body" .}}{{ end -}}
     </div>
 {{ end -}}
 

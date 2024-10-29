@@ -9,7 +9,7 @@ import (
 )
 
 type Query struct {
-	// 1 based
+	// 0 based with omit
 	Page     int `form:"page,omitempty"`
 	PageSize int `form:"page_size,omitempty"`
 	// column index: 0,1,... maybe `null.String` is better

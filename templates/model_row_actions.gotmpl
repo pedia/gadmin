@@ -1,28 +1,28 @@
 {% import 'admin/lib.html' as lib with context %}
 
 {{ define "render_action" }}
-  {{ comment "render_action %s" . }}
-  {{ if eq .action.name "view" }}
-    {{ template "view_row" . }}
-  {{ else if eq .action.name "edit" }}
-    {{ template "edit_row" . }}
-  {{ else if eq .action.name "delete" }}
-    {{ template "delete_row" . }}
-  {{ end }}
+    {{ comment "model_row_actions::render_action" }}
+  {{- if eq .action.name "view" -}}
+    {{- template "view_row" . -}}
+  {{- else if eq .action.name "edit" -}}
+    {{- template "edit_row" . -}}
+  {{- else if eq .action.name "delete" -}}
+    {{- template "delete_row" . -}}
+  {{- end -}}
 {{ end }}
 
 {{/*(action, url, icon_class=None)*/}}
 {{ define "link" }}
-<a class="icon" href="{{ .url }}" title="{{ .action.title }}">
-  <span class="{{ or .icon_class .action.icon_class }}"></span>
-</a>
+    <a class="icon" href="{{ .url }}" title="{{ .action.title }}">
+      <span class="{{ or .icon_class .action.icon_class }}"></span>
+    </a>
 {{ end }}
 
-{{/*(action, row_id, row)*/}}
+{{/* (action, row_id, row) */}}
 {{ define "view_row" }}
-  {{ template "link" .| arg "action" .action
+  {{- template "link" .| arg "action" .action
   | arg "url" (get_url ".details_view" "id" .row_id "url" .return_url)
-  | arg "icon_class" "fa fa-eye glyphicon glyphicon-eye-open"|args }}
+  | arg "icon_class" "fa fa-eye glyphicon glyphicon-eye-open"|args -}}
 {{ end }}
 
 {{/*(action, row_id, row)*/}}

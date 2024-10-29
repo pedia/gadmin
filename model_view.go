@@ -153,10 +153,11 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		"can_view_details":  mv.can_view_details,
 		"can_delete":        mv.can_delete,
 		"export_types":      []string{"csv", "xls"},
-		"edit_modal":        false,
-		"create_modal":      false,
-		"details_modal":     false,
-		"form":              mv.get_form().dict(),
+		// TODO: modal for edit/create/details
+		"edit_modal":    false,
+		"create_modal":  false,
+		"details_modal": false,
+		"form":          mv.get_form().dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
 			"form_rules":  []any{},
@@ -181,10 +182,12 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	// test
-	Flash(r, "hello")
-	Flash(r, "Worked", "success")
-	Flash(r, "Caution", "danger")
+	if mv.admin.debug {
+		Flash(r, "hello")
+		Flash(r, "Worked", "success")
+		Flash(r, "Caution", "danger")
+	}
+
 	q := mv.queryFrom(r)
 
 	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
@@ -195,11 +198,8 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
 		"count":     len(data),
 		"page":      q.Page,
-		"pages":     1, // TODO: ?
+		"pages":     q.num_pages, // TODO: ?
 		"num_pages": q.num_pages,
-		"pager_url": func(page int) string {
-			return mv.GetUrl(".index_view", q, "page", page)
-		},
 		"page_size": q.PageSize,
 		"page_size_url": func(page_size int) string {
 			return mv.GetUrl(".index_view", q, "page_size", page_size)
@@ -465,6 +465,12 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		},
 		"get_value": func(m map[string]any, col column) any {
 			return m[col.name()]
+		},
+		"page_size_url": func(page_size int) string {
+			return mv.GetUrl(".index_view", nil, "page_size", page_size)
+		},
+		"pager_url": func(page int) string {
+			return mv.GetUrl(".index_view", nil, "page", page)
 		},
 	}
 	if funcs != nil {

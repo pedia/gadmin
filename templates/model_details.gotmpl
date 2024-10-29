@@ -1,6 +1,5 @@
-{{ template "master.gotmpl" .}}
-{{ template "lib.gotmpl" .}}
-
+{{ template "master.gotmpl" . }}
+{{ template "lib.gotmpl" . }}
 
 
 {{ define "body" }}
@@ -30,18 +29,13 @@
       <input id="fa_filter" type="text" class="ml-3 form-control">
     </div>
   
-
   {{/* block details_table */}}
     <table class="table table-hover table-bordered searchable">
-    {{ $g := . }}
-    {{ range $col := .details_columns }}
+    {{ $g := . -}}
+    {{- range $col := .details_columns }}
       <tr>
-        <td>
-          <b>{{ $col.label }}</b>
-        </td>
-        <td>
-        {{ get_value $g.model $col }}
-        </td>
+        <td><b>{{ $col.label }}</b></td>
+        <td>{{ get_value $g.model $col }}</td>
       </tr>
     {{ end }}
     </table>
@@ -49,7 +43,6 @@
 {{ end }}
 
 {{ define "tail" }}
-  {{ comment "call tail" }}
-  <!-- {{ .details_columns | len }} -->
+  {{ comment "tail" }}
   <script src="{{ admin_static_url "admin/js/details_filter.js" "1.0.0" }}"></script>
 {{ end }}

@@ -4,24 +4,24 @@
     TODO: add active, icon
 */}}
 {{ block "menu" .}}
-    {{ range .admin.menus }}
-        {{ if .children }}
-        <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
-            <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
-            <ul class="dropdown-menu">
-                {{ range .children }}
-                    {{ template "menu_item" . }}
-                {{ end }}
-            </ul>
-        </li>
+    {{- range .admin.menus -}}
+        {{- if .children -}}
+            <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
+                <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
+                <ul class="dropdown-menu">
+                    {{- range .children -}}
+                        {{ template "menu_item" . }}
+                    {{- end }}
+                </ul>
+            </li>
 
-        {{ else }}{{/* no children */}}
+        {{- else -}}{{/* no children */}}
 
-        <li{{ if .class }} class="{{ .class }}"{{ end }}>
-            <a class="nav-link" href="{{ .path }}">{{ .name }}</a>
-        </li>
-        {{ end }}
-    {{ end }}
+            <li{{ if .class }} class="{{ .class }}"{{ end }}>
+                <a class="nav-link" href="{{ .path }}">{{ .name }}</a>
+            </li>
+        {{- end -}}
+    {{- end -}}
 {{ end }}
 
 
@@ -30,33 +30,33 @@
     dropdown-menu
 */}}
 {{ define "menu_item" }}
-    {{ if .children }}
+    {{- if .children }}
 
-    <li class="dropdown  dropdown-submenu dropright">
-      <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
-        <span class=" dropdown-submenu dropright"></span>{{ .name }}<i class="glyphicon glyphicon-chevron-right small"></i>
-      </a>
-      <ul class="dropdown-menu">
-        {{ range .children -}}
-            {{- template "menu_item" . -}}
-        {{- end }}
-      </ul>
-    </li>
+        <li class="dropdown  dropdown-submenu dropright">
+            <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
+                <span class=" dropdown-submenu dropright"></span>{{ .name }}<i class="glyphicon glyphicon-chevron-right small"></i>
+            </a>
+        <ul class="dropdown-menu">
+            {{- range .children -}}
+                {{- template "menu_item" . -}}
+            {{- end }}
+        </ul>
+        </li>
 
-    {{ else }}
+    {{- else }}
     
-    <li>
-        <a class="dropdown-item" href="{{ .path }}">{{ .name }}</a>
-    </li>
+        <li>
+            <a class="dropdown-item" href="{{ .path }}">{{ .name }}</a>
+        </li>
 
-    {{ end }}
+    {{- end }}
 {{ end }}
 
 {{ define "layout_messages" }}
-    {{ range call .get_flashed_messages }}
-    <div class="alert alert-{{ .category }} alert-dismissable">
-        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-        {{ .data }}
-    </div>
-    {{ end }}
+    {{- range get_flashed_messages }}
+        <div class="alert alert-{{ .category }} alert-dismissable">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+            {{ .data }}
+        </div>
+    {{ end -}}
 {{ end }}
