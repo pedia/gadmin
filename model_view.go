@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
 )
 
@@ -75,13 +76,15 @@ func NewModelView(m any, category ...string) *ModelView {
 			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.index},
 			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.new},
 			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.details},
-			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.index},
+			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajax_update},
 			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.index},
 			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.edit},
 			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.delete},
 			// not .export_view
 			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
 			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
+			// for json
+			"list": {Endpoint: "list", Path: "/list", Handler: mv.list},
 		},
 	}
 
@@ -140,8 +143,8 @@ func (mv *ModelView) SetPageSize(v int) *ModelView {
 	return mv
 }
 
-func (mv *ModelView) dict(others ...map[string]any) map[string]any {
-	o := mv.BaseView.dict(map[string]any{
+func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
+	o := mv.BaseView.dict(r, map[string]any{
 		"table_prefix_html": mv.table_prefix_html,
 		"editable_columns":  true,
 		"can_create":        mv.can_create,
@@ -150,20 +153,20 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 		"can_view_details":  mv.can_view_details,
 		"can_delete":        mv.can_delete,
 		"export_types":      []string{"csv", "xls"},
-		"edit_modal":        false,
-		"create_modal":      false,
-		"details_modal":     false,
-		"form":              mv.get_form().dict(),
+		// TODO: modal for edit/create/details
+		"edit_modal":    false,
+		"create_modal":  false,
+		"details_modal": false,
+		"form":          mv.get_form().dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
 			"form_rules":  []any{},
 		},
 		"filters":              []string{},
 		"filter_groups":        []string{},
-		"actions_confirmation": []string{},
+		"actions_confirmation": mv.list_row_actions_confirmation(),
 		"search_supported":     false,
-		// will replace
-		"return_url": "../",
+		"return_url":           mv.GetUrl(".index_view", nil),
 	})
 
 	if len(others) > 0 {
@@ -173,115 +176,110 @@ func (mv *ModelView) dict(others ...map[string]any) map[string]any {
 }
 
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "debug.gotmpl", mv.dict(map[string]any{
+	mv.Render(w, r, "debug.gotmpl", nil, map[string]any{
 		"menu":      mv.menu.dict(),
 		"blueprint": mv.Blueprint.dict(),
-	}))
+	})
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	r = PatchFlashed(r)
-	Flash(r, "hello")
-	Flash(r, "Worked", "success")
-	Flash(r, "Caution", "danger")
+	if mv.admin.debug {
+		Flash(r, "hello")
+		Flash(r, "Worked", "success")
+		Flash(r, "Caution", "danger")
+	}
+
 	q := mv.queryFrom(r)
 
-	total, data, err := mv.model.get_list(mv.admin.DB, q, mv.page_size)
+	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
 	_ = err // TODO: messages
 
 	q.setTotal(total)
 
-	mv.Render(w, "model_list.gotmpl", mv.dict(
-		map[string]any{
-			"count":      len(data),
-			"page":       q.page,
-			"pages":      1, // TODO: ?
-			"num_pages":  q.num_pages,
-			"return_url": mv.GetUrl(".index_view", q),
-			"pager_url": func(page int) string {
-				return mv.GetUrl(".index_view", q, "page", page)
-			},
-			"page_size": q.page_size,
-			"page_size_url": func(page_size int) string {
-				return mv.GetUrl(".index_view", q, "page_size", page_size)
-			},
-			"can_set_page_size":        mv.can_set_page_size,
-			"data":                     data,
-			"request":                  rd(r),
-			"get_pk_value":             mv.model.get_pk_value,
-			"column_display_pk":        mv.column_display_pk,
-			"column_display_actions":   mv.column_display_actions,
-			"column_extra_row_actions": nil,
-			"list_row_actions":         mv.list_row_actions(),
-			"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-			"list_columns":             mv.list_columns(),
-			"is_sortable": func(name string) bool {
-				_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
-					return s == name
-				})
-				return ok
-			},
-			// in template, `sort url` is: ?sort={index}
-			"sort_column": q.sort,
-			"sort_desc":   q.desc,
-			"sort_url": func(name string, invert ...bool) string {
-				q := *q // simply copy
-				if len(invert) > 0 && invert[0] {
-					q.desc = invert[0]
-				}
-				return mv.GetUrl(".index_view", &q)
-			},
-			"is_editable": mv.is_editable,
-			"column_descriptions": func(name string) string {
-				if desc, ok := mv.column_descriptions[name]; ok {
-					return desc
-				}
-				return mv.get_column(name)["description"].(string)
-			},
-			"get_value": func(m map[string]any, col column) any {
-				return m[col.name()]
-			},
-			"list_form": mv.list_form,
-
-			"get_flashed_messages": func() []map[string]any {
-				return FlashedFrom(r).GetMessages()
-			},
+	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
+		"count":     len(data),
+		"page":      q.Page,
+		"num_pages": q.num_pages,
+		"page_size": q.PageSize,
+		"page_size_url": func(page_size int) string {
+			return mv.GetUrl(".index_view", q, "page_size", page_size)
 		},
-	))
+		"can_set_page_size":        mv.can_set_page_size,
+		"data":                     data,
+		"request":                  rd(r),
+		"get_pk_value":             mv.model.get_pk_value,
+		"column_display_pk":        mv.column_display_pk,
+		"column_display_actions":   mv.column_display_actions,
+		"column_extra_row_actions": nil,
+		"list_row_actions":         mv.list_row_actions(),
+		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
+		"list_columns":             mv.list_columns(),
+		"is_sortable": func(name string) bool {
+			_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
+				return s == name
+			})
+			return ok
+		},
+		// in template, `sort url` is: ?sort={index}
+		// transform `index` to `column name`
+		"sort_column": func() string {
+			if q.Sort != "" {
+				idx := must[int](strconv.Atoi(q.Sort))
+				if idx != -1 {
+					return mv.column_list[idx]
+				}
+			}
+			return ""
+		}(),
+		"sort_desc": q.Desc,
+		"sort_url": func(name string, invert ...bool) string {
+			q := *q // simply copy
+			q.Sort = strconv.Itoa(mv.get_column_index(name))
+			q.Desc = firstOr(invert)
+			return mv.GetUrl(".index_view", &q)
+		},
+		"is_editable": mv.is_editable,
+		"column_descriptions": func(name string) string {
+			if desc, ok := mv.column_descriptions[name]; ok {
+				return desc
+			}
+			return mv.model.find(name)["description"].(string)
+		},
+		"list_form": mv.list_form,
+	})
+}
+func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
+	q := mv.queryFrom(r)
+
+	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
+	if err != nil {
+		ReplyJson(w, 200, map[string]any{"error": err.Error()})
+		return
+	}
+	ReplyJson(w, 200, map[string]any{"total": total, "data": data})
 }
 
-func (mv *ModelView) queryFrom(r *http.Request) *query {
-	q := query{default_page_size: mv.page_size}
+func (mv *ModelView) queryFrom(r *http.Request) *Query {
+	q := Query{default_page_size: mv.page_size}
 	uv := r.URL.Query()
 
-	// ?sort=0&desc=1
-	if uv.Has("sort") {
-		q.sort = uv.Get("sort")
+	form.NewDecoder().Decode(&q, uv)
+	for k, v := range uv {
+		if lo.IndexOf([]string{"page", "page_size", "sort", "desc", "search"}, k) != -1 {
+			continue
+		}
+		q.args = append(q.args, k, v[0])
 	}
-	if uv.Has("desc") {
-		q.desc = true
-	}
-
-	if uv.Has("page_size") {
-		q.page_size = must[int](strconv.Atoi(uv.Get("page_size")))
-	}
-	if uv.Has("page") {
-		q.page = must[int](strconv.Atoi(uv.Get("page")))
-	}
-
-	// TODO: flt1_0=1&search=Alfie
 	return &q
 }
 
 func (mv *ModelView) list_columns() []column {
 	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
-		// in column_list
-		ok := true
-		if len(mv.column_list) > 0 {
-			_, ok = lo.Find(mv.column_list, func(c string) bool {
-				return c == col.name()
-			})
-		}
-		// not in column_exclude_list
+		// in `column_list`
+		_, ok := lo.Find(mv.column_list, func(c string) bool {
+			return c == col.name()
+		})
+
+		// not in `column_exclude_list`
 		_, exclude := lo.Find(mv.column_exclude_list, func(c string) bool {
 			return c == col.name()
 		})
@@ -289,14 +287,6 @@ func (mv *ModelView) list_columns() []column {
 	})
 }
 
-func (mv *ModelView) get_column(name string) column {
-	if col, ok := lo.Find(mv.model.columns, func(col column) bool {
-		return col.name() == name
-	}); ok {
-		return col
-	}
-	return nil
-}
 func (mv *ModelView) get_column_index(name string) int {
 	if _, i, ok := lo.FindIndexOf(mv.column_list, func(c string) bool {
 		return c == name
@@ -305,6 +295,7 @@ func (mv *ModelView) get_column_index(name string) int {
 	}
 	return -1
 }
+
 func (mv *ModelView) list_form(col column, r row) template.HTML {
 	x := XEditableWidget{model: mv.model, column: col}
 	return x.html(r)
@@ -333,23 +324,64 @@ func (mv *ModelView) list_row_actions() []action {
 	return actions
 }
 
+func (mv *ModelView) list_row_actions_confirmation() map[string]string {
+	res := map[string]string{}
+	for _, a := range mv.list_row_actions() {
+		if c, ok := a["confirmation"]; ok {
+			res[a["name"].(string)] = c.(string)
+		}
+	}
+	return res
+}
+
+// row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "model_create.gotmpl", mv.dict(map[string]any{
-		"request": rd(r)},
-	))
+	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
+		"request": rd(r)})
 }
+
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
 }
+
+// Model().Where(pk field = pk value).Delete()
 func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
 }
+
+// Model().Where(pk field = pk value).First()
 func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	q := mv.queryFrom(r)
+	redirect := func() {
+		url := q.Get("url")
+		if url == "" {
+			url = mv.GetUrl(".index_view", nil)
+		}
+		http.Redirect(w, r, url, http.StatusFound)
+	}
+
+	if !mv.can_view_details {
+		redirect()
+		return
+	}
+
+	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
+	if err != nil {
+		Flash(r, gettext("Record does not exist."), "danger")
+
+		redirect()
+		return
+	}
+
+	mv.Render(w, r, "model_details.gotmpl", nil, map[string]any{
+		"model":           one,
+		"details_columns": mv.list_columns(),
+		"request":         rd(r),
+	})
+	_ = q
 }
 
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
 // Record was successfully saved.
+// Model().Where().Update(currency=USD)
 func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
@@ -364,8 +396,6 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	// form
 	r.ParseForm()
 	pk := r.Form.Get("list_form_pk")
-
-	// TODO: pk to int
 
 	// TODO: type list_form struct, parse
 	row := row{}
@@ -395,7 +425,7 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(mv.admin.gettext("Record was successfully saved.")))
 }
 
-// request to dict
+// request to dict, like flask.request
 func rd(r *http.Request) map[string]any {
 	return map[string]any{
 		"method": r.Method,
@@ -407,5 +437,48 @@ func rd(r *http.Request) map[string]any {
 func (mv *ModelView) get_form() model_form {
 	return model_form{
 		Fields: mv.model.columns,
+	}
+}
+
+func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
+	w.Header().Add("content-type", ContentTypeUtf8Html)
+	fs := []string{
+		"templates/actions.gotmpl",
+		"templates/base.gotmpl",
+		"templates/layout.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/master.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/model_row_actions.gotmpl",
+	}
+
+	fm := template.FuncMap{
+		"return_url": func() (string, error) {
+			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
+		},
+		"get_flashed_messages": func() []map[string]any {
+			return FlashedFrom(r).GetMessages()
+		},
+		"get_url": func(endpoint string, args ...any) (string, error) {
+			return mv.GetUrl(endpoint, nil, args...), nil
+		},
+		"get_value": func(m map[string]any, col column) any {
+			return m[col.name()]
+		},
+		"page_size_url": func(page_size int) string {
+			return mv.GetUrl(".index_view", nil, "page_size", page_size)
+		},
+		"pager_url": func(page int) string {
+			return mv.GetUrl(".index_view", nil, "page", page)
+		},
+	}
+	if funcs != nil {
+		merge(fm, funcs)
+	}
+
+	fs = append(fs, "templates/"+name)
+	if err := createTemplate(fs, mv.admin.funcs(fm)).
+		ExecuteTemplate(w, name, mv.dict(r, data)); err != nil {
+		panic(err)
 	}
 }

@@ -3,7 +3,7 @@
 {{ template "lib.gotmpl" . }}
 
 {{ define "head" }}
-    {{ comment "call head" }}
+    {{ comment "model_list::head" }}
     {{ template "form_css" . }}
 {{ end }}
 
@@ -26,14 +26,13 @@
 
 
 {{ define "body" }}
-    {{ comment "model_list::body" }}
+    {{ comment "model_list::body" -}}
 
-    {{ comment "prefix html as alert: %s" .table_prefix_html }}
     {{ if .table_prefix_html }}
-    <div class="alert alert-info alert-dismissable">
-        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-        {{ safehtml .table_prefix_html }}
-    </div>
+        <div class="alert alert-info alert-dismissable">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+            {{ safehtml .table_prefix_html }}
+        </div>
     {{ end }}
 
     {{ block "model_menu_bar" . }}
@@ -46,7 +45,7 @@
             <li class="nav-item">
             {{- if .create_modal -}}
                 {{ template "add_modal_button" .
-                | arg "url" (get_url ".create_view" .return_url)
+                | arg "url" (.get_url ".create_view" .return_url)
                 | arg "btn_class" "nav-link"
                 | arg "title" (gettext "Create New Record")
                 | arg "modal_window_id" "fa_modal_window"
@@ -65,11 +64,11 @@
 
     {{ block "model_menu_bar_before_filters" . }}
 
-        {{ if .filters }}
+        {{- if .filters }}
             <li class="nav-item dropdown">
                 {{ template "filter_options" . | arg "btn_class" "dropdown-toggle" | args }}
             </li>
-        {{ end }}
+        {{ end -}}
 
         {{ if .can_set_page_size }}
             <li class="nav-item dropdown">
@@ -120,7 +119,7 @@
                         <th class="column-header col-{{$c.name}}">
                             {{- if call $g.is_sortable $c.name -}}
                                 {{- if eq $g.sort_column $c.name -}}
-                                    <a href="{{ call $g.sort_url $c.name true }}" title="{{ gettext "Sort by %s" $c.label }}">
+                                    <a href="{{ call $g.sort_url $c.name (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.label }}">
                                         {{ $c.label }}
                                         {{- if $g.sort_desc -}}
                                             <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
@@ -154,6 +153,7 @@
                     {{ if $g.column_display_actions }}
                         <td class="list-buttons-column">
                                 {{ range $action := $g.list_row_actions }}
+                                    {{/* use set instead arg */}}
                                     {{ template "render_action" .
                                     | arg "action" $action
                                     | arg "row_id" (call $g.get_pk_value $row)
@@ -168,7 +168,7 @@
                         {{- if call $g.is_editable $c.name }}
                             {{ call $g.list_form $c $row }}
                         {{ else }}
-                            {{- call $g.get_value $row $c -}}
+                            {{- get_value $row $c -}}
                         {{ end -}}
                         </td>
                     {{ end }}
@@ -189,15 +189,14 @@
         {{ block "list_pager" . }}
             {{ if gt .num_pages 0  }}
                 {{ template "pager" . | arg "page" .page 
-                | arg "pages" .num_pages
-                | arg "generator" .pager_url |args }}
+                | arg "pages" .num_pages |args }}
             {{ else }}
                 {{ template "simple_pager" . }}
             {{ end }}
         {{ end }}
 
         {{ block "actions" . }}
-            {{/* actions ( get_url ".action_view" ) */}}
+            {{/* actions ( .get_url ".action_view" ) */}}
             {{/* template "actionlib_form" . */}}
         {{ end }}
 
@@ -208,37 +207,5 @@
     {{ end }}
 
 {{ end }}
-
-
-    {{ comment "page: %d page_size: %d num_pages: %d" .page .page_size .num_pages }}
-
-    <h3>debug:</h3>
-
-    <li> message: {{ call .get_flashed_messages }}
-
-    <li> return_url: {{ .return_url }}
-
-    <li> get_url: {{ get_url ".create_view" "url" .return_url }}
-
-    <li> actions: {{ .actions }}
-
-    <li> list_columns: {{ .list_columns | len }} <br />
-    {{ range .list_columns }}
-        {{ . }} <br />
-    {{ end }}
-
-    <li>list_row_actions: {{ .list_row_actions | len }} <br />
-    {{ range .list_row_actions }}
-       {{ . }} <br />
-    {{ end }}
-
-    <li>data: {{ .data | len }}
-
-    <li>{{ index .data 0 }}
-
-    <li> all: <br />
-    <textarea rows="10" cols="100">
-    {{ . }}
-    </textarea>
 
 {{ end }}

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/Masterminds/sprig/v3"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +18,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		menu:  []*MenuItem{},
 		views: []View{},
 
-		debug:     true,
+		debug: true,
+		// auto_migrate: true,
 		staticUrl: "/admin/static",
 
 		mux: http.NewServeMux(),
@@ -80,26 +82,31 @@ func (A *Admin) register(b *Blueprint) {
 }
 
 func (A *Admin) AddView(view View) View {
-	// not work:
-	// if bv, ok := view.(*BaseView); ok {}
-
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
-
 		if A.auto_migrate {
 			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
 				return nil
 			}
 		}
-	}
 
-	b := view.GetBlueprint()
-	if b != nil {
+		b := mv.GetBlueprint()
+		if b != nil {
+			A.views = append(A.views, mv)
+			A.register(b)
+
+			A.addViewToMenu(mv)
+		}
+	} else {
+		bv, ok := view.(*BaseView)
+		if ok {
+			bv.admin = A
+		}
 		A.views = append(A.views, view)
-		A.register(b)
-
-		A.addViewToMenu(view)
+		// TODO:
+		view.GetBlueprint().RegisterTo(A.mux, "")
 	}
+
 	return view
 }
 
@@ -206,15 +213,15 @@ func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
-	replyJson(w, 200, A.dict(map[string]any{
+	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprints": A.Blueprint.dict(),
 	}))
 }
 func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", contentTypeUtf8Html)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("test").
 		Option("missingkey=error").
-		Funcs(templateFuncs("", A)).
+		Funcs(A.funcs(nil)).
 		ParseFiles("templates/test.gotmpl")
 	if err == nil {
 		type foo struct {
@@ -265,3 +272,34 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 //	        http.ServeFileFS(w, r, os.DirFS("static"), path)
 //	})
 // func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {}
+
+func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
+	fm := merge(sprig.FuncMap(), Funcs)
+	merge(fm, template.FuncMap{
+		"admin_static_url": A.staticURL, // used
+		"marshal":          A.marshal,   // test
+		"config":           A.config,    // used
+		"gettext":          A.gettext,   //
+		"csrf_token":       func() string { return "xxxx-csrf-token" },
+		// escape safe
+		"safehtml": func(s string) template.HTML { return template.HTML(s) },
+		"comment": func(format string, args ...any) template.HTML {
+			return template.HTML(
+				"<!-- " + fmt.Sprintf(format, args...) + " -->",
+			)
+		},
+		"safejs": func(s string) template.JS { return template.JS(s) },
+		"json": func(v any) (template.JS, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return template.JS(string(bs)), nil
+		},
+	})
+
+	if funcs != nil {
+		merge(fm, funcs)
+	}
+	return fm
+}

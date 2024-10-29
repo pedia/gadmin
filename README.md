@@ -7,6 +7,7 @@ The basic concept behind `gadmin`, is that it lets you build complicated interfa
 We write `gadmin` in Go, depend on `net/http`, `template/html` and `gorm`.
 
 ## Example
+- Mmodel view
 ```go
 mv := gadmin.NewModelView(User{}).
     SetColumnList("type", "first_name", "last_name", "email", "ip_address", "currency", "timezone", "phone_number").
@@ -18,12 +19,21 @@ mv := gadmin.NewModelView(User{}).
 admin.AddView(mv)
 ```
 
+- View
+```go
+```
+
 
 # Flask-Admin
 Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 only).
 
 # Status
-✅ [examples/simple](examples/simple/main.go)
-✅ [examples/sqla](examples/sqla/admin/main.go)
+- ✅ Menu
+- ✅ Blueprint
+- ✅ model list
+- ✅ model details
+- ✅ [examples/simple](examples/simple/main.go)
+- ✅ [examples/sqla](examples/sqla/admin/main.go)
+- [] Auth/Login
 
 ![Demo](screenshot.png)

@@ -8,14 +8,16 @@
 {{ end }}
 
 {{ define "export_options" }}
+    {{ comment "model_layout::export_options" }}
     {{ if gt (len .export_types) 1 }}
         <li class="dropdown">
             <a class="nav-link {{ .btn_class }}" data-toggle="dropdown" href="javascript:void(0)" role="button"
                aria-haspopup="true" aria-expanded="false">{{ gettext "Export" }}<b class="caret"></b></a>
             <div class="dropdown-menu">
+                {{ $g := . }}
                 {{ range $export_type := .export_types }}
                     <a class="dropdown-item"
-                       href="{{ get_url ".export"  (map "export_type" $export_type) }}"
+                       href="{{ get_url ".export"  "export_type" $export_type }}"
                        title="{{ gettext "Export" }}">{{ gettext "Export" }} {{ $export_type|upper }}</a>
                 {{ end }}
             </div>
@@ -29,6 +31,7 @@
 {{ end }}
 
 {{ define "filter_form" }}
+    {{ comment "model_layout::filter_form" }}
     <form id="filter_form" method="GET" action="{{ .return_url }}">
         {{ if .sort_column }}
             <input type="hidden" name="sort" value="{{ .sort_column }}">

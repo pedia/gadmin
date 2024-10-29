@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/samber/lo"
 )
 
 func firstOr[T any](as []T, or ...T) T {
@@ -44,6 +46,21 @@ func anyMapToQuery(m map[string]any) url.Values {
 	return uv
 }
 
+// any to query in tradition url
+// bool => "1", "0"
+// any => string
+func intoStringSlice(as ...any) []string {
+	res := []string{}
+	for i := 0; i < len(as); i++ {
+		if b, ok := as[i].(bool); ok {
+			res = append(res, lo.Ternary(b, "1", "0"))
+			continue
+		}
+		res = append(res, fmt.Sprint(as[i]))
+	}
+	return res
+}
+
 // Input paired args, like: a,b,c,d return "a=b&c=d"
 func pairToQuery(args ...any) url.Values {
 	uv := url.Values{}
@@ -70,12 +87,12 @@ func merge[K comparable, V any](a, b map[K]V) map[K]V {
 }
 
 var (
-	contentTypeJson     = "application/json; charset=utf-8"
-	contentTypeUtf8Html = "text/html; charset=utf-8"
+	ContentTypeJson     = "application/json; charset=utf-8"
+	ContentTypeUtf8Html = "text/html; charset=utf-8"
 )
 
-func replyJson(w http.ResponseWriter, status int, obj any) {
-	w.Header().Add("content-type", contentTypeJson)
+func ReplyJson(w http.ResponseWriter, status int, obj any) {
+	w.Header().Add("content-type", ContentTypeJson)
 	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(obj); err != nil {

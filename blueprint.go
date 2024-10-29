@@ -51,7 +51,7 @@ func (B *Blueprint) RegisterTo(mux *http.ServeMux, path string) {
 	}
 
 	if B.Handler != nil {
-		mux.HandleFunc(path+B.Path, B.Handler)
+		mux.HandleFunc(path+B.Path, B.flashed)
 	}
 
 	unique := map[string]bool{}
@@ -116,6 +116,11 @@ func (B *Blueprint) dict() map[string]any {
 		o["children"] = oc
 	}
 	return o
+}
+
+// Inject with flashed for all pages
+func (B *Blueprint) flashed(w http.ResponseWriter, r *http.Request) {
+	B.Handler(w, PatchFlashed(r))
 }
 
 // menu

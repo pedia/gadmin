@@ -2,8 +2,10 @@ package gadmin
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-playground/form/v4"
@@ -58,6 +60,8 @@ func TestBaseConvert(t *testing.T) {
 
 	uv := anyMapToQuery(m)
 	is.Equal("active=true&age=30&name=John+Doe&numbers=%5B1+2+3%5D", uv.Encode())
+
+	is.Equal([]string{"1", "foo", "3.4", "1", "0", "0"}, intoStringSlice(1, "foo", 3.4, true, 0, false))
 }
 
 func TestStd(t *testing.T) {
@@ -80,4 +84,48 @@ func TestStd(t *testing.T) {
 		list_form_pk: "33",
 		CamelCase:    "abc",
 	})).Encode())
+}
+
+func TestQuery(t *testing.T) {
+	is := assert.New(t)
+
+	q1 := Query{Page: 2}
+	uv1, err1 := form.NewEncoder().Encode(q1)
+	is.Nil(err1)
+	is.Equal("page=2", uv1.Encode())
+
+	var q2 Query
+	form.NewDecoder().Decode(&q2, url.Values{
+		"page": []string{"2"},
+		"desc": []string{"1"},
+	})
+	is.Equal(2, q2.Page)
+	is.Equal(true, q2.Desc)
+	is.Equal("", q2.Sort)
+	is.Equal(0, q2.PageSize)
+
+	is.Equal("desc=1&page=2", q2.toValues().Encode())
+}
+
+func TestOnce(t *testing.T) {
+	is := assert.New(t)
+	oc := 0
+	once := sync.OnceValue(func() int {
+		sum := 0
+		for i := 0; i < 100; i++ {
+			sum += i
+		}
+		fmt.Println("Computed once:", sum)
+		oc += 1
+		return sum
+	})
+	for a := 0; a < 10; a++ {
+		got := once()
+		_ = got
+		for j := 0; j < 10; j++ {
+			got := once()
+			is.Equal(4950, got)
+		}
+	}
+	is.Equal(1, oc)
 }

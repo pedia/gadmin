@@ -18,7 +18,10 @@ func TestFlashed(t *testing.T) {
 	f2.Add(34, "error")
 
 	f3 := FlashedFrom(r2)
-	is.Equal([]any{42, 34}, f3.GetMessages())
-	is.Equal([]any{42}, f3.GetMessages("message"))
-	is.Equal([]any{34}, f3.GetMessages("error"))
+	is.Equal([]map[string]interface{}{
+		{"category": "info", "data": 42},
+		{"category": "error", "data": 34}},
+		f3.GetMessages())
+	is.Len(f3.GetMessages("info"), 1)
+	is.Len(f3.GetMessages("error"), 1)
 }

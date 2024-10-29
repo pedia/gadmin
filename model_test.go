@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"context"
 	"database/sql"
 	"html/template"
 	"testing"
@@ -35,9 +36,9 @@ func foos() []Foo {
 	e2 := "bar@foo.com"
 	d2 := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
 	return []Foo{
-		{Name: "foo", Email: &e1, Age: 42, Normal: true, Birthday: &d1,
+		{ID: 3, Name: "foo", Email: &e1, Age: 42, Normal: true, Birthday: &d1,
 			MemberNumber: sql.NullString{String: "9527", Valid: true}},
-		{Name: "bar", Email: &e2, Age: 21, Normal: false, Birthday: &d2,
+		{ID: 4, Name: "bar", Email: &e2, Age: 21, Normal: false, Birthday: &d2,
 			MemberNumber: sql.NullString{String: "3699", Valid: true}},
 	}
 }
@@ -51,11 +52,11 @@ func TestModel(t *testing.T) {
 	is.Equal("Email", m.columns[2]["label"])
 	is.Equal("Member Number", m.columns[6]["label"])
 
-	r1 := m.intoRow(foos()[0])
+	r1 := m.intoRow(context.TODO(), foos()[0])
 	is.Equal("foo", r1["name"])
 	is.True(r1["normal"].(bool))
 
-	is.Equal(uint(0), m.get_pk_value(r1))
+	is.Equal(uint(3), m.get_pk_value(r1))
 
 	// m.get_list()
 }
@@ -66,11 +67,11 @@ func TestWidget(t *testing.T) {
 	m := newModel(Foo{})
 
 	af := foos()[0]
-	r := m.intoRow(af)
-	is.Equal(3, m.get_pk_value(r))
+	r := m.intoRow(context.TODO(), af)
+	is.Equal(uint(3), m.get_pk_value(r))
 
 	x := XEditableWidget{model: m, column: m.columns[1]}
 	is.Equal(template.HTML(
-		`<a data-csrf="" data-pk="3" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="a foo" href="#" id="bar" name="bar">a foo</a>`),
+		`<a data-csrf="" data-pk="3" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="foo" href="#" id="name" name="name">foo</a>`),
 		x.html(r))
 }

@@ -2,7 +2,6 @@ package gadmin
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -39,8 +38,7 @@ func newModel(m any) *model {
 
 	columns := lo.Map(s.Fields, func(field *schema.Field, _ int) column {
 		return column{
-			"id":          field.DBName, //
-			"name":        field.DBName, //
+			"name":        field.DBName,
 			"description": field.Comment,
 			"required":    field.NotNull,
 			"choices":     nil,
@@ -59,7 +57,7 @@ func newModel(m any) *model {
 		typo:    reflect.TypeOf(m),
 		schema:  s,
 		columns: columns,
-		pk:      pk,
+		pk:      pk, // TODO: remove
 	}
 }
 
@@ -95,8 +93,8 @@ func (m *model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.typo))
 }
 
-func (m *model) intoRow(a any) row {
-	ctx := context.TODO()
+// Convert value to row
+func (m *model) intoRow(ctx context.Context, a any) row {
 	v := reflect.ValueOf(a)
 
 	r := row{}
@@ -105,6 +103,15 @@ func (m *model) intoRow(a any) row {
 		r[f.DBName] = i
 	}
 	return r
+}
+
+func (m *model) find(name string) column {
+	if col, ok := lo.Find(m.columns, func(col column) bool {
+		return col.name() == name
+	}); ok {
+		return col
+	}
+	return nil
 }
 
 // Return all field can be sorted
@@ -122,26 +129,24 @@ func (m *model) get_pk_value(row row) any {
 	return row.get(m.pk.name())
 }
 
-func (m *model) apply(db *gorm.DB,
-	q *query,
-	count_only bool,
-	default_page_size int) *gorm.DB {
+// apply query
+func (m *model) apply(db *gorm.DB, q *Query, count_only bool) *gorm.DB {
 	ndb := db
-	limit := lo.Ternary(q.page_size != 0, q.page_size, default_page_size)
+	limit := lo.Ternary(q.PageSize != 0, q.PageSize, q.default_page_size)
 	if !count_only {
 		ndb = ndb.Limit(limit)
 
-		if q.page > 0 {
-			ndb = ndb.Offset(limit * q.page)
+		if q.Page > 0 {
+			ndb = ndb.Offset(limit * q.Page)
 		}
 
-		if q.sort != "" {
-			column_index := must[int](strconv.Atoi(q.sort))
+		if q.Sort != "" {
+			column_index := must[int](strconv.Atoi(q.Sort))
 			column_name := m.columns[column_index].name()
 
 			ndb = ndb.Order(clause.OrderByColumn{
 				Column: clause.Column{Name: column_name},
-				Desc:   q.desc,
+				Desc:   q.Desc,
 			})
 		}
 	}
@@ -150,16 +155,16 @@ func (m *model) apply(db *gorm.DB,
 	return ndb
 }
 
-func (m *model) get_list(db *gorm.DB, q *query, default_page_size int) (int, []row, error) {
+func (m *model) get_list(ctx context.Context, db *gorm.DB, q *Query) (int64, []row, error) {
 	var total int64
-	if err := m.apply(db, q, true, default_page_size).
+	if err := m.apply(db, q, true).
 		Model(m.new()).
 		Count(&total).Error; err != nil {
 		return 0, nil, err
 	}
 
 	ptr := m.newSlice()
-	if err := m.apply(db, q, false, default_page_size).
+	if err := m.apply(db, q, false).
 		Find(ptr.Interface()).Error; err != nil {
 		return 0, nil, err
 	}
@@ -169,25 +174,25 @@ func (m *model) get_list(db *gorm.DB, q *query, default_page_size int) (int, []r
 	res := make([]row, len)
 	for i := 0; i < len; i++ {
 		item := ptr.Elem().Index(i).Interface()
-		res[i] = m.intoRow(item)
+		res[i] = m.intoRow(ctx, item)
 	}
-	return int(total), res, nil
+	return total, res, nil
 }
 
-func (m *model) get(db *gorm.DB, pk any) (row, error) {
+func (m *model) get_one(ctx context.Context, db *gorm.DB, pk any) (row, error) {
 	ptr := m.new()
 	if err := db.First(ptr, pk).Error; err != nil {
 		return nil, err
 	}
-	return m.intoRow(ptr), nil
+	return m.intoRow(ctx, ptr), nil
 }
 
 func (m *model) update(db *gorm.DB, pk any, row row) error {
 	ptr := m.new()
 
 	if rc := db.Model(ptr).
-		Where(fmt.Sprintf("%s=?", m.pk["name"]), pk).
-		Updates(map[string]any(row)); rc.Error != nil || rc.RowsAffected != 1 {
+		Where(map[string]any{m.pk.name(): pk}).
+		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil
