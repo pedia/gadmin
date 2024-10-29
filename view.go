@@ -26,9 +26,7 @@ type View interface {
 
 	// Override this method to add permission checks.
 	IsAccessible() bool
-	Render(w http.ResponseWriter, template string, data map[string]any)
-
-	dict(r *http.Request, others ...map[string]any) map[string]any
+	Render(http.ResponseWriter, *http.Request, string, template.FuncMap, map[string]any)
 }
 
 type BaseView struct {
@@ -73,7 +71,7 @@ func (V *BaseView) GetMenu() *MenuItem       { return &V.menu }
 func (V *BaseView) IsVisible() bool          { return true }
 func (V *BaseView) IsAccessible() bool       { return true }
 
-func (V *BaseView) Render(w http.ResponseWriter, name string, data map[string]any) {
+func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	fs := []string{
 		"templates/actions.gotmpl",
@@ -83,7 +81,8 @@ func (V *BaseView) Render(w http.ResponseWriter, name string, data map[string]an
 		"templates/master.gotmpl",
 	}
 
-	if err := createTemplate(fs, V.admin.funcs()).ExecuteTemplate(w, name, data); err != nil {
+	if err := createTemplate(fs, V.admin.funcs(funcs)).
+		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
 }

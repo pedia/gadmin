@@ -7,16 +7,16 @@
   {{/* block "navlink" */}}
   <ul class="nav nav-tabs">
     <li class="nav-item">
-        <a class="nav-link" href="{{ return_url }}">{{ gettext "List" }}</a>
+        <a class="nav-link" href="{{ .return_url }}">{{ gettext "List" }}</a>
     </li>
-    {{- if admin_view.can_create -}}
+    {{- if .can_create -}}
     <li class="nav-item">
-        <a class="nav-link" href="{{ get_url ".create_view" "url" (call return_url) }}">{{ gettext "Create" }}</a>
+        <a class="nav-link" href="{{ get_url ".create_view" "url" .return_url }}">{{ gettext "Create" }}</a>
     </li>
     {{- end -}}
-    {{- if admin_view.can_edit -}}
+    {{- if .can_edit -}}
     <li class="nav-item">
-        <a class="nav-link" href="{{ get_url ".edit_view" "id" "request.args.get('id')" "url" .return_url }}">{{ gettext "Edit" }}</a>
+        <a class="nav-link" href="{{ get_url ".edit_view" "id" ( .request.args.Get "id" ) "url" .return_url }}">{{ gettext "Edit" }}</a>
     </li>
     {{- end -}}
     <li class="nav-item">
@@ -33,13 +33,14 @@
 
   {{/* block details_table */}}
     <table class="table table-hover table-bordered searchable">
-    {{ range $c, $name := details_columns }}
+    {{ $g := . }}
+    {{ range $col := .details_columns }}
       <tr>
         <td>
-          <b>{{ name }}</b>
+          <b>{{ $col.label }}</b>
         </td>
         <td>
-        {{ get_value model c }}
+        {{ get_value $g.model $col }}
         </td>
       </tr>
     {{ end }}
@@ -49,6 +50,6 @@
 
 {{ define "tail" }}
   {{ comment "call tail" }}
-  {{/* super() */}}
+  <!-- {{ .details_columns | len }} -->
   <script src="{{ admin_static_url "admin/js/details_filter.js" "1.0.0" }}"></script>
 {{ end }}

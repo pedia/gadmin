@@ -46,7 +46,7 @@
             <li class="nav-item">
             {{- if .create_modal -}}
                 {{ template "add_modal_button" .
-                | arg "url" (get_url ".create_view" .return_url)
+                | arg "url" (.get_url ".create_view" .return_url)
                 | arg "btn_class" "nav-link"
                 | arg "title" (gettext "Create New Record")
                 | arg "modal_window_id" "fa_modal_window"
@@ -154,6 +154,7 @@
                     {{ if $g.column_display_actions }}
                         <td class="list-buttons-column">
                                 {{ range $action := $g.list_row_actions }}
+                                    {{/* use set instead arg */}}
                                     {{ template "render_action" .
                                     | arg "action" $action
                                     | arg "row_id" (call $g.get_pk_value $row)
@@ -197,7 +198,7 @@
         {{ end }}
 
         {{ block "actions" . }}
-            {{/* actions ( get_url ".action_view" ) */}}
+            {{/* actions ( .get_url ".action_view" ) */}}
             {{/* template "actionlib_form" . */}}
         {{ end }}
 
@@ -214,11 +215,13 @@
 
     <h3>debug:</h3>
 
+    <li> request: {{ .request.args.Get "id" }}
+
     <li> message: {{ call .get_flashed_messages }}
 
     <li> return_url: {{ .return_url }}
 
-    <li> get_url: {{ get_url ".create_view" "url" .return_url }}
+    <li> .get_url: {{ get_url ".create_view" "url" .return_url }}
 
     <li> actions: {{ .actions }}
 

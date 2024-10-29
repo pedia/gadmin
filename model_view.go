@@ -165,6 +165,7 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		"filter_groups":        []string{},
 		"actions_confirmation": mv.list_row_actions_confirmation(),
 		"search_supported":     false,
+		"return_url":           mv.GetUrl(".index_view", nil),
 	})
 
 	if len(others) > 0 {
@@ -174,10 +175,10 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 }
 
 func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "debug.gotmpl", mv.dict(r, map[string]any{
+	mv.Render(w, r, "debug.gotmpl", nil, map[string]any{
 		"menu":      mv.menu.dict(),
 		"blueprint": mv.Blueprint.dict(),
-	}))
+	})
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 	// test
@@ -191,66 +192,61 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 
 	q.setTotal(total)
 
-	mv.Render(w, "model_list.gotmpl", mv.dict(r,
-		map[string]any{
-			"count":     len(data),
-			"page":      q.Page,
-			"pages":     1, // TODO: ?
-			"num_pages": q.num_pages,
-			"pager_url": func(page int) string {
-				return mv.GetUrl(".index_view", q, "page", page)
-			},
-			"page_size": q.PageSize,
-			"page_size_url": func(page_size int) string {
-				return mv.GetUrl(".index_view", q, "page_size", page_size)
-			},
-			"can_set_page_size":        mv.can_set_page_size,
-			"data":                     data,
-			"request":                  rd(r),
-			"get_pk_value":             mv.model.get_pk_value,
-			"column_display_pk":        mv.column_display_pk,
-			"column_display_actions":   mv.column_display_actions,
-			"column_extra_row_actions": nil,
-			"list_row_actions":         mv.list_row_actions(),
-			"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-			"list_columns":             mv.list_columns(),
-			"is_sortable": func(name string) bool {
-				_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
-					return s == name
-				})
-				return ok
-			},
-			// in template, `sort url` is: ?sort={index}
-			// transform `index` to `column name`
-			"sort_column": func() string {
-				if q.Sort != "" {
-					idx := must[int](strconv.Atoi(q.Sort))
-					if idx != -1 {
-						return mv.column_list[idx]
-					}
-				}
-				return ""
-			}(),
-			"sort_desc": q.Desc,
-			"sort_url": func(name string, invert ...bool) string {
-				q := *q // simply copy
-				q.Sort = strconv.Itoa(mv.get_column_index(name))
-				q.Desc = firstOr(invert)
-				return mv.GetUrl(".index_view", &q)
-			},
-			"is_editable": mv.is_editable,
-			"column_descriptions": func(name string) string {
-				if desc, ok := mv.column_descriptions[name]; ok {
-					return desc
-				}
-				return mv.model.find(name)["description"].(string)
-			},
-			"get_value": func(m map[string]any, col column) any {
-				return m[col.name()]
-			},
-			"list_form": mv.list_form,
+	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
+		"count":     len(data),
+		"page":      q.Page,
+		"pages":     1, // TODO: ?
+		"num_pages": q.num_pages,
+		"pager_url": func(page int) string {
+			return mv.GetUrl(".index_view", q, "page", page)
 		},
-	))
+		"page_size": q.PageSize,
+		"page_size_url": func(page_size int) string {
+			return mv.GetUrl(".index_view", q, "page_size", page_size)
+		},
+		"can_set_page_size":        mv.can_set_page_size,
+		"data":                     data,
+		"request":                  rd(r),
+		"get_pk_value":             mv.model.get_pk_value,
+		"column_display_pk":        mv.column_display_pk,
+		"column_display_actions":   mv.column_display_actions,
+		"column_extra_row_actions": nil,
+		"list_row_actions":         mv.list_row_actions(),
+		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
+		"list_columns":             mv.list_columns(),
+		"is_sortable": func(name string) bool {
+			_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
+				return s == name
+			})
+			return ok
+		},
+		// in template, `sort url` is: ?sort={index}
+		// transform `index` to `column name`
+		"sort_column": func() string {
+			if q.Sort != "" {
+				idx := must[int](strconv.Atoi(q.Sort))
+				if idx != -1 {
+					return mv.column_list[idx]
+				}
+			}
+			return ""
+		}(),
+		"sort_desc": q.Desc,
+		"sort_url": func(name string, invert ...bool) string {
+			q := *q // simply copy
+			q.Sort = strconv.Itoa(mv.get_column_index(name))
+			q.Desc = firstOr(invert)
+			return mv.GetUrl(".index_view", &q)
+		},
+		"is_editable": mv.is_editable,
+		"column_descriptions": func(name string) string {
+			if desc, ok := mv.column_descriptions[name]; ok {
+				return desc
+			}
+			return mv.model.find(name)["description"].(string)
+		},
+		"list_form": mv.list_form,
+	})
 }
 func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
 	q := mv.queryFrom(r)
@@ -260,7 +256,6 @@ func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
 		ReplyJson(w, 200, map[string]any{"error": err.Error()})
 		return
 	}
-	// q.setTotal(total)
 	ReplyJson(w, 200, map[string]any{"total": total, "data": data})
 }
 
@@ -269,6 +264,12 @@ func (mv *ModelView) queryFrom(r *http.Request) *Query {
 	uv := r.URL.Query()
 
 	form.NewDecoder().Decode(&q, uv)
+	for k, v := range uv {
+		if lo.IndexOf([]string{"page", "page_size", "sort", "desc", "search"}, k) != -1 {
+			continue
+		}
+		q.args = append(q.args, k, v[0])
+	}
 	return &q
 }
 
@@ -336,26 +337,47 @@ func (mv *ModelView) list_row_actions_confirmation() map[string]string {
 
 // row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, "model_create.gotmpl", mv.dict(r, map[string]any{
-		"request": rd(r)},
-	))
+	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
+		"request": rd(r)})
 }
 
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
 }
 
 // Model().Where(pk field = pk value).Delete()
 func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
 }
 
 // Model().Where(pk field = pk value).First()
 func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
-	mv.Render(w, "model_details.gotmpl", mv.dict(r, map[string]any{
-		"request": rd(r)},
-	))
+	q := mv.queryFrom(r)
+	redirect := func() {
+		url := q.Get("url")
+		if url == "" {
+			url = mv.GetUrl(".index_view", nil)
+		}
+		http.Redirect(w, r, url, http.StatusFound)
+	}
+
+	if !mv.can_view_details {
+		redirect()
+		return
+	}
+
+	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
+	if err != nil {
+		Flash(r, gettext("Record does not exist."), "danger")
+
+		redirect()
+		return
+	}
+
+	mv.Render(w, r, "model_details.gotmpl", nil, map[string]any{
+		"model":           one,
+		"details_columns": mv.list_columns(),
+		"request":         rd(r),
+	})
+	_ = q
 }
 
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
@@ -375,8 +397,6 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	// form
 	r.ParseForm()
 	pk := r.Form.Get("list_form_pk")
-
-	// TODO: pk to int
 
 	// TODO: type list_form struct, parse
 	row := row{}
@@ -406,7 +426,7 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(mv.admin.gettext("Record was successfully saved.")))
 }
 
-// request to dict
+// request to dict, like flask.request
 func rd(r *http.Request) map[string]any {
 	return map[string]any{
 		"method": r.Method,
@@ -421,7 +441,7 @@ func (mv *ModelView) get_form() model_form {
 	}
 }
 
-func (mv *ModelView) Render(w http.ResponseWriter, name string, data map[string]any) {
+func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	fs := []string{
 		"templates/actions.gotmpl",
@@ -429,15 +449,31 @@ func (mv *ModelView) Render(w http.ResponseWriter, name string, data map[string]
 		"templates/layout.gotmpl",
 		"templates/lib.gotmpl",
 		"templates/master.gotmpl",
-		"templates/model_details.gotmpl",
 		"templates/model_layout.gotmpl",
 		"templates/model_row_actions.gotmpl",
 	}
-	if err := createTemplate(fs, template.FuncMap{
+
+	fm := template.FuncMap{
 		"return_url": func() (string, error) {
 			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
 		},
-	}).ExecuteTemplate(w, name, data); err != nil {
+		"get_flashed_messages": func() []map[string]any {
+			return FlashedFrom(r).GetMessages()
+		},
+		"get_url": func(endpoint string, args ...any) (string, error) {
+			return mv.GetUrl(endpoint, nil, args...), nil
+		},
+		"get_value": func(m map[string]any, col column) any {
+			return m[col.name()]
+		},
+	}
+	if funcs != nil {
+		merge(fm, funcs)
+	}
+
+	fs = append(fs, "templates/"+name)
+	if err := createTemplate(fs, mv.admin.funcs(fm)).
+		ExecuteTemplate(w, name, mv.dict(r, data)); err != nil {
 		panic(err)
 	}
 }

@@ -20,7 +20,7 @@ type Query struct {
 	// flt0_35=2024-10-28&flt2_27=Harry&flt3_0=1
 	// filters []
 
-	args []any
+	args []string
 
 	//
 	default_page_size int
@@ -37,17 +37,31 @@ func (q *Query) setTotal(total int64) {
 
 func (q *Query) withArgs(args ...any) *Query {
 	if q.args == nil {
-		q.args = args
+		q.args = intoStringSlice(args...)
 	} else {
-		q.args = append(q.args, args...)
+		q.args = append(q.args, intoStringSlice(args)...)
 	}
 	return q
+}
+
+func (q *Query) Get(arg string) string {
+	for i := 0; i < len(q.args); i += 2 {
+		if q.args[i] == arg {
+			return q.args[i+1]
+		}
+	}
+	return ""
 }
 
 func (q *Query) toValues() url.Values {
 	encoder := must[*form.Encoder](form.NewEncoder())
 	encoder.RegisterCustomTypeFunc(encodeBool, true)
-	return must[url.Values](encoder.Encode(q))
+
+	uv := must[url.Values](encoder.Encode(q))
+	for i := 0; i < len(q.args); i += 2 {
+		uv.Add(q.args[i], q.args[i+1])
+	}
+	return uv
 }
 
 // Encode true to "1", false to "0"

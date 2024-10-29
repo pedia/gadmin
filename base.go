@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/samber/lo"
 )
 
 func firstOr[T any](as []T, or ...T) T {
@@ -42,6 +44,21 @@ func anyMapToQuery(m map[string]any) url.Values {
 		uv.Set(key, fmt.Sprint(val))
 	}
 	return uv
+}
+
+// any to query in tradition url
+// bool => "1", "0"
+// any => string
+func intoStringSlice(as ...any) []string {
+	res := []string{}
+	for i := 0; i < len(as); i++ {
+		if b, ok := as[i].(bool); ok {
+			res = append(res, lo.Ternary(b, "1", "0"))
+			continue
+		}
+		res = append(res, fmt.Sprint(as[i]))
+	}
+	return res
 }
 
 // Input paired args, like: a,b,c,d return "a=b&c=d"

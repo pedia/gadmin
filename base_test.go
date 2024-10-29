@@ -60,6 +60,8 @@ func TestBaseConvert(t *testing.T) {
 
 	uv := anyMapToQuery(m)
 	is.Equal("active=true&age=30&name=John+Doe&numbers=%5B1+2+3%5D", uv.Encode())
+
+	is.Equal([]string{"1", "foo", "3.4", "1", "0", "0"}, intoStringSlice(1, "foo", 3.4, true, 0, false))
 }
 
 func TestStd(t *testing.T) {

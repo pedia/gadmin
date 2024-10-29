@@ -107,4 +107,6 @@ func TestApi(t *testing.T) {
 
 	is.Equal("/admin/foo/?a=1", must[string](A.UrlFor("", "foo.index", "a", 1)))
 	is.Equal("/admin/foo/?page=3", must[string](A.UrlFor("foo", ".index", "page", 3)))
+
+	is.Equal("/admin/foo/export?export_type=csv", fv.GetUrl(".export", nil, "export_type", "csv"))
 }

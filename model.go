@@ -179,7 +179,7 @@ func (m *model) get_list(ctx context.Context, db *gorm.DB, q *Query) (int64, []r
 	return total, res, nil
 }
 
-func (m *model) get(ctx context.Context, db *gorm.DB, pk any) (row, error) {
+func (m *model) get_one(ctx context.Context, db *gorm.DB, pk any) (row, error) {
 	ptr := m.new()
 	if err := db.First(ptr, pk).Error; err != nil {
 		return nil, err

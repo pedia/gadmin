@@ -221,7 +221,7 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("test").
 		Option("missingkey=error").
-		Funcs(A.funcs()).
+		Funcs(A.funcs(nil)).
 		ParseFiles("templates/test.gotmpl")
 	if err == nil {
 		type foo struct {
@@ -273,17 +273,14 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 //	})
 // func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {}
 
-func (A *Admin) funcs() template.FuncMap {
+func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
 	fm := merge(sprig.FuncMap(), Funcs)
 	merge(fm, template.FuncMap{
 		"admin_static_url": A.staticURL, // used
-		"get_url": func(endpoint string, args ...any) (string, error) {
-			return A.UrlFor("", endpoint, args...)
-		},
-		"marshal":    A.marshal, // test
-		"config":     A.config,  // used
-		"gettext":    A.gettext, //
-		"csrf_token": func() string { return "xxxx-csrf-token" },
+		"marshal":          A.marshal,   // test
+		"config":           A.config,    // used
+		"gettext":          A.gettext,   //
+		"csrf_token":       func() string { return "xxxx-csrf-token" },
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		"comment": func(format string, args ...any) template.HTML {
@@ -300,5 +297,9 @@ func (A *Admin) funcs() template.FuncMap {
 			return template.JS(string(bs)), nil
 		},
 	})
+
+	if funcs != nil {
+		merge(fm, funcs)
+	}
 	return fm
 }
