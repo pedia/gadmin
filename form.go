@@ -62,7 +62,7 @@ func (f model_form) dict() map[string]any {
 		"action":     "", // empty
 		"hidden_tag": false,
 		"fields":     f.Fields,
-		"csrf_token": "TODO:csrf_token",
+		"csrf_token": true,
 	}
 }
 

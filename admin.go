@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/Masterminds/sprig/v3"
+	"gopkg.in/leonelquinteros/gotext.v1"
 	"gorm.io/gorm"
 )
 
@@ -21,8 +22,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		debug: true,
 		// auto_migrate: true,
 		staticUrl: "/admin/static",
-
-		mux: http.NewServeMux(),
+		secret:    "hello", // TODO: read from config
+		mux:       http.NewServeMux(),
 	}
 
 	A.Blueprint = &Blueprint{
@@ -52,9 +53,11 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			},
 		}}
 	A.RegisterTo(A.mux, "")
-	// TODO: gettext("Home")
-	A.menu.Add(&MenuItem{Path: "/admin/", Name: "Home"})
 
+	// TODO: read lang from config
+	gotext.Configure("translations", "zh_Hant_TW", "admin")
+	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
+	A.csrf = NewCSRF(A.secret)
 	return &A
 }
 
@@ -72,7 +75,9 @@ type Admin struct {
 	// with Admin.name, default as `/admin/static`
 	staticUrl string
 
-	mux *http.ServeMux
+	secret string
+	csrf   *CSRF
+	mux    *http.ServeMux
 }
 
 func (A *Admin) register(b *Blueprint) {
@@ -186,8 +191,9 @@ func (*Admin) gettext(format string, a ...any) string {
 	return gettext(format, a...)
 }
 
+// convince for outside of `Admin`
 func gettext(format string, a ...any) string {
-	return fmt.Sprintf(format, a...)
+	return gotext.Get(format, a...)
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {
@@ -280,7 +286,7 @@ func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
 		"marshal":          A.marshal,   // test
 		"config":           A.config,    // used
 		"gettext":          A.gettext,   //
-		"csrf_token":       func() string { return "xxxx-csrf-token" },
+		"csrf_token":       A.csrf.GenerateToken,
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		"comment": func(format string, args ...any) template.HTML {

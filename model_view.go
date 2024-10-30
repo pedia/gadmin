@@ -342,6 +342,8 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// _continue_editing
+
 	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		// ReplyJson(w, 200, map[string]any{
 		"request":    rd(r),
@@ -374,7 +376,7 @@ func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
 	if err != nil {
 		// TODO: work?
-		Flash(r, gettext("Record does not exist."), "danger")
+		Flash(r, mv.admin.gettext("Record does not exist."), "danger")
 
 		mv.redirect_to_index(w, r, q)
 		return
@@ -409,7 +411,7 @@ func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 
 	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
 	if err != nil {
-		Flash(r, gettext("Record does not exist."), "danger")
+		Flash(r, mv.admin.gettext("Record does not exist."), "danger")
 
 		redirect()
 		return

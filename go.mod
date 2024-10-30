@@ -12,6 +12,8 @@ require (
 	github.com/shopspring/decimal v1.2.0
 	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.8.4
+	golang.org/x/net v0.10.0
+	gopkg.in/leonelquinteros/gotext.v1 v1.3.1
 	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.8
 )
@@ -38,7 +40,7 @@ require (
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/sys v0.17.0 // indirect
-	gopkg.in/leonelquinteros/gotext.v1 v1.3.1 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.22.5 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
