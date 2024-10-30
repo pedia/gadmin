@@ -1,0 +1,36 @@
+{{ template "master.gotmpl" . }}
+{{ template "lib.gotmpl" . }}
+
+{{ define "head" }}
+  {{ template "form_css" }}
+{{ end }}
+
+{{ define "body" }}
+  {{/* block "navlinks" */}}
+  <ul class="nav nav-tabs">
+    <li class="nav-item">
+        <a href="{{ .return_url }}" class="nav-link">{{ gettext "List" }}</a>
+    </li>
+    {%- if admin_view.can_create -%}
+    <li class="nav-item">
+        <a href="{{ get_url ".create_view" "url" .return_url }}" class="nav-link">{{ gettext "Create" }}</a>
+    </li>
+    {%- endif -%}
+    <li class="nav-item">
+        <a href="javascript:void(0)" class="nav-link active">{{ gettext "Edit" }}</a>
+    </li>
+    {%- if admin_view.can_view_details -%}
+    <li class="nav-item">
+        <a class="nav-link" href="{{ get_url ".details_view" "id" (call .request.args.Get "id") "url" .return_url }}">{{ gettext "Details" }}</a>
+    </li>
+    {%- endif -%}
+  </ul>
+  {{/* end navlinks */}}
+
+  {{/* define "edit_form" */}}
+    {{/* lib.render_form(form, return_url, extra(), form_opts) */}}
+{{ end }}
+
+{{ define "tail" }}
+  {{ template "form_js" }}
+{{ end }}

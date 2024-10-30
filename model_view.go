@@ -336,11 +336,55 @@ func (mv *ModelView) list_row_actions_confirmation() map[string]string {
 
 // row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
+	q := mv.queryFrom(r)
+	if !mv.can_create {
+		mv.redirect_to_index(w, r, q)
+		return
+	}
+
 	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
-		"request": rd(r)})
+		// ReplyJson(w, 200, map[string]any{
+		"request":    rd(r),
+		"form":       mv.get_form().dict(),
+		"cancel_url": "TODO:cancel_url",
+		"form_opts": map[string]any{
+			"widget_args": nil, "form_rules": nil,
+		},
+		"action":   nil,
+		"is_modal": false, // TODO: mv.create_modal
+	})
+}
+
+func (mv *ModelView) redirect_to_index(w http.ResponseWriter, r *http.Request, q *Query) {
+	url := q.Get("url")
+	if url == "" {
+		url = mv.GetUrl(".index_view", nil)
+	}
+	http.Redirect(w, r, url, http.StatusFound)
 }
 
 func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
+	q := mv.queryFrom(r)
+
+	if !mv.can_edit {
+		mv.redirect_to_index(w, r, q)
+		return
+	}
+
+	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
+	if err != nil {
+		// TODO: work?
+		Flash(r, gettext("Record does not exist."), "danger")
+
+		mv.redirect_to_index(w, r, q)
+		return
+	}
+
+	mv.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
+		"model":           one,
+		"details_columns": mv.list_columns(),
+		"request":         rd(r),
+	})
 }
 
 // Model().Where(pk field = pk value).Delete()
@@ -376,7 +420,6 @@ func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 		"details_columns": mv.list_columns(),
 		"request":         rd(r),
 	})
-	_ = q
 }
 
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
@@ -435,8 +478,12 @@ func rd(r *http.Request) map[string]any {
 }
 
 func (mv *ModelView) get_form() model_form {
+	// create form
+	// Ignore pk/fk
 	return model_form{
-		Fields: mv.model.columns,
+		Fields: lo.Filter(mv.model.columns, func(col column, _ int) bool {
+			return !col["primary_key"].(bool)
+		}),
 	}
 }
 
