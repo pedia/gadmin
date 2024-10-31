@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -110,4 +111,35 @@ func TestApi(t *testing.T) {
 
 	is.Equal("/admin/foo/export?export_type=csv", fv.GetUrl(".export", nil, "export_type", "csv"))
 	is.Equal("/admin/foo/?page_size=0", fv.GetUrl(".index_view", nil, "page_size", 0)) // bad page_size
+
+	paths := []string{
+		"/admin/foo/",
+		"/admin/foo/new",
+		"/admin/company/",
+		"/admin/company/new",
+		"/admin/employee/",
+		"/admin/employee/new",
+		"/admin/credit_card/",
+		"/admin/credit_card/new",
+		"/admin/user/",
+		"/admin/user/new",
+		"/admin/address/",
+		"/admin/address/new",
+		"/admin/account/",
+		"/admin/account/new",
+		"/admin/language/",
+		"/admin/language/new",
+		"/admin/student/",
+		"/admin/student/new",
+		"/admin/dog/",
+		"/admin/dog/new",
+		"/admin/toy/",
+		"/admin/toy/new",
+	}
+	for _, path := range paths {
+		r := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		A.ServeHTTP(w, r)
+		is.Equal(200, w.Code)
+	}
 }

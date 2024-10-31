@@ -37,15 +37,20 @@ func (M *MenuItem) dict() map[string]any {
 type Menu []*MenuItem
 
 func (M *Menu) Add(m *MenuItem) {
-	if m.Category != "" {
+	if m.Category != m.Name && m.Category != "" {
 		c := M.findByCategory(m.Category)
-		if c != nil {
-			if c.Children == nil {
-				c.Children = []*MenuItem{}
+		// create stub
+		if c == nil {
+			c = &MenuItem{
+				Category: m.Category,
+				Name:     m.Category,
+				Children: []*MenuItem{},
 			}
-			c.Children = append(c.Children, m)
-			return
+			*M = append(*M, c)
 		}
+
+		c.Children = append(c.Children, m)
+		return
 	}
 	*M = append(*M, m)
 }

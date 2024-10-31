@@ -3,7 +3,6 @@ package gadmin
 import (
 	"html/template"
 	"net/http"
-	"reflect"
 	"strconv"
 
 	"github.com/go-playground/form/v4"
@@ -48,13 +47,10 @@ type ModelView struct {
 func NewModelView(m any, category ...string) *ModelView {
 	model := newModel(m)
 
-	cate := reflect.ValueOf(m).Type().Name()
-	if len(category) > 0 {
-		cate = category[0]
-	}
+	cate := firstOr(category, model.label())
 
 	mv := ModelView{
-		BaseView:               NewView(MenuItem{Name: cate}),
+		BaseView:               NewView(MenuItem{Name: model.label(), Category: cate}),
 		model:                  model,
 		can_create:             true,
 		can_edit:               true,
