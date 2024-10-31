@@ -14,6 +14,13 @@ type Session struct {
 	saved      bool
 }
 
+func (S *Session) Fetch(name string) any {
+	if v, ok := S.Values[name]; ok {
+		delete(S.Values, name)
+		return v
+	}
+	return nil
+}
 func (S *Session) Get(name string) any {
 	return S.Values[name]
 }
@@ -26,9 +33,13 @@ func (S *Session) Set(name string, val any) *Session {
 	return S
 }
 
-func (S *Session) Save(w http.ResponseWriter, r *http.Request) error {
+func (S *Session) Save(w http.ResponseWriter) error {
 	if S.saved {
 		panic("saved again?")
+	}
+
+	if len(S.Values) == 0 {
+		return nil
 	}
 
 	bs, err := json.Marshal(S.Values)
@@ -36,22 +47,21 @@ func (S *Session) Save(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	S.saved = true
-
 	dest := make([]byte, hex.EncodedLen(len(bs)))
 	hex.Encode(dest, bs)
 
-	// TODO: check saved
-	cookie := http.Cookie{
-		Name:  S.cookieName,
-		Value: S.Sign(dest),
-	}
-	w.Header().Set("Set-Cookie", cookie.String())
-
-	// http.SetCookie(w, &http.Cookie{
+	// cookie := http.Cookie{
 	// 	Name:  S.cookieName,
 	// 	Value: S.Sign(dest),
-	// })
+	// }
+	// w.Header().Set("Set-Cookie", cookie.String())
+
+	// Maybe replace is better
+	http.SetCookie(w, &http.Cookie{
+		Name:  S.cookieName,
+		Value: S.Sign(dest),
+	})
+	S.saved = true
 
 	return nil
 }

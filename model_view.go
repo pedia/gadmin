@@ -520,6 +520,7 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		"pager_url": func(page int) string {
 			return mv.GetUrl(".index_view", nil, "page", page)
 		},
+		"csrf_token": NewCSRF(CurrentSession(r)).GenerateToken,
 	}
 	if funcs != nil {
 		merge(fm, funcs)

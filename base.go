@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -98,4 +99,39 @@ func ReplyJson(w http.ResponseWriter, status int, obj any) {
 	if err := json.NewEncoder(w).Encode(obj); err != nil {
 		panic(err)
 	}
+}
+
+// Cache http.ResponseWriter, Output Cookie after template rendering
+type bufferWriter struct {
+	buf         *bytes.Buffer
+	w           http.ResponseWriter
+	beforeFlush func(http.ResponseWriter)
+}
+
+func NewBufferWriter(w http.ResponseWriter, bf func(http.ResponseWriter)) http.ResponseWriter {
+	return &bufferWriter{
+		buf:         bytes.NewBuffer([]byte{}),
+		w:           w,
+		beforeFlush: bf,
+	}
+}
+
+func (B *bufferWriter) Write(p []byte) (n int, err error) {
+	return B.buf.Write(p)
+}
+
+func (B *bufferWriter) Header() http.Header {
+	return B.w.Header()
+}
+
+func (B *bufferWriter) WriteHeader(statusCode int) {
+	B.w.WriteHeader(statusCode)
+}
+
+func (B *bufferWriter) Flush() {
+	if B.beforeFlush != nil {
+		B.beforeFlush(B.w)
+	}
+	B.w.Write(B.buf.Bytes())
+	B.w.(http.Flusher).Flush()
 }

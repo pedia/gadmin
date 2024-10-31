@@ -35,5 +35,6 @@ func TestModelView(t *testing.T) {
 	is.Equal(false, q3.Desc)
 	is.Equal(0, q3.PageSize)
 	is.Equal(0, q3.Page)
-	is.Equal([]string{"id", "6", "url", "/admin/tag/?desc=1&sort=1"}, q3.args)
+	is.Equal("6", q3.Get("id"))
+	is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
 }

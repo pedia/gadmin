@@ -51,10 +51,7 @@ func (B *Blueprint) RegisterTo(admin *Admin, mux *http.ServeMux, path string) {
 	}
 
 	if B.Handler != nil {
-		mux.HandleFunc(path+B.Path, func(w http.ResponseWriter, r *http.Request) {
-			// Inject with `Session` for all pages
-			B.Handler(w, PatchSession(r, admin))
-		})
+		mux.HandleFunc(path+B.Path, B.Handler)
 	}
 
 	unique := map[string]bool{}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net"
 	"net/http"
 
@@ -169,8 +170,20 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 	return prefix + res, nil
 }
 
+func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r2 := PatchSession(r, A)
+	w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
+		err := CurrentSession(r2).Save(w) // Is OK?
+		if err != nil {
+			log.Printf("session save failed %s", err)
+		}
+	})
+	A.mux.ServeHTTP(w2, r2)
+	w2.(http.Flusher).Flush()
+}
+
 func (A *Admin) Run() {
-	serv := http.Server{Handler: A.mux}
+	serv := http.Server{Handler: A}
 
 	l, _ := net.Listen("tcp", ":3333")
 	serv.Serve(l)
@@ -286,7 +299,6 @@ func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
 		"marshal":          A.marshal,   // test
 		"config":           A.config,    // used
 		"gettext":          A.gettext,   //
-		"csrf_token":       A.csrf.GenerateToken,
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		"comment": func(format string, args ...any) template.HTML {

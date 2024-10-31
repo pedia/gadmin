@@ -41,10 +41,11 @@ func (C *CSRF) Validate(token string) error {
 	if len(arr) != 2 {
 		return errInvalid
 	}
-	sv := C.Get(arr[1])
+	sv := C.Fetch(arr[1])
 	if sv == nil {
 		return errInvalid
 	}
+
 	when, ok := sv.(time.Time)
 	if !ok {
 		return errInvalid
