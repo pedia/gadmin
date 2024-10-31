@@ -1,23 +1,22 @@
 package gadmin
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/samber/lo"
 )
 
 // Mock flashed message in Flask
-func newFlashed() *_Flashed {
-	return &_Flashed{messages: []_flashedMessage{}}
+func flashed(session *Session) *_Flashed {
+	return &_Flashed{Session: session, name: " flashed"}
 }
 
-type _flashedMessage struct {
+type _message struct {
 	Category string // In template, category should be: info, danger, success
 	Data     any
 }
 
-func (f *_flashedMessage) dict() map[string]any {
+func (f *_message) dict() map[string]any {
 	return map[string]any{
 		"category": f.Category,
 		"data":     f.Data,
@@ -25,47 +24,48 @@ func (f *_flashedMessage) dict() map[string]any {
 }
 
 type _Flashed struct {
-	messages []_flashedMessage
+	*Session
+	name string
+}
+
+func (F *_Flashed) get() []_message {
+	ms := []_message{}
+	if ma := F.Get(F.name); ma != nil {
+		ms = ma.([]_message)
+	}
+	return ms
 }
 
 func (F *_Flashed) Add(data any, category ...string) {
-	F.messages = append(F.messages, _flashedMessage{
+	ms := append(F.get(), _message{
 		Data:     data,
 		Category: firstOr(category, "info"),
 	})
+	F.Set(F.name, ms)
 }
 
 // `category` is category filter
 func (F *_Flashed) GetMessages(category ...string) []map[string]any {
-	dictOf := func(ms []_flashedMessage) []map[string]any {
-		return lo.Map(ms, func(m _flashedMessage, _ int) map[string]any {
+	dictOf := func(ms []_message) []map[string]any {
+		return lo.Map(ms, func(m _message, _ int) map[string]any {
 			return m.dict()
 		})
 	}
 
 	if len(category) > 0 {
-		return dictOf(lo.Filter(F.messages, func(m _flashedMessage, _ int) bool {
+		return dictOf(lo.Filter(F.get(), func(m _message, _ int) bool {
 			return m.Category == category[0]
 		}))
 	}
-	return dictOf(F.messages)
-}
-
-type _key int
-
-var _flashedKey _key
-
-// Inject Flashed into cloned Request
-func PatchFlashed(r *http.Request) *http.Request {
-	return r.Clone(context.WithValue(r.Context(), _flashedKey, newFlashed()))
-}
-
-func FlashedFrom(r *http.Request) *_Flashed {
-	return must[*_Flashed](r.Context().Value(_flashedKey).(*_Flashed))
+	return dictOf(F.get())
 }
 
 // `Flash` Mock flask.flash
 // `get_flashed_messages` as `FlashedFrom(r).GetMessages()`
 func Flash(r *http.Request, data any, category ...string) {
-	FlashedFrom(r).Add(data, category...)
+	flashed(CurrentSession(r)).Add(data, category...)
+}
+
+func GetFlashedMessages(r *http.Request, category ...string) []map[string]any {
+	return flashed(CurrentSession(r)).GetMessages(category...)
 }

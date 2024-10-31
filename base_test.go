@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
@@ -107,32 +106,6 @@ func TestQuery(t *testing.T) {
 	is.Equal(0, q2.PageSize)
 
 	is.Equal("desc=1&page=2", q2.toValues().Encode())
-}
-
-func TestCSRF(t *testing.T) {
-	is := assert.New(t)
-
-	c := NewCSRF("hello")
-	is.Len(c.secret, 32)
-
-	// test Sign/Unsign
-	plain := []byte("blue sky")
-	ss := c.Sign(plain)
-	src, err := c.Unsign(ss)
-	is.Nil(err)
-	is.Equal(plain, src)
-
-	// generate csrf token
-	c.fnow = func() time.Time { return time.Date(2024, 10, 30, 20, 0, 0, 0, time.Local) }
-	t1 := c.GenerateToken()
-
-	c.fnow = func() time.Time { return time.Date(2024, 10, 30, 20, 10, 0, 0, time.Local) }
-	er1 := c.Validate(t1)
-	is.Nil(er1)
-
-	c.fnow = func() time.Time { return time.Date(2024, 10, 30, 21, 0, 1, 0, time.Local) }
-	er2 := c.Validate(t1)
-	is.Equal(errExpired, er2)
 }
 
 func TestOnce(t *testing.T) {

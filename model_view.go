@@ -506,7 +506,7 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
 		},
 		"get_flashed_messages": func() []map[string]any {
-			return FlashedFrom(r).GetMessages()
+			return GetFlashedMessages(r)
 		},
 		"get_url": func(endpoint string, args ...any) (string, error) {
 			return mv.GetUrl(endpoint, nil, args...), nil

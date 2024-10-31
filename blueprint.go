@@ -44,14 +44,17 @@ func (B *Blueprint) Add(child *Blueprint) {
 }
 
 // Add `Blueprint` to `http.ServeMux`
-func (B *Blueprint) RegisterTo(mux *http.ServeMux, path string) {
+func (B *Blueprint) RegisterTo(admin *Admin, mux *http.ServeMux, path string) {
 	log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
 	if B.Register != nil {
 		B.Register(mux, path, B)
 	}
 
 	if B.Handler != nil {
-		mux.HandleFunc(path+B.Path, B.flashed)
+		mux.HandleFunc(path+B.Path, func(w http.ResponseWriter, r *http.Request) {
+			// Inject with `Session` for all pages
+			B.Handler(w, PatchSession(r, admin))
+		})
 	}
 
 	unique := map[string]bool{}
@@ -59,7 +62,7 @@ func (B *Blueprint) RegisterTo(mux *http.ServeMux, path string) {
 		cp := path + B.Path + cb.Path
 		_, ok := unique[cp]
 		if !ok {
-			cb.RegisterTo(mux, path+B.Path)
+			cb.RegisterTo(admin, mux, path+B.Path)
 			unique[cp] = true
 		} else {
 			log.Printf("duplicated handle %s", cp)
@@ -116,11 +119,6 @@ func (B *Blueprint) dict() map[string]any {
 		o["children"] = oc
 	}
 	return o
-}
-
-// Inject with flashed for all pages
-func (B *Blueprint) flashed(w http.ResponseWriter, r *http.Request) {
-	B.Handler(w, PatchFlashed(r))
 }
 
 // menu

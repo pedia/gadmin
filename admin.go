@@ -22,7 +22,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		debug: true,
 		// auto_migrate: true,
 		staticUrl: "/admin/static",
-		secret:    "hello", // TODO: read from config
+		secret:    NewSecret("hello"), // TODO: read from config
 		mux:       http.NewServeMux(),
 	}
 
@@ -52,12 +52,12 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 				},
 			},
 		}}
-	A.RegisterTo(A.mux, "")
+	A.RegisterTo(&A, A.mux, "")
 
 	// TODO: read lang from config
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
 	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
-	A.csrf = NewCSRF(A.secret)
+	// A.csrf = NewCSRF(A.secret)
 	return &A
 }
 
@@ -75,7 +75,7 @@ type Admin struct {
 	// with Admin.name, default as `/admin/static`
 	staticUrl string
 
-	secret string
+	secret *Secret
 	csrf   *CSRF
 	mux    *http.ServeMux
 }
@@ -83,7 +83,7 @@ type Admin struct {
 func (A *Admin) register(b *Blueprint) {
 	A.Add(b)
 
-	b.RegisterTo(A.mux, A.Path)
+	b.RegisterTo(A, A.mux, A.Path)
 }
 
 func (A *Admin) AddView(view View) View {
@@ -109,7 +109,7 @@ func (A *Admin) AddView(view View) View {
 		}
 		A.views = append(A.views, view)
 		// TODO:
-		view.GetBlueprint().RegisterTo(A.mux, "")
+		view.GetBlueprint().RegisterTo(A, A.mux, "")
 	}
 
 	return view
