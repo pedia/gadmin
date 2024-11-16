@@ -9,7 +9,7 @@
 
 
 {{ define "tail" }}
-    {{ comment "call tail" }}
+    {{ comment "tail" }}
 
     {{ if .filter_groups }}
       <div id="filter-groups-data" style="display:none;">{{ marshal .filter_groups }}</div>
@@ -45,7 +45,7 @@
             <li class="nav-item">
             {{- if .create_modal -}}
                 {{ template "add_modal_button" .
-                | arg "url" (.get_url ".create_view" .return_url)
+                | arg "url" (get_url ".create_view" .return_url)
                 | arg "btn_class" "nav-link"
                 | arg "title" (gettext "Create New Record")
                 | arg "modal_window_id" "fa_modal_window"
@@ -165,7 +165,7 @@
 
                     {{ range $c := $g.list_columns }}
                         <td class="col-{{$c.name}}">
-                        {{- if call $g.is_editable $c.name }}
+                        {{- if is_editable $c.name }}
                             {{ list_form $c $row }}
                         {{ else }}
                             {{- get_value $row $c -}}
@@ -204,8 +204,8 @@
             {{ template "add_modal_window" . }}
         {{- end -}}
 
-    {{ end }}
+    {{ end -}}
 
-{{ end }}
+{{ end -}}
 
-{{ end }}
+{{ end -}}

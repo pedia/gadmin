@@ -209,14 +209,17 @@ func gettext(format string, a ...any) string {
 	return gotext.Get(format, a...)
 }
 
-var themeIndex = 0
+var themeIndex = 5
 
 func theme() string {
-	var themes = []string{"cerulean", "cosmo", "cyborg", "darkly", "united", "yeti",
-		"default", "flatly", "journal", "litera", "lumen", "lux", "materia", "minty",
-		"pulse", "sandstone", "simplex", "sketchy", "slate", "solar", "spacelab",
-		"superhero"}
-	themeIndex = 1
+	var themes = []string{
+		"cyborg", "darkly", "slate", // night
+		"solar", "superhero", // dark
+		"cerulean", "cosmo", "default", "flatly", "journal", "litera",
+		"lumen", "lux", "materia", "minty", "united", "pulse",
+		"sandstone", "simplex", "sketchy", "spacelab", "yeti",
+	}
+	// themeIndex = 0
 	return themes[themeIndex%len(themes)]
 }
 
@@ -258,19 +261,19 @@ func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		err = tx.Lookup("test.gotmpl").Execute(w, map[string]any{
-			"lower":            "bar",
-			"Upper":            "Bar",
+			"lower":            "lower",
+			"Upper":            "Upper",
 			"int":              34,
 			"emptyString":      "",
 			"emptyInt":         0,
 			"emptyIntArray":    []int{},
 			"emptyStringArray": []string{},
 			//
-			"rfoo": foo{Upper: "Bar", lower: "bar"},
-			"ffoo": func() foo { return foo{Upper: "Bar", lower: "bar"} },
+			"rfoo": foo{Upper: "Upper", lower: "lower"},
+			"ffoo": func() foo { return foo{Upper: "Upper", lower: "lower"} },
 
 			//
-			"msa": map[string]any{"Upper": "Bar", "lower": "bar"},
+			"msa": map[string]any{"Upper": "Upper", "lower": "lower"},
 
 			"null":  nil,
 			"list":  []string{"a", "b"},

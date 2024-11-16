@@ -15,17 +15,15 @@ import (
 	"gopkg.in/leonelquinteros/gotext.v1"
 )
 
-func TestFirstOrEmpty(t *testing.T) {
+func TestBase(t *testing.T) {
 	is := assert.New(t)
 
+	//
 	is.Equal("a", firstOr([]string{"a", "b"}, "c"))
 	is.Equal("c", firstOr([]string{}, "c"))
 	is.Equal(0, firstOr([]int{}, 0))
-}
 
-func TestPairToQuery(t *testing.T) {
-	is := assert.New(t)
-
+	//
 	is.Equal("a=1", pairToQuery("a", 1).Encode())
 	is.Equal("a=1&a=2", pairToQuery("a", "1", "a", "2").Encode())
 	is.Equal("a=+", pairToQuery("a", " ").Encode())
@@ -33,6 +31,9 @@ func TestPairToQuery(t *testing.T) {
 	// abnormal input
 	is.Equal("", pairToQuery("a").Encode())
 	is.Equal("a=b", pairToQuery("a", "b", "c").Encode())
+
+	//
+	is.Len(merge(map[int]int{}, nil), 0)
 }
 
 func TestBaseMust(t *testing.T) {

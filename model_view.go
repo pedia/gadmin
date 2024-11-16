@@ -153,6 +153,7 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		"edit_modal":    false,
 		"create_modal":  false,
 		"details_modal": false,
+		"is_modal":      false,
 		"form":          mv.get_form().dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
@@ -185,9 +186,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 
 	q.setTotal(total)
 
-	mv.Render(w, r, "model_list.gotmpl", template.FuncMap{
-		"list_form": mv.list_form,
-	}, map[string]any{
+	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
 		"count":     len(data),
 		"page":      q.Page,
 		"num_pages": q.num_pages,
@@ -229,14 +228,12 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			q.Desc = firstOr(invert)
 			return mv.GetUrl(".index_view", &q)
 		},
-		"is_editable": mv.is_editable,
 		"column_descriptions": func(name string) string {
 			if desc, ok := mv.column_descriptions[name]; ok {
 				return desc
 			}
 			return mv.model.find(name)["description"].(string)
 		},
-		// "list_form": mv.list_form,
 	})
 }
 func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
@@ -367,8 +364,7 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
 		},
-		"action":   nil,
-		"is_modal": false, // TODO: mv.create_modal
+		"action": nil,
 	})
 }
 
@@ -515,15 +511,15 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		"templates/model_row_actions.gotmpl",
 	}
 
-	fm := template.FuncMap{
+	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
 			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
 		},
 		"get_flashed_messages": func() []map[string]any {
 			return GetFlashedMessages(r)
 		},
-		"get_url": func(endpoint string, args ...any) (string, error) {
-			return mv.GetUrl(endpoint, nil, args...), nil
+		"get_url": func(endpoint string, args ...any) string {
+			return mv.GetUrl(endpoint, nil, args...)
 		},
 		"get_value": func(row map[string]any, col column) any {
 			return row[col.name()]
@@ -534,11 +530,10 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		"pager_url": func(page int) string {
 			return mv.GetUrl(".index_view", nil, "page", page)
 		},
-		"csrf_token": NewCSRF(CurrentSession(r)).GenerateToken,
-	}
-	if funcs != nil {
-		merge(fm, funcs)
-	}
+		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
+		"list_form":   mv.list_form,
+		"is_editable": mv.is_editable,
+	}, funcs)
 
 	fs = append(fs, "templates/"+name)
 	if err := createTemplate(fs, mv.admin.funcs(fm)).

@@ -4,10 +4,11 @@
 
 
 	<ul><h4>if</h4>
-		<li>emptyString: {{ if not .emptyString }} 🟢 {{ else }} not work {{ end }}
-		<li>lower {{ if .lower }} 🟢 {{ else }} not work  {{ end }}
-		<li>emptyInt: {{if not .emptyInt }} 🟢 {{ else }} not work {{ end }}
-		<li>emptyIntArray: {{if not .emptyIntArray }} 🟢 {{ else }} not work {{ end }}
+		<li>emptyString: {{ if not .emptyString }} 🟢 {{ end }}
+		<li>lower {{ if .lower }} 🟢  {{ end }}
+		<li>emptyInt: {{if not .emptyInt }} 🟢 {{ end }}
+		<li>emptyIntArray: {{if not .emptyIntArray }} 🟢 {{ end }}
+		<li>null: {{if not .null }} 🟢 {{ end }}
 	</ul>
 
 

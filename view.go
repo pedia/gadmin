@@ -57,6 +57,7 @@ func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
 	} else {
 		uv = pairToQuery(args...)
 	}
+
 	if strings.HasPrefix(ep, ".") {
 		ep = V.Endpoint + ep
 	}

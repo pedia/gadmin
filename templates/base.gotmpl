@@ -88,5 +88,11 @@
 {{ end -}}
 
     {{ block "tail" .}}{{ end -}}
+    {{ if .admin.debug }}
+    <div class="container-fluid">
+        <h5>Debug</h5>
+        <li> theme: {{ .admin.swatch }}
+    </div>
+    {{ end -}}
   </body>
 </html>

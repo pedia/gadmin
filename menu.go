@@ -38,9 +38,9 @@ type Menu []*MenuItem
 
 func (M *Menu) Add(m *MenuItem) {
 	if m.Category != m.Name && m.Category != "" {
-		c := M.findByCategory(m.Category)
-		// create stub
+		c := M.find(m.Category)
 		if c == nil {
+			// create stub
 			c = &MenuItem{
 				Category: m.Category,
 				Name:     m.Category,
@@ -55,7 +55,7 @@ func (M *Menu) Add(m *MenuItem) {
 	*M = append(*M, m)
 }
 
-func (M Menu) findByCategory(cate string) *MenuItem {
+func (M Menu) find(cate string) *MenuItem {
 	c, _ := lo.Find(M, func(m *MenuItem) bool {
 		return m.Category == cate
 	})
