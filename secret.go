@@ -32,17 +32,17 @@ func (S *Secret) Sign(src []byte, sep ...string) string {
 func (S *Secret) Unsign(s string, sep ...string) ([]byte, error) {
 	arr := strings.Split(s, firstOr(sep, "."))
 	if len(arr) != 2 && len(arr[1]) != 64 {
-		return nil, errInvalid
+		return nil, errTokenInvalid
 	}
 
 	hashed_input, err := base64.RawURLEncoding.DecodeString(arr[1])
 	if err != nil {
-		return nil, errInvalid
+		return nil, errTokenInvalid
 	}
 
 	hashed := S.hash([]byte(arr[0]))
 	if !hmac.Equal(hashed, hashed_input) {
-		return nil, errInvalid
+		return nil, errTokenInvalid
 	}
 	return []byte(arr[0]), nil
 }

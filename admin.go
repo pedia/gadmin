@@ -209,16 +209,25 @@ func gettext(format string, a ...any) string {
 	return gotext.Get(format, a...)
 }
 
+var themeIndex = 0
+
+func theme() string {
+	var themes = []string{"cerulean", "cosmo", "cyborg", "darkly", "united", "yeti",
+		"default", "flatly", "journal", "litera", "lumen", "lux", "materia", "minty",
+		"pulse", "sandstone", "simplex", "sketchy", "slate", "solar", "spacelab",
+		"superhero"}
+	themeIndex = 1
+	return themes[themeIndex%len(themes)]
+}
+
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
-		"debug":               A.debug,
-		"name":                A.Name,
-		"url":                 "/admin",
-		"admin_base_template": "base.html",
-		"swatch":              "cerulean", // "default",
-		// {{ .admin_static_url x y }}
-		// "admin_static_url": a.staticUrl,
-		"menus": A.menu.dict(),
+		"debug": A.debug,
+		"name":  A.Name,
+		"url":   "/admin",
+		// "admin_base_template": "base.html",
+		"swatch": theme(), // "cerulean", "default"
+		"menus":  A.menu.dict(),
 	}
 
 	if len(others) > 0 {

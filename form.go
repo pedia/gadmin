@@ -3,8 +3,11 @@ package gadmin
 import (
 	"bytes"
 	"html/template"
+	"log"
+	"slices"
 
-	"github.com/go-playground/form/v4"
+	"github.com/samber/lo"
+	"gorm.io/gorm/schema"
 )
 
 type XEditableWidget struct {
@@ -43,7 +46,7 @@ func (xw *XEditableWidget) html(r row) template.HTML {
 		"args":          args,
 		"display_value": r.get(xw.column.name()),
 	})
-	return template.HTML(w.String())
+	return template.HTML(w.String()) // TODO: HTML safe
 }
 
 type base_form struct {
@@ -66,55 +69,149 @@ func (f model_form) dict() map[string]any {
 	}
 }
 
-// list_form_pk = HiddenField(validators=[InputRequired()])
-// xx=yy
-// widget
-func enc() {
-	e := form.NewEncoder()
-	e.Encode(map[string]any{})
+type input_field struct {
+	Id    string
+	Name  string
+	Type  string
+	Value any
+	Data  map[string]any
 }
 
-type field struct {
-	Name string
-	// Value       any
-	Label       string
-	Description string
-	Default     any
-	Widget      any
-	RenderArgs  map[string]any
-	Filters     []any
-	Validators  []any
+func InputField(typo, name string, value any, data map[string]any) *input_field {
+	data_names := []string{"url", "json", "role", "multiple",
+		"separator", "allow-blank", "date-format", "placeholder",
+		"minimum-input-length"}
+	for name := range data {
+		if !slices.Contains(data_names, name) {
+			log.Printf("warning data name %s", name)
+		}
+	}
+
+	return &input_field{
+		Id:    name,
+		Name:  name,
+		Type:  typo,
+		Value: value,
+		Data:  data,
+	}
 }
 
 var inputTemplate = template.Must(template.New("input").Parse(
-	`<input{{ range $k,$v :=.args }} {{$k}}="{{$v}}"{{end}} />`))
+	`<input{{ range $k,$v :=. -}}
+{{- if eq $k "required" }} required{{ else }} {{$k}}="{{$v}}{{- end -}}"
+{{- end }} />`))
 
-func (f *field) intoHtml() template.HTML {
+var inlineEditTemplate = template.Must(template.New("input").Parse(
+	`<a{{range $k,$v :=.}} {{$k}}="{{$v}}"{{end}}>{{.value}}</a>`))
+
+func (F *input_field) intoHtml() template.HTML {
 	args := map[template.HTMLAttr]any{
-		"id":   f.Name,
-		"name": f.Name,
+		"id":    F.Name,
+		"name":  F.Name,
+		"type":  F.Type,
+		"value": F.Value,
 	}
+	//
+	if F.Type == "text" {
+		args["class"] = "form-control"
+	}
+
+	for k, v := range F.Data {
+		args[template.HTMLAttr("data-"+k)] = v
+	}
+
 	w := bytes.Buffer{}
-	inputTemplate.Execute(&w, map[string]any{
-		"args": args,
-	})
+	inputTemplate.Execute(&w, args)
 	return template.HTML(w.String())
 }
 
-type hidden_field struct {
-	*field
+type field struct {
+	Entries []lo.Entry[string, any]
 }
 
-func (f *hidden_field) intoHtml() template.HTML {
-	return ""
+func NewField(es []lo.Entry[string, any]) *field {
+	return &field{Entries: es}
 }
 
-// type list_form struct {
-// 	fields: []{ list_form_pk, xx }
-// }
-//
-// form.Render(field_name string, value any)
+func (F *field) render(t *template.Template) template.HTML {
+	args := map[template.HTMLAttr]any{}
+	for _, e := range F.Entries {
+		args[template.HTMLAttr(e.Key)] = e.Value
+	}
 
-// type delete_form struct {
-// 	fields: []{ id, url }
-// }
+	w := bytes.Buffer{}
+	t.Execute(&w, args)
+	return template.HTML(w.String())
+}
+
+func (F *field) intoFormHtml() template.HTML {
+	return F.render(inputTemplate)
+}
+func (F *field) intoInlineEditHtml() template.HTML {
+	return F.render(inlineEditTemplate)
+}
+
+func NewTextField(id, value string, es ...lo.Entry[string, any]) *field {
+	ps := []lo.Entry[string, any]{
+		{Key: "class", Value: "form-control"},
+		{Key: "id", Value: id},
+		{Key: "name", Value: id},
+		{Key: "type", Value: "text"},
+		{Key: "value", Value: value}}
+	ps = append(ps, es...)
+	return &field{Entries: ps}
+}
+
+func NewHiddenField(id, value string, es ...lo.Entry[string, any]) *field {
+	ps := []lo.Entry[string, any]{
+		{Key: "id", Value: id},
+		{Key: "name", Value: id},
+		{Key: "type", Value: "hidden"},
+		{Key: "value", Value: value}}
+	ps = append(ps, es...)
+	return &field{Entries: ps}
+}
+
+// data-csrf
+// data-pk
+// data-role
+// data-source
+// data-type
+// data-url
+// data-value
+// href
+// id
+// name
+
+type Choice struct {
+	Text  string
+	Value any
+}
+
+type Column struct {
+	Name        string
+	Description string
+	Required    bool
+	Choices     []Choice
+	Type        string
+	DataType    schema.DataType
+	Label       string
+	Widget      *input_field
+	Errors      string
+	PrimaryKey  bool
+}
+
+func (C *Column) dict() map[string]any {
+	return map[string]any{
+		"name":        C.Name,
+		"description": C.Description,
+		"required":    C.Required,
+		"choices":     C.Choices,
+		"type":        C.Type,
+		"data_type":   C.DataType,
+		"label":       C.Label,
+		"widget":      C.Widget,
+		"errors":      C.Errors,
+		"primary_key": C.PrimaryKey,
+	}
+}

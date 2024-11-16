@@ -33,27 +33,27 @@ func (C *CSRF) GenerateToken() string {
 	return now.Format(stampLayout) + "#" + buf
 }
 
-var errExpired = errors.New("token expired")
-var errInvalid = errors.New("token invalid")
+var errTokenExpired = errors.New("token expired")
+var errTokenInvalid = errors.New("token invalid")
 
 func (C *CSRF) Validate(token string) error {
 	arr := strings.Split(token, "#")
 	if len(arr) != 2 {
-		return errInvalid
+		return errTokenInvalid
 	}
 	sv := C.Fetch(arr[1])
 	if sv == nil {
-		return errInvalid
+		return errTokenInvalid
 	}
 
 	when, ok := sv.(time.Time)
 	if !ok {
-		return errInvalid
+		return errTokenInvalid
 	}
 
 	d := C.fnow().Sub(when)
 	if d < 0 || d > C.timeout {
-		return errExpired
+		return errTokenExpired
 	}
 	return nil
 }

@@ -30,7 +30,18 @@ Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 o
 # Status
 - ✅ Menu
 - ✅ Blueprint
+- ✅ middleware: session, csrf, flashed
+- ✅ stuff
+    - ✅ translate
+    - [] config
 - ✅ model list
+    - ✅ sort
+    - [] filter
+    - [] search
+    - [] action
+- [] model
+    - [] preload
+    - [] join
 - ✅ model details
 - ✅ [examples/simple](examples/simple/main.go)
 - ✅ [examples/sqla](examples/sqla/admin/main.go)

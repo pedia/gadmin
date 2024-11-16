@@ -2,10 +2,12 @@ package gadmin
 
 import (
 	"context"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/samber/lo"
@@ -15,6 +17,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// in templates much lower case member
 type column map[string]any
 
 func (c column) name() string  { return c["name"].(string) }
@@ -43,6 +46,7 @@ func newModel(m any) *model {
 			"required":    field.NotNull,
 			"choices":     nil,
 			"type":        "StringField", // TODO:
+			"data_type":   field.DataType,
 			"label":       strings.Join(camelcase.Split(field.Name), " "),
 			"widget":      field2widget(field),
 			"errors":      nil,
@@ -93,7 +97,40 @@ func (m *model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.typo))
 }
 
-// Convert value to row
+func toTypedValue(s string, dt schema.DataType) any {
+	switch dt {
+	case schema.Bool:
+		v, _ := strconv.ParseBool(s)
+		return v
+	case schema.Int, schema.Uint:
+		v, _ := strconv.ParseInt(s, 10, 64)
+		return v
+	case schema.Float:
+		v, _ := strconv.ParseFloat(s, 64)
+		return v
+	case schema.Time:
+		v, _ := time.ParseInLocation(time.DateTime, s, time.Local)
+		return v
+	case schema.Bytes:
+		panic("TODO")
+	default:
+		return s
+	}
+}
+
+// Parse form into map[string]any
+func (m *model) parseForm(uv url.Values) row {
+	res := map[string]any{}
+	for _, col := range m.columns {
+		name := col.name()
+		if uv.Has(name) {
+			res[name] = uv.Get(name) // toTypedValue(uv.Get(name), col["data_type"].(schema.DataType))
+		}
+	}
+	return res
+}
+
+// Convert struct value to row
 func (m *model) intoRow(ctx context.Context, a any) row {
 	v := reflect.ValueOf(a)
 
@@ -187,12 +224,24 @@ func (m *model) get_one(ctx context.Context, db *gorm.DB, pk any) (row, error) {
 	return m.intoRow(ctx, ptr), nil
 }
 
-func (m *model) update(db *gorm.DB, pk any, row row) error {
+func (m *model) update(db *gorm.DB, pk any, row map[string]any) error {
 	ptr := m.new()
 
 	if rc := db.Model(ptr).
 		Where(map[string]any{m.pk.name(): pk}).
 		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
+		return rc.Error
+	}
+	return nil
+}
+
+// row -> Model().Create() RETURNING *
+func (m *model) create(db *gorm.DB, row map[string]any) error {
+	ptr := m.new()
+
+	if rc := db.Model(ptr).
+		Clauses(clause.Returning{}). // RETURNING *
+		Create(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil

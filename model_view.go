@@ -178,12 +178,6 @@ func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	if mv.admin.debug {
-		Flash(r, "hello")
-		Flash(r, "Worked", "success")
-		Flash(r, "Caution", "danger")
-	}
-
 	q := mv.queryFrom(r)
 
 	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
@@ -191,7 +185,9 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 
 	q.setTotal(total)
 
-	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
+	mv.Render(w, r, "model_list.gotmpl", template.FuncMap{
+		"list_form": mv.list_form,
+	}, map[string]any{
 		"count":     len(data),
 		"page":      q.Page,
 		"num_pages": q.num_pages,
@@ -240,7 +236,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			}
 			return mv.model.find(name)["description"].(string)
 		},
-		"list_form": mv.list_form,
+		// "list_form": mv.list_form,
 	})
 }
 func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
@@ -330,15 +326,38 @@ func (mv *ModelView) list_row_actions_confirmation() map[string]string {
 	return res
 }
 
-// row -> Model().Create() RETURNING *
 func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	q := mv.queryFrom(r)
 	if !mv.can_create {
-		mv.redirect_to_index(w, r, q)
+		mv.redirect(w, r, q.Get("url"))
 		return
 	}
 
-	// _continue_editing
+	if r.Method == "POST" {
+		// trigger ParseMultipartForm
+		continue_editing := r.PostFormValue("_continue_editing")
+
+		dm := mv.model.parseForm(r.PostForm)
+		if err := mv.model.create(mv.admin.DB, dm); err == nil {
+			Flash(r, gettext("Record was successfully created."), "success")
+
+			// "_add_another"
+			// "_continue_editing"
+			if continue_editing != "" {
+				mv.redirect(w, r, mv.GetUrl(".edit_view", nil, "id", dm["id"])) // TODO: pk name
+				return
+			}
+
+			if r.PostFormValue("_add_another") != "" {
+				mv.redirect(w, r, mv.GetUrl(".create_view", nil))
+				return
+			}
+
+			mv.redirect(w, r, q.Get("url"))
+			return
+		}
+
+	}
 
 	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		// ReplyJson(w, 200, map[string]any{
@@ -353,8 +372,7 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (mv *ModelView) redirect_to_index(w http.ResponseWriter, r *http.Request, q *Query) {
-	url := q.Get("url")
+func (mv *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
 	if url == "" {
 		url = mv.GetUrl(".index_view", nil)
 	}
@@ -365,7 +383,7 @@ func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 	q := mv.queryFrom(r)
 
 	if !mv.can_edit {
-		mv.redirect_to_index(w, r, q)
+		mv.redirect(w, r, q.Get("url"))
 		return
 	}
 
@@ -374,7 +392,7 @@ func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 		// TODO: work?
 		Flash(r, mv.admin.gettext("Record does not exist."), "danger")
 
-		mv.redirect_to_index(w, r, q)
+		mv.redirect(w, r, q.Get("url"))
 		return
 	}
 
@@ -507,8 +525,8 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		"get_url": func(endpoint string, args ...any) (string, error) {
 			return mv.GetUrl(endpoint, nil, args...), nil
 		},
-		"get_value": func(m map[string]any, col column) any {
-			return m[col.name()]
+		"get_value": func(row map[string]any, col column) any {
+			return row[col.name()]
 		},
 		"page_size_url": func(page_size int) string {
 			return mv.GetUrl(".index_view", nil, "page_size", page_size)

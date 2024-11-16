@@ -22,44 +22,41 @@ func firstOr[T any](as []T, or ...T) T {
 }
 
 // Ensure value avoid error/bool trouble
-func must[T any](xs ...any) T {
+func must[T any](frs ...any) T {
 	// try: func() (x, error)
-	err, ok := xs[len(xs)-1].(error)
+	err, ok := frs[len(frs)-1].(error)
 	if ok && err != nil {
 		panic(err)
 	}
 
 	if !ok {
 		// try: func() (x, bool)
-		if b, ok := xs[len(xs)-1].(bool); ok && !b {
+		if b, ok := frs[len(frs)-1].(bool); ok && !b {
 			panic("not ok")
 		}
 	}
 
-	return xs[0].(T)
+	return frs[0].(T)
 }
 
 func anyMapToQuery(m map[string]any) url.Values {
 	uv := url.Values{}
 	for key, val := range m {
-		uv.Set(key, fmt.Sprint(val))
+		uv.Add(key, fmt.Sprint(val))
 	}
 	return uv
 }
 
 // any to query in tradition url
-// bool => "1", "0"
-// any => string
+// bool => "1", "0". behavior in python/flask
+// others => string
 func intoStringSlice(as ...any) []string {
-	res := []string{}
-	for i := 0; i < len(as); i++ {
-		if b, ok := as[i].(bool); ok {
-			res = append(res, lo.Ternary(b, "1", "0"))
-			continue
+	return lo.Map(as, func(a any, _ int) string {
+		if b, ok := a.(bool); ok {
+			return lo.Ternary(b, "1", "0")
 		}
-		res = append(res, fmt.Sprint(as[i]))
-	}
-	return res
+		return fmt.Sprint(a)
+	})
 }
 
 // Input paired args, like: a,b,c,d return "a=b&c=d"
@@ -79,7 +76,7 @@ func pairToQuery(args ...any) url.Values {
 	return uv
 }
 
-// Merge b map to a
+// Merge b to a
 func merge[K comparable, V any](a, b map[K]V) map[K]V {
 	for k, v := range b {
 		a[k] = v
@@ -92,28 +89,31 @@ var (
 	ContentTypeUtf8Html = "text/html; charset=utf-8"
 )
 
-func ReplyJson(w http.ResponseWriter, status int, obj any) {
+func ReplyJson(w http.ResponseWriter, status int, o any) {
 	w.Header().Add("content-type", ContentTypeJson)
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(obj); err != nil {
+	if err := json.NewEncoder(w).Encode(o); err != nil {
 		panic(err)
 	}
 }
 
 // Cache http.ResponseWriter, Output Cookie after template rendering
-type bufferWriter struct {
-	buf         *bytes.Buffer
-	w           http.ResponseWriter
-	beforeFlush func(http.ResponseWriter)
-}
-
-func NewBufferWriter(w http.ResponseWriter, bf func(http.ResponseWriter)) http.ResponseWriter {
+func NewBufferWriter(w http.ResponseWriter, f func(http.ResponseWriter)) http.ResponseWriter {
 	return &bufferWriter{
 		buf:         bytes.NewBuffer([]byte{}),
 		w:           w,
-		beforeFlush: bf,
-	}
+		beforeFlush: f}
+}
+
+type bufferWriter struct {
+	buf *bytes.Buffer
+
+	// origin `ResponseWriter`
+	w http.ResponseWriter
+
+	// excute before flush, eg. Set-Cookie
+	beforeFlush func(http.ResponseWriter)
 }
 
 func (B *bufferWriter) Write(p []byte) (n int, err error) {

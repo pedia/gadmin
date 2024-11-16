@@ -166,7 +166,7 @@
                     {{ range $c := $g.list_columns }}
                         <td class="col-{{$c.name}}">
                         {{- if call $g.is_editable $c.name }}
-                            {{ call $g.list_form $c $row }}
+                            {{ list_form $c $row }}
                         {{ else }}
                             {{- get_value $row $c -}}
                         {{ end -}}

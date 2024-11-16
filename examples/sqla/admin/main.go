@@ -78,7 +78,8 @@ func main() {
 	a := gadmin.NewAdmin("Example: SQLAlchemy", db)
 	a.AddView(gadmin.NewModelView(User{}))
 	a.AddView(gadmin.NewModelView(Tag{})).(*gadmin.ModelView).
-		SetTablePrefixHtml(`<h4>Table prefix</h4>`)
+		SetTablePrefixHtml(`<h4>Table prefix</h4>`).
+		SetColumnEditableList("name")
 	a.AddView(gadmin.NewModelView(Post{}))
 
 	a.AddMenuItem(gadmin.MenuItem{Category: "Other", Name: "Other"})
