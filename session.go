@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
+	"strings"
+
+	"github.com/samber/lo"
 )
 
 type Session struct {
@@ -38,9 +42,7 @@ func (S *Session) Save(w http.ResponseWriter) error {
 		panic("saved again?")
 	}
 
-	if len(S.Values) == 0 {
-		return nil
-	}
+	log.Printf("session save: %s", strings.Join(lo.Keys(S.Values), ","))
 
 	bs, err := json.Marshal(S.Values)
 	if err != nil {

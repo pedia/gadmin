@@ -154,7 +154,7 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		"create_modal":  false,
 		"details_modal": false,
 		"is_modal":      false,
-		"form":          mv.get_form().dict(),
+		"form":          mv.get_form(r).dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
 			"form_rules":  []any{},
@@ -359,7 +359,7 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		// ReplyJson(w, 200, map[string]any{
 		"request":    rd(r),
-		"form":       mv.get_form().dict(),
+		"form":       mv.get_form(r).dict(),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -489,7 +489,7 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-func (mv *ModelView) get_form() model_form {
+func (mv *ModelView) get_form(r *http.Request) model_form {
 	// create form
 	// Ignore pk/fk
 	return model_form{

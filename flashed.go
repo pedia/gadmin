@@ -8,7 +8,7 @@ import (
 
 // Mock flashed message in Flask
 func flashed(session *Session) *_Flashed {
-	return &_Flashed{Session: session, name: " flashed"}
+	return &_Flashed{Session: session, name: "flashed"}
 }
 
 type _message map[string]any
