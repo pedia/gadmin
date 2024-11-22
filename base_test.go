@@ -3,6 +3,8 @@ package gadmin
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"sync"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/leonelquinteros/gotext.v1"
 )
 
 func TestFirstOrEmpty(t *testing.T) {
@@ -128,4 +131,34 @@ func TestOnce(t *testing.T) {
 		}
 	}
 	is.Equal(1, oc)
+}
+
+func TestText(t *testing.T) {
+	is := assert.New(t)
+
+	gotext.Configure("translations", "zh_Hant_TW", "admin")
+	is.Equal("首頁", gotext.Get("Home"))
+	is.Equal(`檔案 "foo" 已經存在。`, gotext.Get(`File "%s" already exists.`, "foo"))
+}
+
+func TestBufferWriter(t *testing.T) {
+	is := assert.New(t)
+
+	called := false
+	bf := func(w http.ResponseWriter) {
+		w.Header().Add("Hello", "World")
+		called = true
+	}
+	w0 := httptest.NewRecorder()
+
+	w := NewBufferWriter(w0, bf)
+	w.Write([]byte("body"))
+
+	is.False(called)
+
+	w.(http.Flusher).Flush()
+
+	is.Equal("World", w.Header().Get("Hello"))
+	is.Equal("body", w0.Body.String())
+	is.True(called)
 }

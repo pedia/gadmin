@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net"
 	"net/http"
 
 	"github.com/Masterminds/sprig/v3"
+	"gopkg.in/leonelquinteros/gotext.v1"
 	"gorm.io/gorm"
 )
 
@@ -21,8 +23,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		debug: true,
 		// auto_migrate: true,
 		staticUrl: "/admin/static",
-
-		mux: http.NewServeMux(),
+		secret:    NewSecret("hello"), // TODO: read from config
+		mux:       http.NewServeMux(),
 	}
 
 	A.Blueprint = &Blueprint{
@@ -51,10 +53,12 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 				},
 			},
 		}}
-	A.RegisterTo(A.mux, "")
-	// TODO: gettext("Home")
-	A.menu.Add(&MenuItem{Path: "/admin/", Name: "Home"})
+	A.RegisterTo(&A, A.mux, "")
 
+	// TODO: read lang from config
+	gotext.Configure("translations", "zh_Hant_TW", "admin")
+	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
+	// A.csrf = NewCSRF(A.secret)
 	return &A
 }
 
@@ -72,13 +76,15 @@ type Admin struct {
 	// with Admin.name, default as `/admin/static`
 	staticUrl string
 
-	mux *http.ServeMux
+	secret *Secret
+	csrf   *CSRF
+	mux    *http.ServeMux
 }
 
 func (A *Admin) register(b *Blueprint) {
 	A.Add(b)
 
-	b.RegisterTo(A.mux, A.Path)
+	b.RegisterTo(A, A.mux, A.Path)
 }
 
 func (A *Admin) AddView(view View) View {
@@ -104,7 +110,7 @@ func (A *Admin) AddView(view View) View {
 		}
 		A.views = append(A.views, view)
 		// TODO:
-		view.GetBlueprint().RegisterTo(A.mux, "")
+		view.GetBlueprint().RegisterTo(A, A.mux, "")
 	}
 
 	return view
@@ -164,8 +170,20 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 	return prefix + res, nil
 }
 
+func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r2 := PatchSession(r, A)
+	w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
+		err := CurrentSession(r2).Save(w) // Is OK?
+		if err != nil {
+			log.Printf("session save failed %s", err)
+		}
+	})
+	A.mux.ServeHTTP(w2, r2)
+	w2.(http.Flusher).Flush()
+}
+
 func (A *Admin) Run() {
-	serv := http.Server{Handler: A.mux}
+	serv := http.Server{Handler: A}
 
 	l, _ := net.Listen("tcp", ":3333")
 	serv.Serve(l)
@@ -186,8 +204,9 @@ func (*Admin) gettext(format string, a ...any) string {
 	return gettext(format, a...)
 }
 
+// convince for outside of `Admin`
 func gettext(format string, a ...any) string {
-	return fmt.Sprintf(format, a...)
+	return gotext.Get(format, a...)
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {
@@ -280,7 +299,6 @@ func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
 		"marshal":          A.marshal,   // test
 		"config":           A.config,    // used
 		"gettext":          A.gettext,   //
-		"csrf_token":       func() string { return "xxxx-csrf-token" },
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		"comment": func(format string, args ...any) template.HTML {

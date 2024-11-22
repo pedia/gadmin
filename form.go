@@ -62,8 +62,6 @@ func (f model_form) dict() map[string]any {
 		"action":     "", // empty
 		"hidden_tag": false,
 		"fields":     f.Fields,
-		"cancel_url": "TODO:cancel_url",
-		"is_modal":   true,
 		"csrf_token": true,
 	}
 }
