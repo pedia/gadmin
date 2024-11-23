@@ -60,6 +60,12 @@ type model_form struct {
 	ExtraFields []string
 }
 
+func (F *model_form) setValue(one row) {
+	for _, f := range F.Fields {
+		f["value"] = one[f.name()]
+	}
+}
+
 func (f model_form) dict() map[string]any {
 	return map[string]any{
 		"action":     "", // empty

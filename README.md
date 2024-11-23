@@ -42,6 +42,7 @@ Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 o
 - [] model
     - [] preload
     - [] join
+    - [] Multiple Primary Keys
 - ✅ model details
 - ✅ [examples/simple](examples/simple/main.go)
 - ✅ [examples/sqla](examples/sqla/admin/main.go)

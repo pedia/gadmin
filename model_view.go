@@ -154,7 +154,6 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		"create_modal":  false,
 		"details_modal": false,
 		"is_modal":      false,
-		"form":          mv.get_form(r).dict(),
 		"form_opts": map[string]any{
 			"widget_args": nil,
 			"form_rules":  []any{},
@@ -334,14 +333,14 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
-		dm := mv.model.parseForm(r.PostForm)
-		if err := mv.model.create(mv.admin.DB, dm); err == nil {
+		one := mv.model.parseForm(r.PostForm)
+		if err := mv.model.create(mv.admin.DB, one); err == nil {
 			Flash(r, gettext("Record was successfully created."), "success")
 
 			// "_add_another"
 			// "_continue_editing"
 			if continue_editing != "" {
-				mv.redirect(w, r, mv.GetUrl(".edit_view", nil, "id", dm["id"])) // TODO: pk name
+				mv.redirect(w, r, mv.GetUrl(".edit_view", nil, "id", one["id"]))
 				return
 			}
 
@@ -357,9 +356,8 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
-		// ReplyJson(w, 200, map[string]any{
 		"request":    rd(r),
-		"form":       mv.get_form(r).dict(),
+		"form":       mv.get_form(nil).dict(),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -394,6 +392,7 @@ func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 
 	mv.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
 		"model":           one,
+		"form":            mv.get_form(one).dict(),
 		"details_columns": mv.list_columns(),
 		"request":         rd(r),
 	})
@@ -489,14 +488,14 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-func (mv *ModelView) get_form(r *http.Request) model_form {
-	// create form
-	// Ignore pk/fk
-	return model_form{
+func (mv *ModelView) get_form(one row) model_form {
+	form := model_form{
 		Fields: lo.Filter(mv.model.columns, func(col column, _ int) bool {
 			return !col["primary_key"].(bool)
 		}),
 	}
+	form.setValue(one)
+	return form
 }
 
 func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {

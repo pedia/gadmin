@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/samber/lo"
@@ -97,34 +96,13 @@ func (m *model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.typo))
 }
 
-func toTypedValue(s string, dt schema.DataType) any {
-	switch dt {
-	case schema.Bool:
-		v, _ := strconv.ParseBool(s)
-		return v
-	case schema.Int, schema.Uint:
-		v, _ := strconv.ParseInt(s, 10, 64)
-		return v
-	case schema.Float:
-		v, _ := strconv.ParseFloat(s, 64)
-		return v
-	case schema.Time:
-		v, _ := time.ParseInLocation(time.DateTime, s, time.Local)
-		return v
-	case schema.Bytes:
-		panic("TODO")
-	default:
-		return s
-	}
-}
-
 // Parse form into map[string]any
 func (m *model) parseForm(uv url.Values) row {
 	res := map[string]any{}
 	for _, col := range m.columns {
 		name := col.name()
 		if uv.Has(name) {
-			res[name] = uv.Get(name) // toTypedValue(uv.Get(name), col["data_type"].(schema.DataType))
+			res[name] = uv.Get(name)
 		}
 	}
 	return res
@@ -217,6 +195,7 @@ func (m *model) get_list(ctx context.Context, db *gorm.DB, q *Query) (int64, []r
 }
 
 func (m *model) get_one(ctx context.Context, db *gorm.DB, pk any) (row, error) {
+	// TODO: multiple primary keys `a,b`
 	ptr := m.new()
 	if err := db.First(ptr, pk).Error; err != nil {
 		return nil, err

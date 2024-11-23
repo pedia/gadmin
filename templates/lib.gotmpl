@@ -140,7 +140,7 @@
         { set _class = kwargs.setdefault('class', 'form-control') }
       {{ end }} -->
       {{- if .direct_error }} {{/* set _ = kwargs.update({'class': kwargs['class'] ~ ' is-invalid'}) */}} {{ end -}}
-      <input class="form-control" id="{{ .f.name }}" name="{{ .f.name }}" type="text" value="">
+      <input class="form-control" id="{{ .f.name }}" name="{{ .f.name }}" type="text" value="{{ .f.value }}">
       {{- if .kwargs.append -}}
       <div class="input-group-append">
         {{ .kwargs.append }}
