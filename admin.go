@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net"
 	"net/http"
 
@@ -173,9 +172,11 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r2 := PatchSession(r, A)
 	w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
-		err := CurrentSession(r2).Save(w) // Is OK?
+		sess := CurrentSession(r2)
+		// log.Printf("session %s save %d", r.URL, len(sess.Values))
+		err := sess.Save(w)
 		if err != nil {
-			log.Printf("session save failed %s", err)
+			// log.Printf("session save failed %s", err)
 		}
 	})
 	A.mux.ServeHTTP(w2, r2)
@@ -244,8 +245,15 @@ func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
+	s := CurrentSession(r)
+	c := s.Get("C")
+	if c == nil {
+		c = 0
+	}
+	s.Set("C", c.(int)+1)
 	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprints": A.Blueprint.dict(),
+		"session":    s.Values,
 	}))
 }
 func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {

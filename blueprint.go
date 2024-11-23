@@ -45,7 +45,7 @@ func (B *Blueprint) Add(child *Blueprint) {
 
 // Add `Blueprint` to `http.ServeMux`
 func (B *Blueprint) RegisterTo(admin *Admin, mux *http.ServeMux, path string) {
-	log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
+	// log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
 	if B.Register != nil {
 		B.Register(mux, path, B)
 	}

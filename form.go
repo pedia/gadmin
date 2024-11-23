@@ -102,13 +102,20 @@ func InputField(typo, name string, value any, data map[string]any) *input_field 
 	}
 }
 
-var inputTemplate = template.Must(template.New("input").Parse(
-	`<input{{ range $k,$v :=. -}}
-{{- if eq $k "required" }} required{{ else }} {{$k}}="{{$v}}{{- end -}}"
-{{- end }} />`))
+func init() {
+	inputTemplate = template.Must(template.New("input").Parse(
+		`<input
+	{{- range $k,$v :=. -}}
+		{{- if eq $k "required" }}required {{ else }} {{$k}}="{{$v}}"{{ end -}}
+	{{- end }} />`))
 
-var inlineEditTemplate = template.Must(template.New("input").Parse(
-	`<a{{range $k,$v :=.}} {{$k}}="{{$v}}"{{end}}>{{.value}}</a>`))
+	inlineEditTemplate = template.Must(template.New("input").Parse(
+		`<a{{range $k,$v :=.}} {{$k}}="{{$v}}"{{end}}>{{.value}}</a>`))
+}
+
+var inputTemplate *template.Template
+
+var inlineEditTemplate *template.Template
 
 func (F *input_field) intoHtml() template.HTML {
 	args := map[template.HTMLAttr]any{

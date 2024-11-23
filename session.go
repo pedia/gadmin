@@ -4,11 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"net/http"
-	"strings"
-
-	"github.com/samber/lo"
 )
 
 type Session struct {
@@ -42,8 +38,6 @@ func (S *Session) Save(w http.ResponseWriter) error {
 		panic("saved again?")
 	}
 
-	log.Printf("session save: %s", strings.Join(lo.Keys(S.Values), ","))
-
 	bs, err := json.Marshal(S.Values)
 	if err != nil {
 		return err
@@ -52,17 +46,17 @@ func (S *Session) Save(w http.ResponseWriter) error {
 	dest := make([]byte, hex.EncodedLen(len(bs)))
 	hex.Encode(dest, bs)
 
-	// cookie := http.Cookie{
-	// 	Name:  S.cookieName,
-	// 	Value: S.Sign(dest),
-	// }
-	// w.Header().Set("Set-Cookie", cookie.String())
-
-	// Maybe replace is better
-	http.SetCookie(w, &http.Cookie{
-		Name:  S.cookieName,
-		Value: S.Sign(dest),
-	})
+	cookie := http.Cookie{
+		Name:     S.cookieName,
+		Value:    S.Sign(dest),
+		Path:     "/",
+		HttpOnly: true,
+	}
+	v := cookie.String()
+	if v == "" {
+		panic("cookie invalid")
+	}
+	w.Header().Add("Set-Cookie", v)
 	S.saved = true
 
 	return nil
@@ -83,7 +77,10 @@ func PatchSession(r *http.Request, admin *Admin) *http.Request {
 		Values:     map[string]any{},
 		cookieName: "session", // TODO: admin.config
 	}
-	ns.ReadFrom(r)
+	if err := ns.ReadFrom(r); err != nil {
+		// log.Printf("session %s read %s, got %d", r.URL, err, len(ns.Values))
+	}
+
 	return r.Clone(context.WithValue(r.Context(), _sessionKey, &ns))
 }
 
