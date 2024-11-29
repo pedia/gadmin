@@ -17,6 +17,9 @@ func NewCSRF(session *Session) *CSRF {
 	}
 }
 
+// Create or Get current CSRF
+// func CurrentCSRF(r *http.Request) string {}
+
 type CSRF struct {
 	*Session
 	timeout time.Duration

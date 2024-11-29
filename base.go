@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 )
 
 func firstOr[T any](as []T, or ...T) T {
@@ -42,7 +43,7 @@ func must[T any](frs ...any) T {
 func anyMapToQuery(m map[string]any) url.Values {
 	uv := url.Values{}
 	for key, val := range m {
-		uv.Add(key, fmt.Sprint(val))
+		uv.Add(key, cast.ToString(val))
 	}
 	return uv
 }
@@ -55,7 +56,7 @@ func intoStringSlice(as ...any) []string {
 		if b, ok := a.(bool); ok {
 			return lo.Ternary(b, "1", "0")
 		}
-		return fmt.Sprint(a)
+		return cast.ToString(a)
 	})
 }
 
@@ -70,7 +71,7 @@ func pairToQuery(args ...any) url.Values {
 			}
 
 			// `Add` is better than `Set`
-			uv.Add(key, fmt.Sprint(args[i+1]))
+			uv.Add(key, cast.ToString(args[i+1]))
 		}
 	}
 	return uv

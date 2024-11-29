@@ -52,12 +52,13 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 				},
 			},
 		}}
-	A.RegisterTo(&A, A.mux, "")
+	A.registerTo(&A, A.mux, "")
 
 	// TODO: read lang from config
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
 	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
-	// A.csrf = NewCSRF(A.secret)
+
+	NewSecurity(&A)
 	return &A
 }
 
@@ -76,14 +77,13 @@ type Admin struct {
 	staticUrl string
 
 	secret *Secret
-	csrf   *CSRF
 	mux    *http.ServeMux
 }
 
-func (A *Admin) register(b *Blueprint) {
+func (A *Admin) Register(b *Blueprint) {
 	A.Add(b)
 
-	b.RegisterTo(A, A.mux, A.Path)
+	b.registerTo(A, A.mux, A.Path)
 }
 
 func (A *Admin) AddView(view View) View {
@@ -98,7 +98,7 @@ func (A *Admin) AddView(view View) View {
 		b := mv.GetBlueprint()
 		if b != nil {
 			A.views = append(A.views, mv)
-			A.register(b)
+			A.Register(b)
 
 			A.addViewToMenu(mv)
 		}
@@ -109,7 +109,7 @@ func (A *Admin) AddView(view View) View {
 		}
 		A.views = append(A.views, view)
 		// TODO:
-		view.GetBlueprint().RegisterTo(A, A.mux, "")
+		view.GetBlueprint().registerTo(A, A.mux, "")
 	}
 
 	return view
@@ -232,6 +232,7 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 		// "admin_base_template": "base.html",
 		"swatch": theme(), // "cerulean", "default"
 		"menus":  A.menu.dict(),
+		"config": config,
 	}
 
 	if len(others) > 0 {

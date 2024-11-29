@@ -44,7 +44,10 @@ func (B *Blueprint) Add(child *Blueprint) {
 }
 
 // Add `Blueprint` to `http.ServeMux`
-func (B *Blueprint) RegisterTo(admin *Admin, mux *http.ServeMux, path string) {
+func (B *Blueprint) registerTo(admin *Admin, mux *http.ServeMux, path string) {
+	if !strings.HasPrefix(B.Path, "/") {
+		log.Printf("warning Blueprint.Path %s not start with /", B.Path)
+	}
 	// log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
 	if B.Register != nil {
 		B.Register(mux, path, B)
@@ -59,7 +62,7 @@ func (B *Blueprint) RegisterTo(admin *Admin, mux *http.ServeMux, path string) {
 		cp := path + B.Path + cb.Path
 		_, ok := unique[cp]
 		if !ok {
-			cb.RegisterTo(admin, mux, path+B.Path)
+			cb.registerTo(admin, mux, path+B.Path)
 			unique[cp] = true
 		} else {
 			log.Printf("duplicated handle %s", cp)
@@ -126,8 +129,8 @@ func (B *Blueprint) dict() map[string]any {
 // admin.static
 
 // security(login) scope:
-// security.login
-// security.logout
-// security.register
+// security.login /login
+// security.logout /logout
+// security.register /register
 // security.forgot_password
 // security.send_confirmation

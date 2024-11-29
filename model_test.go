@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"html/template"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -230,6 +231,19 @@ func (S *ModelTestSuite) TestModelView() {
 	is.Equal("6", q3.Get("id"))
 	is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
 }
+
+func (S *ModelTestSuite) TestSession() {
+	is := assert.New(S.T())
+	S.admin.Register(&Blueprint{Endpoint: "bar", Path: "/bar",
+		Handler: func(w http.ResponseWriter, r *http.Request) {
+			CurrentSession(r).Set("bar", "hello")
+		}})
+	r := httptest.NewRequest("GET", "/admin/bar", nil)
+	w := httptest.NewRecorder()
+	S.admin.ServeHTTP(w, r)
+	is.Equal(200, w.Code)
+}
+
 func (S *ModelTestSuite) TestUrl() {
 	is := assert.New(S.T())
 
@@ -251,6 +265,7 @@ func (S *ModelTestSuite) TestUrl() {
 	paths := lo.FlatMap(es, func(e string, _ int) []string {
 		return []string{
 			fmt.Sprintf("/admin/%s/", e),
+			fmt.Sprintf("/admin/%s/new", e),
 			// fmt.Sprintf("/admin/%s/edit", e),
 			// fmt.Sprintf("/admin/%s/details", e),
 			// fmt.Sprintf("/admin/%s/action", e),

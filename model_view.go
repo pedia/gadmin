@@ -284,6 +284,7 @@ func (mv *ModelView) get_column_index(name string) int {
 	return -1
 }
 
+// Generate inline edit form in list view
 func (mv *ModelView) list_form(col column, r row) template.HTML {
 	x := XEditableWidget{model: mv.model, column: col}
 	return x.html(r)

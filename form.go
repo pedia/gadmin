@@ -3,8 +3,6 @@ package gadmin
 import (
 	"bytes"
 	"html/template"
-	"log"
-	"slices"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm/schema"
@@ -75,6 +73,21 @@ func (f model_form) dict() map[string]any {
 	}
 }
 
+var inputTemplate *template.Template
+var inlineEditTemplate *template.Template
+
+func init() {
+	inputTemplate = template.Must(template.New("input").Parse(
+		`<input
+	{{- range $k,$v :=. -}}
+		{{- if eq $k "required" }}required {{ else }} {{$k}}="{{$v}}"{{ end -}}
+	{{- end }} />`))
+
+	inlineEditTemplate = template.Must(template.New("input").Parse(
+		`<a{{range $k,$v :=.}} {{$k}}="{{$v}}"{{end}}>{{.value}}</a>`))
+}
+
+/*
 type input_field struct {
 	Id    string
 	Name  string
@@ -102,21 +115,6 @@ func InputField(typo, name string, value any, data map[string]any) *input_field 
 	}
 }
 
-func init() {
-	inputTemplate = template.Must(template.New("input").Parse(
-		`<input
-	{{- range $k,$v :=. -}}
-		{{- if eq $k "required" }}required {{ else }} {{$k}}="{{$v}}"{{ end -}}
-	{{- end }} />`))
-
-	inlineEditTemplate = template.Must(template.New("input").Parse(
-		`<a{{range $k,$v :=.}} {{$k}}="{{$v}}"{{end}}>{{.value}}</a>`))
-}
-
-var inputTemplate *template.Template
-
-var inlineEditTemplate *template.Template
-
 func (F *input_field) intoHtml() template.HTML {
 	args := map[template.HTMLAttr]any{
 		"id":    F.Name,
@@ -137,6 +135,7 @@ func (F *input_field) intoHtml() template.HTML {
 	inputTemplate.Execute(&w, args)
 	return template.HTML(w.String())
 }
+*/
 
 type field struct {
 	Entries []lo.Entry[string, any]
@@ -209,7 +208,7 @@ type Column struct {
 	Type        string
 	DataType    schema.DataType
 	Label       string
-	Widget      *input_field
+	Widget      *field
 	Errors      string
 	PrimaryKey  bool
 }
