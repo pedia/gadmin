@@ -58,7 +58,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
 	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
 
-	NewSecurity(&A)
+	AddSecurity(&A)
 	return &A
 }
 
