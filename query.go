@@ -2,6 +2,7 @@ package gadmin
 
 import (
 	"errors"
+	"html/template"
 	"net/url"
 
 	"github.com/go-playground/form/v4"
@@ -76,4 +77,16 @@ func encodeBool(x any) ([]string, error) {
 	} else {
 		return []string{"0"}, nil
 	}
+}
+
+// <Previous 1, 2 ... 134 Next>
+// <ul class="pagination">
+//
+//	<li class="page-item">
+//	    <a href="{{ .page }}">&lt;</a>
+//	</li>
+//
+// </ul>
+func (Q *Query) SimplePage() template.HTML {
+	return template.HTML("")
 }

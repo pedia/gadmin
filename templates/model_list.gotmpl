@@ -116,11 +116,11 @@
                     {{ end }}
 
                     {{ range $index, $c := .list_columns }}
-                        <th class="column-header col-{{$c.name}}">
-                            {{- if call $g.is_sortable $c.name -}}
-                                {{- if eq $g.sort_column $c.name -}}
-                                    <a href="{{ call $g.sort_url $c.name (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.label }}">
-                                        {{ $c.label }}
+                        <th class="column-header col-{{$c.Name}}">
+                            {{- if call $g.is_sortable $c.Name -}}
+                                {{- if eq $g.sort_column $c.Name -}}
+                                    <a href="{{ call $g.sort_url $c.Name (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.Label }}">
+                                        {{ $c.Label }}
                                         {{- if $g.sort_desc -}}
                                             <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
                                         {{- else -}}
@@ -128,14 +128,14 @@
                                         {{- end }}
                                     </a>
                                 {{ else }}
-                                    <a href="{{ call $g.sort_url $c.name }}" title="{{ gettext "Sort by %s" $c.label }}">{{ $c.label }}</a>
+                                    <a href="{{ call $g.sort_url $c.Name }}" title="{{ gettext "Sort by %s" $c.Label }}">{{ $c.Label }}</a>
                                 {{ end -}}
                             {{ else -}}
-                                {{- $c.label -}}
+                                {{- $c.Label -}}
                             {{- end -}}
-                            {{ if call $g.column_descriptions $c.name }}
+                            {{ if call $g.column_descriptions $c.Name }}
                                 <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
-                                title="{{ call $g.column_descriptions $c.name }}"
+                                title="{{ call $g.column_descriptions $c.Name }}"
                                 href="javascript:void(0)" data-role="tooltip"
                                 ></a>
                             {{- end }}
@@ -164,8 +164,8 @@
                     {{- end -}}
 
                     {{ range $c := $g.list_columns }}
-                        <td class="col-{{$c.name}}">
-                        {{- if is_editable $c.name }}
+                        <td class="col-{{$c.Name}}">
+                        {{- if is_editable $c.Name }}
                             {{ list_form $c $row }}
                         {{ else }}
                             {{- get_value $row $c -}}
