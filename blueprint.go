@@ -44,7 +44,7 @@ func (B *Blueprint) Add(child *Blueprint) {
 }
 
 // Add `Blueprint` to `http.ServeMux`
-func (B *Blueprint) registerTo(admin *Admin, mux *http.ServeMux, path string) {
+func (B *Blueprint) registerTo(mux *http.ServeMux, path string) {
 	if !strings.HasPrefix(B.Path, "/") {
 		log.Printf("warning Blueprint.Path %s not start with /", B.Path)
 	}
@@ -62,7 +62,7 @@ func (B *Blueprint) registerTo(admin *Admin, mux *http.ServeMux, path string) {
 		cp := path + B.Path + cb.Path
 		_, ok := unique[cp]
 		if !ok {
-			cb.registerTo(admin, mux, path+B.Path)
+			cb.registerTo(mux, path+B.Path)
 			unique[cp] = true
 		} else {
 			log.Printf("duplicated handle %s", cp)

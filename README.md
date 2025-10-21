@@ -33,7 +33,7 @@ Inspired by `Flask-Admin`. Copy the template files from flask-admin(bootstrap4 o
 - ✅ middleware: session, csrf, flashed
 - ✅ misc
     - ✅ translate
-    - [] config
+    - ✅ config
 - ✅ list
     - ✅ sort
     - [] filter

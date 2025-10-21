@@ -111,9 +111,9 @@ func TestModel(t *testing.T) {
 
 	m := newModel(Foo{})
 
-	is.Equal("ID", m.columns[0]["label"])
-	is.Equal("Email", m.columns[2]["label"])
-	is.Equal("Member Number", m.columns[6]["label"])
+	is.Equal("ID", m.columns[0].Label)
+	is.Equal("Email", m.columns[2].Label)
+	is.Equal("Member Number", m.columns[6].Label)
 
 	r1 := m.intoRow(context.TODO(), foos()[0])
 	is.Equal("foo", r1["name"])

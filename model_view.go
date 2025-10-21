@@ -84,8 +84,8 @@ func NewModelView(m any, category ...string) *ModelView {
 		},
 	}
 
-	mv.column_list = lo.Map(mv.model.columns, func(col column, _ int) string {
-		return col.name()
+	mv.column_list = lo.Map(mv.model.columns, func(col Column, _ int) string {
+		return col.Name
 	})
 	mv.column_sortable_list = mv.model.sortable_list()
 
@@ -231,7 +231,7 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			if desc, ok := mv.column_descriptions[name]; ok {
 				return desc
 			}
-			return mv.model.find(name)["description"].(string)
+			return mv.model.find(name).Description
 		},
 	})
 }
@@ -260,16 +260,16 @@ func (mv *ModelView) queryFrom(r *http.Request) *Query {
 	return &q
 }
 
-func (mv *ModelView) list_columns() []column {
-	return lo.Filter(mv.model.columns, func(col column, _ int) bool {
+func (mv *ModelView) list_columns() []Column {
+	return lo.Filter(mv.model.columns, func(col Column, _ int) bool {
 		// in `column_list`
 		_, ok := lo.Find(mv.column_list, func(c string) bool {
-			return c == col.name()
+			return c == col.Name
 		})
 
 		// not in `column_exclude_list`
 		_, exclude := lo.Find(mv.column_exclude_list, func(c string) bool {
-			return c == col.name()
+			return c == col.Name
 		})
 		return ok && !exclude
 	})
@@ -285,7 +285,7 @@ func (mv *ModelView) get_column_index(name string) int {
 }
 
 // Generate inline edit form in list view
-func (mv *ModelView) list_form(col column, r row) template.HTML {
+func (mv *ModelView) list_form(col Column, r row) template.HTML {
 	x := XEditableWidget{model: mv.model, column: col}
 	return x.html(r)
 }
@@ -491,8 +491,8 @@ func rd(r *http.Request) map[string]any {
 
 func (mv *ModelView) get_form(one row) model_form {
 	form := model_form{
-		Fields: lo.Filter(mv.model.columns, func(col column, _ int) bool {
-			return !col["primary_key"].(bool)
+		Fields: lo.Filter(mv.model.columns, func(col Column, _ int) bool {
+			return !col.PrimaryKey
 		}),
 	}
 	form.setValue(one)
@@ -521,8 +521,8 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 		"get_url": func(endpoint string, args ...any) string {
 			return mv.GetUrl(endpoint, nil, args...)
 		},
-		"get_value": func(row map[string]any, col column) any {
-			return row[col.name()]
+		"get_value": func(row map[string]any, col Column) any {
+			return row[col.Name]
 		},
 		"page_size_url": func(page_size int) string {
 			return mv.GetUrl(".index_view", nil, "page_size", page_size)

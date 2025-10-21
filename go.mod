@@ -1,6 +1,6 @@
 module github.com/pedia/gadmin
 
-go 1.22
+go 1.25
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/samber/lo v1.39.0
 	github.com/shopspring/decimal v1.2.0
+	github.com/spf13/cast v1.3.1
 	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.10.0
@@ -36,7 +37,6 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/spf13/cast v1.3.1 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/sys v0.17.0 // indirect

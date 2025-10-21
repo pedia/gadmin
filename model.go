@@ -16,21 +16,17 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// in templates much lower case member
-type column map[string]any
-
-func (c column) name() string  { return c["name"].(string) }
-func (c column) label() string { return c["label"].(string) }
-
 type row map[string]any
 
-func (r row) get(name string) any { return r[name] }
+func (r row) get(name string) any {
+	return r[name]
+}
 
 type model struct {
 	typo    reflect.Type
 	schema  *schema.Schema
-	columns []column
-	pk      column // TODO: multiple primary keys
+	columns []Column
+	pk      Column // TODO: multiple primary keys
 }
 
 var schemaStore = sync.Map{}
@@ -38,22 +34,12 @@ var schemaStore = sync.Map{}
 func newModel(m any) *model {
 	s := must[*schema.Schema](schema.Parse(m, &schemaStore, schema.NamingStrategy{}))
 
-	columns := lo.Map(s.Fields, func(field *schema.Field, _ int) column {
-		return column{
-			"name":        field.DBName,
-			"description": field.Comment,
-			"required":    field.NotNull,
-			"choices":     nil,
-			"type":        "StringField", // TODO:
-			"data_type":   field.DataType,
-			"label":       strings.Join(camelcase.Split(field.Name), " "),
-			"widget":      field2widget(field),
-			"errors":      nil,
-			"primary_key": field.PrimaryKey}
+	columns := lo.Map(s.Fields, func(field *schema.Field, _ int) Column {
+		return ColumnFrom(field)
 	})
 
-	pk, _ := lo.Find(columns, func(c column) bool {
-		return c["primary_key"].(bool)
+	pk, _ := lo.Find(columns, func(c Column) bool {
+		return c.PrimaryKey
 	})
 
 	return &model{
@@ -65,7 +51,7 @@ func newModel(m any) *model {
 }
 
 // TODO: more field type
-func field2widget(field *schema.Field) map[string]any {
+func field2widget(field *schema.Field) *field {
 	table := map[reflect.Kind]string{
 		reflect.String: "text",
 		// reflect.:"password",
@@ -76,9 +62,9 @@ func field2widget(field *schema.Field) map[string]any {
 		// reflect.:"submit",
 	}
 
-	return map[string]any{
-		"input_type": table[field.FieldType.Kind()],
-	}
+	return NewField([]lo.Entry[string, any]{
+		{Key: "type", Value: table[field.FieldType.Kind()]},
+	})
 }
 
 // Convert CamelCase to snake_case
@@ -100,7 +86,7 @@ func (m *model) newSlice() reflect.Value {
 func (m *model) parseForm(uv url.Values) row {
 	res := map[string]any{}
 	for _, col := range m.columns {
-		name := col.name()
+		name := col.Name
 		if uv.Has(name) {
 			res[name] = uv.Get(name)
 		}
@@ -120,11 +106,11 @@ func (m *model) intoRow(ctx context.Context, a any) row {
 	return r
 }
 
-func (m *model) find(name string) column {
-	if col, ok := lo.Find(m.columns, func(col column) bool {
-		return col.name() == name
+func (m *model) find(name string) *Column {
+	if col, ok := lo.Find(m.columns, func(col Column) bool {
+		return col.Name == name
 	}); ok {
-		return col
+		return &col
 	}
 	return nil
 }
@@ -132,16 +118,16 @@ func (m *model) find(name string) column {
 // Return all field can be sorted
 // exclude relationship fields
 func (m *model) sortable_list() []string {
-	cols := lo.Filter(m.columns, func(col column, _ int) bool {
-		_, ok := m.schema.Relationships.Relations[col.label()]
+	cols := lo.Filter(m.columns, func(col Column, _ int) bool {
+		_, ok := m.schema.Relationships.Relations[col.Label]
 		return !ok
 	})
-	return lo.Map(cols, func(col column, _ int) string {
-		return col.name()
+	return lo.Map(cols, func(col Column, _ int) string {
+		return col.Name
 	})
 }
 func (m *model) get_pk_value(row row) any {
-	return row.get(m.pk.name())
+	return row.get(m.pk.Name)
 }
 
 // apply query
@@ -157,7 +143,7 @@ func (m *model) apply(db *gorm.DB, q *Query, count_only bool) *gorm.DB {
 
 		if q.Sort != "" {
 			column_index := must[int](strconv.Atoi(q.Sort))
-			column_name := m.columns[column_index].name()
+			column_name := m.columns[column_index].Name
 
 			ndb = ndb.Order(clause.OrderByColumn{
 				Column: clause.Column{Name: column_name},
@@ -207,7 +193,7 @@ func (m *model) update(db *gorm.DB, pk any, row map[string]any) error {
 	ptr := m.new()
 
 	if rc := db.Model(ptr).
-		Where(map[string]any{m.pk.name(): pk}).
+		Where(map[string]any{m.pk.Name: pk}).
 		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
@@ -224,4 +210,54 @@ func (m *model) create(db *gorm.DB, row map[string]any) error {
 		return rc.Error
 	}
 	return nil
+}
+
+type Choice struct {
+	Text  string
+	Value any
+}
+
+type Column struct {
+	Name        string
+	Description string
+	Required    bool
+	Choices     []Choice
+	Type        string
+	DataType    schema.DataType
+	Label       string
+	Widget      *field
+	Errors      string
+	PrimaryKey  bool
+	Value       any
+}
+
+func ColumnFrom(field *schema.Field) Column {
+	return Column{
+		Name:        field.DBName,
+		Description: field.Comment,
+		Required:    field.NotNull,
+		Choices:     nil,
+		Type:        "StringField", // TODO:
+		DataType:    field.DataType,
+		Label:       strings.Join(camelcase.Split(field.Name), " "),
+		Widget:      field2widget(field),
+		Errors:      "",
+		PrimaryKey:  field.PrimaryKey,
+	}
+}
+
+func (C *Column) dict() map[string]any {
+	return map[string]any{
+		"name":        C.Name,
+		"description": C.Description,
+		"required":    C.Required,
+		"choices":     C.Choices,
+		"type":        C.Type,
+		"data_type":   C.DataType,
+		"label":       C.Label,
+		"widget":      C.Widget,
+		"errors":      C.Errors,
+		"primary_key": C.PrimaryKey,
+		"value":       C.Value,
+	}
 }

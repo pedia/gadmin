@@ -65,7 +65,7 @@ func (q *Query) toValues() url.Values {
 }
 
 // Encode true to "1", false to "0" in `form`
-func encodeBool(x interface{}) ([]string, error) {
+func encodeBool(x any) ([]string, error) {
 	v, ok := x.(bool)
 	if !ok {
 		return nil, errors.New("bad type conversion")

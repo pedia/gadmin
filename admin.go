@@ -52,7 +52,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 				},
 			},
 		}}
-	A.registerTo(&A, A.mux, "")
+	A.registerTo(A.mux, "")
 
 	// TODO: read lang from config
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
@@ -83,7 +83,7 @@ type Admin struct {
 func (A *Admin) Register(b *Blueprint) {
 	A.Add(b)
 
-	b.registerTo(A, A.mux, A.Path)
+	b.registerTo(A.mux, A.Path)
 }
 
 func (A *Admin) AddView(view View) View {
@@ -109,7 +109,7 @@ func (A *Admin) AddView(view View) View {
 		}
 		A.views = append(A.views, view)
 		// TODO:
-		view.GetBlueprint().registerTo(A, A.mux, "")
+		view.GetBlueprint().registerTo(A.mux, "")
 	}
 
 	return view
