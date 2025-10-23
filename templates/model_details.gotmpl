@@ -35,7 +35,7 @@
     {{- range $col := .details_columns }}
       <tr>
         <td><b>{{ $col.label }}</b></td>
-        <td>{{ get_value $g.model $col }}</td>
+        <td>{{ $g.model.Get $col }}</td>
       </tr>
     {{ end }}
     </table>

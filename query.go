@@ -64,7 +64,7 @@ func (q *Query) toValues() url.Values {
 	return uv
 }
 
-// Encode true to "1", false to "0" in `form`
+// flask-admin Encode true to "1", false to "0" in `form`
 func encodeBool(x any) ([]string, error) {
 	v, ok := x.(bool)
 	if !ok {

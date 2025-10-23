@@ -109,7 +109,7 @@ func typeds() []Typed {
 func TestModel(t *testing.T) {
 	is := assert.New(t)
 
-	m := newModel(Typed{})
+	m := NewModel(Typed{})
 
 	is.Equal("ID", m.columns[0].Label)
 	is.Equal("Email", m.columns[2].Label)
@@ -125,7 +125,7 @@ func TestModel(t *testing.T) {
 func TestWidget(t *testing.T) {
 	is := assert.New(t)
 
-	m := newModel(Typed{})
+	m := NewModel(Typed{})
 
 	af := typeds()[0]
 	r := m.intoRow(af)

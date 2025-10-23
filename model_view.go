@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 
 type ModelView struct {
 	*BaseView
-	model *Model
+	*Model
 
 	// Permissions
 	can_create       bool
@@ -57,13 +58,13 @@ type queryArg struct {
 
 // TODO: ensure m not ptr
 func NewModelView(m any, category ...string) *ModelView {
-	model := newModel(m)
+	model := NewModel(m)
 
 	cate := firstOr(category, model.label())
 
 	mv := ModelView{
 		BaseView:               NewView(MenuItem{Name: model.label(), Category: cate}),
-		model:                  model,
+		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
 		can_delete:             true,
@@ -72,6 +73,8 @@ func NewModelView(m any, category ...string) *ModelView {
 		page_size:              20,
 		can_set_page_size:      false,
 		column_display_actions: true,
+		//
+		column_descriptions: map[string]string{},
 	}
 
 	mv.Blueprint = &Blueprint{
@@ -82,12 +85,12 @@ func NewModelView(m any, category ...string) *ModelView {
 			// In flask-admin use `view.index`. Should use `view.index_view` in `gadmin`
 			"index":        {Endpoint: "index", Path: "/", Handler: mv.index},
 			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.index},
-			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.new},
-			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.details},
-			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajax_update},
+			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.newHandler},
+			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.detailHandler},
+			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajaxUpdate},
 			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.index},
-			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.edit},
-			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.delete},
+			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.editHandler},
+			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.deleteHandler},
 			// not .export_view
 			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
 			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
@@ -96,10 +99,10 @@ func NewModelView(m any, category ...string) *ModelView {
 		},
 	}
 
-	mv.column_list = lo.Map(mv.model.columns, func(col Column, _ int) string {
+	mv.column_list = lo.Map(mv.columns, func(col Column, _ int) string {
 		return col.Name
 	})
-	mv.column_sortable_list = mv.model.sortable_list()
+	mv.column_sortable_list = mv.sortable_list()
 
 	return &mv
 }
@@ -231,7 +234,7 @@ func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		"can_set_page_size":        V.can_set_page_size,
 		"data":                     result.Rows,
 		"request":                  rd(r),
-		"get_pk_value":             V.model.get_pk_value,
+		"get_pk_value":             V.get_pk_value,
 		"column_display_pk":        V.column_display_pk,
 		"column_display_actions":   V.column_display_actions,
 		"column_extra_row_actions": nil,
@@ -266,7 +269,7 @@ func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			if desc, ok := V.column_descriptions[name]; ok {
 				return desc
 			}
-			return V.model.find(name).Description
+			return V.find(name).Description
 		},
 	})
 }
@@ -295,16 +298,17 @@ func (V *ModelView) queryFrom(r *http.Request) *Query {
 	return &q
 }
 
+// TODO: store result
 func (V *ModelView) list_columns() []Column {
-	return lo.Filter(V.model.columns, func(col Column, _ int) bool {
+	return lo.Filter(V.columns, func(col Column, _ int) bool {
 		// in `column_list`
 		_, ok := lo.Find(V.column_list, func(c string) bool {
-			return c == col.Name
+			return c == col.DBName
 		})
 
 		// not in `column_exclude_list`
 		_, exclude := lo.Find(V.column_exclude_list, func(c string) bool {
-			return c == col.Name
+			return c == col.DBName
 		})
 		return ok && !exclude
 	})
@@ -321,7 +325,7 @@ func (V *ModelView) get_column_index(name string) int {
 
 // Generate inline edit form in list view
 func (V *ModelView) list_form(col Column, r Row) template.HTML {
-	x := XEditableWidget{model: V.model, column: col}
+	x := XEditableWidget{model: V.Model, column: col}
 	return x.html(r)
 }
 func (V *ModelView) is_editable(name string) bool {
@@ -358,7 +362,7 @@ func (V *ModelView) list_row_actions_confirmation() map[string]string {
 	return res
 }
 
-func (V *ModelView) new(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 	if !V.can_create {
 		V.redirect(w, r, q.Get("url"))
@@ -369,8 +373,8 @@ func (V *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
-		one := V.model.parseForm(r.PostForm)
-		if err := V.model.create(V.admin.DB, one); err == nil {
+		one := V.parseForm(r.PostForm)
+		if err := V.create(one); err == nil {
 			Flash(r, gettext("Record was successfully created."), "success")
 
 			// "_add_another"
@@ -393,7 +397,7 @@ func (V *ModelView) new(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
-		"form":       V.get_form(nil).dict(),
+		"form":       V.form(nil).dict(),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -409,7 +413,7 @@ func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string)
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
-func (V *ModelView) edit(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 
 	if !V.can_edit {
@@ -417,7 +421,7 @@ func (V *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.model.get_one(r.Context(), V.admin.DB, q.Get("id"))
+	one, err := V.getOne(q.Get("id")) // TODO: "id" = model.pk.DBName
 	if err != nil {
 		// TODO: work?
 		Flash(r, V.admin.gettext("Record does not exist."), "danger")
@@ -428,18 +432,18 @@ func (V *ModelView) edit(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
 		"model":           one,
-		"form":            V.get_form(one).dict(),
+		"form":            V.form(one).dict(),
 		"details_columns": V.list_columns(),
 		"request":         rd(r),
 	})
 }
 
 // Model().Where(pk field = pk value).Delete()
-func (V *ModelView) delete(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Model().Where(pk field = pk value).First()
-func (V *ModelView) details(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 	redirect := func() {
 		url := q.Get("url")
@@ -454,7 +458,7 @@ func (V *ModelView) details(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.model.get_one(r.Context(), V.admin.DB, q.Get("id"))
+	one, err := V.getOne(q.Get("id"))
 	if err != nil {
 		Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
@@ -463,7 +467,7 @@ func (V *ModelView) details(w http.ResponseWriter, r *http.Request) {
 	}
 
 	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
-		"model":           one,
+		"model":           one, // TODO: rename 'model' to 'row'
 		"details_columns": V.list_columns(),
 		"request":         rd(r),
 	})
@@ -472,7 +476,7 @@ func (V *ModelView) details(w http.ResponseWriter, r *http.Request) {
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
 // Record was successfully saved.
 // Model().Where().Update(currency=USD)
-func (V *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
 		return
@@ -497,8 +501,8 @@ func (V *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate
-	// get_one
-	// record, err := mv.model.get(mv.DB, pk)
+	// getOne
+	// record, err := mv.get(mv.DB, pk)
 	// if err == gorm.ErrRecordNotFound {
 	// 	w.WriteHeader(500)
 	// 	w.Write([]byte(mv.gettext("Record does not exist.")))
@@ -507,7 +511,7 @@ func (V *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	// _ = record
 
 	// update_model
-	if err := V.model.update(V.admin.DB, pk, row); err != nil {
+	if err := V.update(pk, row); err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(V.admin.gettext("Failed to update record. %s", err)))
 		return
@@ -524,9 +528,9 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-func (V *ModelView) get_form(one Row) model_form {
-	form := model_form{
-		Fields: lo.Filter(V.model.columns, func(col Column, _ int) bool {
+func (V *ModelView) form(one Row) ModelForm {
+	form := ModelForm{
+		Fields: lo.Filter(V.columns, func(col Column, _ int) bool {
 			return !col.PrimaryKey
 		}),
 	}
@@ -555,9 +559,6 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		},
 		"get_url": func(endpoint string, args ...any) string {
 			return V.GetUrl(endpoint, nil, args...)
-		},
-		"get_value": func(row map[string]any, col Column) any {
-			return row[col.Name]
 		},
 		"page_size_url": func(page_size int) string {
 			return V.GetUrl(".index_view", nil, "page_size", page_size)
@@ -590,7 +591,7 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 
 	if q.Sort != "" {
 		column_index := must(strconv.Atoi(q.Sort))
-		column_name := V.model.columns[column_index].Name
+		column_name := V.columns[column_index].Name
 
 		ndb = ndb.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: column_name},
@@ -607,14 +608,14 @@ func (V *ModelView) list(q *Query) *Result {
 
 	var total int64
 	if err := V.applyQuery(V.admin.DB, q, true).
-		Model(V.model.new()).
+		Model(V.Model.new()).
 		Count(&total).Error; err != nil {
 		r.Error = err
 		return &r
 	}
 	r.Total = total
 
-	ptr := V.model.newSlice()
+	ptr := V.newSlice()
 	db := V.applyQuery(V.admin.DB, q, false)
 	if err := V.applyJoins(db).
 		Find(ptr.Interface()).Error; err != nil {
@@ -630,7 +631,41 @@ func (V *ModelView) list(q *Query) *Result {
 	r.Rows = make([]Row, len)
 	for i := 0; i < len; i++ {
 		o := ptr.Elem().Index(i).Interface()
-		r.Rows[i] = V.model.intoRow(o)
+		r.Rows[i] = V.intoRow(o)
 	}
 	return &r
+}
+
+func (V *ModelView) getOne(pk any) (Row, error) {
+	ptr := V.Model.new()
+	// TODO: set ptr's id=pk
+
+	db := V.applyJoins(V.admin.DB)
+	if err := db.First(ptr, fmt.Sprintf("%s=?", V.pk.DBName), pk).Error; err != nil {
+		return nil, err
+	}
+	return V.intoRow(ptr), nil
+}
+
+func (V *ModelView) update(pk any, row map[string]any) error {
+	ptr := V.Model.new()
+
+	if rc := V.admin.DB.Model(ptr).
+		Where(map[string]any{V.pk.DBName: pk}).
+		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
+		return rc.Error
+	}
+	return nil
+}
+
+// row -> Model().Create() RETURNING *
+func (V *ModelView) create(row map[string]any) error {
+	ptr := V.Model.new()
+
+	if rc := V.admin.DB.Model(ptr).
+		Clauses(clause.Returning{}). // RETURNING *
+		Create(row); rc.Error != nil || rc.RowsAffected != 1 {
+		return rc.Error
+	}
+	return nil
 }

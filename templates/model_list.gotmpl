@@ -116,10 +116,10 @@
                     {{ end }}
 
                     {{ range $index, $c := .list_columns }}
-                        <th class="column-header col-{{$c.Name}}">
-                            {{- if call $g.is_sortable $c.Name -}}
-                                {{- if eq $g.sort_column $c.Name -}}
-                                    <a href="{{ call $g.sort_url $c.Name (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.Label }}">
+                        <th class="column-header col-{{$c.DBName}}">
+                            {{- if call $g.is_sortable $c.DBName -}}
+                                {{- if eq $g.sort_column $c.DBName -}}
+                                    <a href="{{ call $g.sort_url $c.DBName (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.Label }}">
                                         {{ $c.Label }}
                                         {{- if $g.sort_desc -}}
                                             <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
@@ -128,14 +128,14 @@
                                         {{- end }}
                                     </a>
                                 {{ else }}
-                                    <a href="{{ call $g.sort_url $c.Name }}" title="{{ gettext "Sort by %s" $c.Label }}">{{ $c.Label }}</a>
+                                    <a href="{{ call $g.sort_url $c.DBName }}" title="{{ gettext "Sort by %s" $c.Label }}">{{ $c.Label }}</a>
                                 {{ end -}}
                             {{ else -}}
                                 {{- $c.Label -}}
                             {{- end -}}
-                            {{ if call $g.column_descriptions $c.Name }}
+                            {{ if call $g.column_descriptions $c.DBName }}
                                 <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
-                                title="{{ call $g.column_descriptions $c.Name }}"
+                                title="{{ call $g.column_descriptions $c.DBName }}"
                                 href="javascript:void(0)" data-role="tooltip"
                                 ></a>
                             {{- end }}
@@ -164,9 +164,9 @@
                     {{- end -}}
 
                     {{ range $c := $g.list_columns }}
-                        <td class="col-{{$c.Name}}">
-                        {{- if is_editable $c.Name }}
-                            {{ call $g.list_form $c $row }}
+                        <td class="col-{{$c.DBName}}">
+                        {{- if is_editable $c.DBName }}
+                            {{ list_form $c $row }}
                         {{ else }}
                             {{- $row.Get $c -}}
                         {{ end -}}

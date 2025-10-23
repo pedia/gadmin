@@ -90,7 +90,7 @@ func (A *Admin) AddView(view View) View {
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
 		if A.auto_migrate {
-			if err := A.DB.AutoMigrate(mv.model.new()); err != nil {
+			if err := A.DB.AutoMigrate(mv.Model.new()); err != nil {
 				return nil
 			}
 		}

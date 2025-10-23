@@ -23,8 +23,8 @@ func (xw *XEditableWidget) html(r Row) template.HTML {
 		"data-pk":    xw.model.get_pk_value(r),
 		"data-csrf":  "", // TODO:
 		"data-type":  "text",
-		"id":         xw.column.Name,
-		"name":       xw.column.Name,
+		"id":         xw.column.DBName,
+		"name":       xw.column.DBName,
 		"href":       "#",
 	}
 
@@ -51,19 +51,19 @@ type base_form struct {
 	Validates []string
 }
 
-type model_form struct {
+type ModelForm struct {
 	Fields      []Column
 	Prefix      string
 	ExtraFields []string
 }
 
-func (F *model_form) setValue(one Row) {
+func (F *ModelForm) setValue(one Row) {
 	for _, f := range F.Fields {
 		f.Value = one[f.Name]
 	}
 }
 
-func (f model_form) dict() map[string]any {
+func (f ModelForm) dict() map[string]any {
 	return map[string]any{
 		"action":     "", // empty
 		"hidden_tag": false,
