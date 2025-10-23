@@ -40,16 +40,16 @@ func TestBaseMust(t *testing.T) {
 	is := assert.New(t)
 
 	fr := func() (int, error) { return 42, nil }
-	is.Equal(42, must[int](fr()))
+	is.Equal(42, must(fr()))
 
 	fe := func() (int, error) { return 1, errors.New("sth. wrong") }
-	is.Panics(func() { must[int](fe()) })
+	is.Panics(func() { must(fe()) })
 
 	ft := func() (int, bool) { return 42, true }
-	is.Equal(42, must[int](ft()))
+	is.Equal(42, must(ft()))
 
 	ff := func() (int, bool) { return 42, false }
-	is.Panics(func() { must[int](ff()) })
+	is.Panics(func() { must(ff()) })
 }
 
 func TestBaseConvert(t *testing.T) {
@@ -76,7 +76,7 @@ func TestStd(t *testing.T) {
 	is.Equal([]string{"", "b"}, strings.SplitN(".b", ".", 2))
 
 	e := form.NewEncoder()
-	is.Equal("%5Ba%5D=1", must[url.Values](e.Encode(map[string]any{
+	is.Equal("%5Ba%5D=1", must(e.Encode(map[string]any{
 		"a": 1,
 	})).Encode())
 
@@ -84,7 +84,7 @@ func TestStd(t *testing.T) {
 		list_form_pk any
 		CamelCase    string
 	}
-	is.Equal("CamelCase=abc", must[url.Values](e.Encode(list_form{
+	is.Equal("CamelCase=abc", must(e.Encode(list_form{
 		list_form_pk: "33",
 		CamelCase:    "abc",
 	})).Encode())

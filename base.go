@@ -23,21 +23,25 @@ func firstOr[T any](as []T, or ...T) T {
 }
 
 // Ensure value avoid error/bool trouble
-func must[T any](frs ...any) T {
+func must[T any](v T, lefts ...any) T {
+	if len(lefts) == 0 {
+		return v
+	}
+
 	// try: func() (x, error)
-	err, ok := frs[len(frs)-1].(error)
-	if ok && err != nil {
+	if lefts[0] == nil {
+		return v
+	}
+
+	if err, ok := lefts[0].(error); ok {
 		panic(err)
 	}
 
-	if !ok {
-		// try: func() (x, bool)
-		if b, ok := frs[len(frs)-1].(bool); ok && !b {
-			panic("not ok")
-		}
+	// try: func() (x, bool)
+	if err, ok := lefts[0].(bool); ok && err {
+		return v
 	}
-
-	return frs[0].(T)
+	panic("type wrong")
 }
 
 func anyMapToQuery(m map[string]any) url.Values {

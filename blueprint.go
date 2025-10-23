@@ -14,11 +14,11 @@ type RegisterFunc func(*http.ServeMux, string, *Blueprint)
 //
 // | Name  | Endpoint       | Path       |
 // |-------|----------------|------------|
-// | Foo   | foo            | foo        |
+// | Foo   | foo            | /foo/      |
 // |       | .index         | /          |
 // |       | .action_view   | /action    |
-// |       | foo.index      | foo/       |
-// | Admin | admin          | /admin     |
+// |       | foo.index      | /foo/      |
+// | Admin | admin          | /admin/    |
 // |       | .index         | /          |
 //
 // A blueprint is A model and dependent pages
@@ -60,8 +60,7 @@ func (B *Blueprint) registerTo(mux *http.ServeMux, path string) {
 	unique := map[string]bool{}
 	for _, cb := range B.Children {
 		cp := path + B.Path + cb.Path
-		_, ok := unique[cp]
-		if !ok {
+		if _, ok := unique[cp]; !ok {
 			cb.registerTo(mux, path+B.Path)
 			unique[cp] = true
 		} else {

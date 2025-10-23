@@ -8,16 +8,16 @@ import (
 )
 
 type XEditableWidget struct {
-	model  *model
+	model  *Model
 	column Column
 }
 
 // <a data-csrf="" data-pk="5ad19739-80a1-4b0e-9b6d-ab7e264bd4eb"
 // data-role="x-editable" data-type="text" data-url="./ajax/update/"
 // data-value="EUR" href="#" id="currency" name="currency">EUR</a>
-func (xw *XEditableWidget) html(r row) template.HTML {
+func (xw *XEditableWidget) html(r Row) template.HTML {
 	args := map[template.HTMLAttr]any{
-		"data-value": r.get(xw.column.Name),
+		"data-value": r.Get(xw.column.Name),
 		"data-role":  "x-editable",
 		"data-url":   "./ajax/update/",
 		"data-pk":    xw.model.get_pk_value(r),
@@ -41,13 +41,13 @@ func (xw *XEditableWidget) html(r row) template.HTML {
 	w := bytes.Buffer{}
 	tmpl.Execute(&w, map[string]any{
 		"args":          args,
-		"display_value": r.get(xw.column.Name),
+		"display_value": r.Get(xw.column.Name),
 	})
 	return template.HTML(w.String()) // TODO: HTML safe
 }
 
 type base_form struct {
-	Args      row
+	Args      Row
 	Validates []string
 }
 
@@ -57,7 +57,7 @@ type model_form struct {
 	ExtraFields []string
 }
 
-func (F *model_form) setValue(one row) {
+func (F *model_form) setValue(one Row) {
 	for _, f := range F.Fields {
 		f.Value = one[f.Name]
 	}

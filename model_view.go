@@ -7,11 +7,13 @@ import (
 
 	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ModelView struct {
 	*BaseView
-	model *model
+	model *Model
 
 	// Permissions
 	can_create       bool
@@ -41,6 +43,16 @@ type ModelView struct {
 
 	//
 	list_forms []base_form
+
+	joins      []queryArg
+	innerJoins []queryArg
+	preloads   []queryArg
+}
+
+// for db.Joins(query string, args... any)
+type queryArg struct {
+	query string
+	args  []any
 }
 
 // TODO: ensure m not ptr
@@ -80,7 +92,7 @@ func NewModelView(m any, category ...string) *ModelView {
 			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
 			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
 			// for json
-			"list": {Endpoint: "list", Path: "/list", Handler: mv.list},
+			"list": {Endpoint: "list", Path: "/list", Handler: mv.listJson},
 		},
 	}
 
@@ -92,62 +104,88 @@ func NewModelView(m any, category ...string) *ModelView {
 	return &mv
 }
 
+func (V *ModelView) applyJoins(db *gorm.DB) *gorm.DB {
+	for _, q := range V.joins {
+		db = db.Joins(q.query, q.args...)
+	}
+	for _, q := range V.innerJoins {
+		db = db.InnerJoins(q.query, q.args...)
+	}
+	for _, q := range V.preloads {
+		db = db.Preload(q.query, q.args...)
+	}
+	return db
+}
+
+func (V *ModelView) Joins(query string, args ...any) *ModelView {
+	V.joins = append(V.joins, queryArg{query, args})
+	return V
+}
+func (V *ModelView) InnerJoins(query string, args ...any) *ModelView {
+	V.innerJoins = append(V.innerJoins, queryArg{query, args})
+	return V
+}
+func (V *ModelView) Preload(query string, args ...any) *ModelView {
+	V.preloads = append(V.preloads, queryArg{query, args})
+	return V
+}
+
 // Permissions
 // Is model creation allowed
-func (mv *ModelView) SetCanCreate(v bool) *ModelView {
-	mv.can_create = v
-	return mv
+func (V *ModelView) SetCanCreate(v bool) *ModelView {
+	V.can_create = v
+	return V
 }
 
 // Is model editing allowed
-func (mv *ModelView) SetCanEdit(v bool) *ModelView {
-	mv.can_edit = v
-	return mv
+func (V *ModelView) SetCanEdit(v bool) *ModelView {
+	V.can_edit = v
+	return V
 }
-func (mv *ModelView) SetCanExport(v bool) *ModelView {
-	mv.can_export = v
-	return mv
+func (V *ModelView) SetCanExport(v bool) *ModelView {
+	V.can_export = v
+	return V
 }
 
 // Collection of the model field names for the list view.
 // If not set, will get them from the model.
-func (mv *ModelView) SetColumnList(vs ...string) *ModelView {
-	mv.column_list = vs
-	return mv
+func (V *ModelView) SetColumnList(vs ...string) *ModelView {
+	V.column_list = vs
+	return V
 }
 
-func (mv *ModelView) SetColumnEditableList(vs ...string) *ModelView {
-	mv.column_editable_list = vs
+func (V *ModelView) SetColumnEditableList(vs ...string) *ModelView {
+	V.column_editable_list = vs
 	// build list_forms here
-	mv.list_forms = []base_form{}
-	return mv
+	V.list_forms = []base_form{}
+	return V
 }
-func (mv *ModelView) SetColumnDescriptions(m map[string]string) *ModelView {
-	mv.column_descriptions = m
-	return mv
+func (V *ModelView) SetColumnDescriptions(m map[string]string) *ModelView {
+	V.column_descriptions = m
+	return V
 }
-func (mv *ModelView) SetTablePrefixHtml(v string) *ModelView {
-	mv.table_prefix_html = v
-	return mv
+func (V *ModelView) SetTablePrefixHtml(v string) *ModelView {
+	V.table_prefix_html = v
+	return V
 }
-func (mv *ModelView) SetCanSetPageSize(v bool) *ModelView {
-	mv.can_set_page_size = v
-	return mv
+func (V *ModelView) SetCanSetPageSize(v bool) *ModelView {
+	V.can_set_page_size = v
+	return V
 }
-func (mv *ModelView) SetPageSize(v int) *ModelView {
-	mv.page_size = v
-	return mv
+func (V *ModelView) SetPageSize(v int) *ModelView {
+	V.page_size = v
+	return V
 }
 
-func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
-	o := mv.BaseView.dict(r, map[string]any{
-		"table_prefix_html": mv.table_prefix_html,
+func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
+	o := V.BaseView.dict(r, map[string]any{
+		"table_prefix_html": V.table_prefix_html,
 		"editable_columns":  true,
-		"can_create":        mv.can_create,
-		"can_edit":          mv.can_edit,
-		"can_export":        mv.can_export,
-		"can_view_details":  mv.can_view_details,
-		"can_delete":        mv.can_delete,
+		"can_create":        V.can_create,
+		"can_edit":          V.can_edit,
+		"can_export":        V.can_export,
+		"can_view_details":  V.can_view_details,
+		"can_delete":        V.can_delete,
 		"export_types":      []string{"csv", "xls"},
 		// TODO: modal for edit/create/details
 		"edit_modal":    false,
@@ -160,9 +198,9 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 		},
 		"filters":              []string{},
 		"filter_groups":        []string{},
-		"actions_confirmation": mv.list_row_actions_confirmation(),
+		"actions_confirmation": V.list_row_actions_confirmation(),
 		"search_supported":     false,
-		"return_url":           mv.GetUrl(".index_view", nil),
+		"return_url":           V.GetUrl(".index_view", nil),
 	})
 
 	if len(others) > 0 {
@@ -171,40 +209,37 @@ func (mv *ModelView) dict(r *http.Request, others ...map[string]any) map[string]
 	return o
 }
 
-func (mv *ModelView) debug(w http.ResponseWriter, r *http.Request) {
-	mv.Render(w, r, "debug.gotmpl", nil, map[string]any{
-		"menu":      mv.menu.dict(),
-		"blueprint": mv.Blueprint.dict(),
+func (V *ModelView) debug(w http.ResponseWriter, r *http.Request) {
+	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
+		"menu":      V.menu.dict(),
+		"blueprint": V.Blueprint.dict(),
 	})
 }
-func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
-	q := mv.queryFrom(r)
+func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
 
-	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
-	_ = err // TODO: messages
+	result := V.list(q)
 
-	q.setTotal(total)
-
-	mv.Render(w, r, "model_list.gotmpl", nil, map[string]any{
-		"count":     len(data),
+	V.Render(w, r, "model_list.gotmpl", nil, map[string]any{
+		"count":     len(result.Rows),
 		"page":      q.Page,
 		"num_pages": q.num_pages,
 		"page_size": q.PageSize,
 		"page_size_url": func(page_size int) string {
-			return mv.GetUrl(".index_view", q, "page_size", page_size)
+			return V.GetUrl(".index_view", q, "page_size", page_size)
 		},
-		"can_set_page_size":        mv.can_set_page_size,
-		"data":                     data,
+		"can_set_page_size":        V.can_set_page_size,
+		"data":                     result.Rows,
 		"request":                  rd(r),
-		"get_pk_value":             mv.model.get_pk_value,
-		"column_display_pk":        mv.column_display_pk,
-		"column_display_actions":   mv.column_display_actions,
+		"get_pk_value":             V.model.get_pk_value,
+		"column_display_pk":        V.column_display_pk,
+		"column_display_actions":   V.column_display_actions,
 		"column_extra_row_actions": nil,
-		"list_row_actions":         mv.list_row_actions(),
+		"list_row_actions":         V.list_row_actions(),
 		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-		"list_columns":             mv.list_columns(),
+		"list_columns":             V.list_columns(),
 		"is_sortable": func(name string) bool {
-			_, ok := lo.Find(mv.column_sortable_list, func(s string) bool {
+			_, ok := lo.Find(V.column_sortable_list, func(s string) bool {
 				return s == name
 			})
 			return ok
@@ -213,9 +248,9 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		// transform `index` to `column name`
 		"sort_column": func() string {
 			if q.Sort != "" {
-				idx := must[int](strconv.Atoi(q.Sort))
+				idx := must(strconv.Atoi(q.Sort))
 				if idx != -1 {
-					return mv.column_list[idx]
+					return V.column_list[idx]
 				}
 			}
 			return ""
@@ -223,31 +258,31 @@ func (mv *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		"sort_desc": q.Desc,
 		"sort_url": func(name string, invert ...bool) string {
 			q := *q // simply copy
-			q.Sort = strconv.Itoa(mv.get_column_index(name))
+			q.Sort = strconv.Itoa(V.get_column_index(name))
 			q.Desc = firstOr(invert)
-			return mv.GetUrl(".index_view", &q)
+			return V.GetUrl(".index_view", &q)
 		},
 		"column_descriptions": func(name string) string {
-			if desc, ok := mv.column_descriptions[name]; ok {
+			if desc, ok := V.column_descriptions[name]; ok {
 				return desc
 			}
-			return mv.model.find(name).Description
+			return V.model.find(name).Description
 		},
 	})
 }
-func (mv *ModelView) list(w http.ResponseWriter, r *http.Request) {
-	q := mv.queryFrom(r)
+func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
 
-	total, data, err := mv.model.get_list(r.Context(), mv.admin.DB, q)
-	if err != nil {
-		ReplyJson(w, 200, map[string]any{"error": err.Error()})
+	res := V.list(q)
+	if res.Error != nil {
+		ReplyJson(w, 200, map[string]any{"error": res.Error})
 		return
 	}
-	ReplyJson(w, 200, map[string]any{"total": total, "data": data})
+	ReplyJson(w, 200, map[string]any{"total": res.Total, "data": res.Rows})
 }
 
-func (mv *ModelView) queryFrom(r *http.Request) *Query {
-	q := Query{default_page_size: mv.page_size}
+func (V *ModelView) queryFrom(r *http.Request) *Query {
+	q := Query{default_page_size: V.page_size}
 	uv := r.URL.Query()
 
 	form.NewDecoder().Decode(&q, uv)
@@ -260,23 +295,23 @@ func (mv *ModelView) queryFrom(r *http.Request) *Query {
 	return &q
 }
 
-func (mv *ModelView) list_columns() []Column {
-	return lo.Filter(mv.model.columns, func(col Column, _ int) bool {
+func (V *ModelView) list_columns() []Column {
+	return lo.Filter(V.model.columns, func(col Column, _ int) bool {
 		// in `column_list`
-		_, ok := lo.Find(mv.column_list, func(c string) bool {
+		_, ok := lo.Find(V.column_list, func(c string) bool {
 			return c == col.Name
 		})
 
 		// not in `column_exclude_list`
-		_, exclude := lo.Find(mv.column_exclude_list, func(c string) bool {
+		_, exclude := lo.Find(V.column_exclude_list, func(c string) bool {
 			return c == col.Name
 		})
 		return ok && !exclude
 	})
 }
 
-func (mv *ModelView) get_column_index(name string) int {
-	if _, i, ok := lo.FindIndexOf(mv.column_list, func(c string) bool {
+func (V *ModelView) get_column_index(name string) int {
+	if _, i, ok := lo.FindIndexOf(V.column_list, func(c string) bool {
 		return c == name
 	}); ok {
 		return i
@@ -285,37 +320,37 @@ func (mv *ModelView) get_column_index(name string) int {
 }
 
 // Generate inline edit form in list view
-func (mv *ModelView) list_form(col Column, r row) template.HTML {
-	x := XEditableWidget{model: mv.model, column: col}
+func (V *ModelView) list_form(col Column, r Row) template.HTML {
+	x := XEditableWidget{model: V.model, column: col}
 	return x.html(r)
 }
-func (mv *ModelView) is_editable(name string) bool {
-	if !mv.can_edit {
+func (V *ModelView) is_editable(name string) bool {
+	if !V.can_edit {
 		return false
 	}
-	_, ok := lo.Find(mv.column_editable_list, func(i string) bool {
+	_, ok := lo.Find(V.column_editable_list, func(i string) bool {
 		return i == name
 	})
 	return ok
 }
 
-func (mv *ModelView) list_row_actions() []action {
+func (V *ModelView) list_row_actions() []action {
 	actions := []action{}
-	if mv.can_view_details {
+	if V.can_view_details {
 		actions = append(actions, view_row_action)
 	}
-	if mv.can_edit {
+	if V.can_edit {
 		actions = append(actions, edit_row_action)
 	}
-	if mv.can_delete {
+	if V.can_delete {
 		actions = append(actions, delete_row_action)
 	}
 	return actions
 }
 
-func (mv *ModelView) list_row_actions_confirmation() map[string]string {
+func (V *ModelView) list_row_actions_confirmation() map[string]string {
 	res := map[string]string{}
-	for _, a := range mv.list_row_actions() {
+	for _, a := range V.list_row_actions() {
 		if c, ok := a["confirmation"]; ok {
 			res[a["name"].(string)] = c.(string)
 		}
@@ -323,10 +358,10 @@ func (mv *ModelView) list_row_actions_confirmation() map[string]string {
 	return res
 }
 
-func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
-	q := mv.queryFrom(r)
-	if !mv.can_create {
-		mv.redirect(w, r, q.Get("url"))
+func (V *ModelView) new(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
+	if !V.can_create {
+		V.redirect(w, r, q.Get("url"))
 		return
 	}
 
@@ -334,31 +369,31 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
-		one := mv.model.parseForm(r.PostForm)
-		if err := mv.model.create(mv.admin.DB, one); err == nil {
+		one := V.model.parseForm(r.PostForm)
+		if err := V.model.create(V.admin.DB, one); err == nil {
 			Flash(r, gettext("Record was successfully created."), "success")
 
 			// "_add_another"
 			// "_continue_editing"
 			if continue_editing != "" {
-				mv.redirect(w, r, mv.GetUrl(".edit_view", nil, "id", one["id"]))
+				V.redirect(w, r, V.GetUrl(".edit_view", nil, "id", one["id"]))
 				return
 			}
 
 			if r.PostFormValue("_add_another") != "" {
-				mv.redirect(w, r, mv.GetUrl(".create_view", nil))
+				V.redirect(w, r, V.GetUrl(".create_view", nil))
 				return
 			}
 
-			mv.redirect(w, r, q.Get("url"))
+			V.redirect(w, r, q.Get("url"))
 			return
 		}
 
 	}
 
-	mv.Render(w, r, "model_create.gotmpl", nil, map[string]any{
+	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
-		"form":       mv.get_form(nil).dict(),
+		"form":       V.get_form(nil).dict(),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -367,69 +402,69 @@ func (mv *ModelView) new(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (mv *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
+func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
 	if url == "" {
-		url = mv.GetUrl(".index_view", nil)
+		url = V.GetUrl(".index_view", nil)
 	}
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
-func (mv *ModelView) edit(w http.ResponseWriter, r *http.Request) {
-	q := mv.queryFrom(r)
+func (V *ModelView) edit(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
 
-	if !mv.can_edit {
-		mv.redirect(w, r, q.Get("url"))
+	if !V.can_edit {
+		V.redirect(w, r, q.Get("url"))
 		return
 	}
 
-	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
+	one, err := V.model.get_one(r.Context(), V.admin.DB, q.Get("id"))
 	if err != nil {
 		// TODO: work?
-		Flash(r, mv.admin.gettext("Record does not exist."), "danger")
+		Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
-		mv.redirect(w, r, q.Get("url"))
+		V.redirect(w, r, q.Get("url"))
 		return
 	}
 
-	mv.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
+	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
 		"model":           one,
-		"form":            mv.get_form(one).dict(),
-		"details_columns": mv.list_columns(),
+		"form":            V.get_form(one).dict(),
+		"details_columns": V.list_columns(),
 		"request":         rd(r),
 	})
 }
 
 // Model().Where(pk field = pk value).Delete()
-func (mv *ModelView) delete(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Model().Where(pk field = pk value).First()
-func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
-	q := mv.queryFrom(r)
+func (V *ModelView) details(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
 	redirect := func() {
 		url := q.Get("url")
 		if url == "" {
-			url = mv.GetUrl(".index_view", nil)
+			url = V.GetUrl(".index_view", nil)
 		}
 		http.Redirect(w, r, url, http.StatusFound)
 	}
 
-	if !mv.can_view_details {
+	if !V.can_view_details {
 		redirect()
 		return
 	}
 
-	one, err := mv.model.get_one(r.Context(), mv.admin.DB, q.Get("id"))
+	one, err := V.model.get_one(r.Context(), V.admin.DB, q.Get("id"))
 	if err != nil {
-		Flash(r, mv.admin.gettext("Record does not exist."), "danger")
+		Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
 		redirect()
 		return
 	}
 
-	mv.Render(w, r, "model_details.gotmpl", nil, map[string]any{
+	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
 		"model":           one,
-		"details_columns": mv.list_columns(),
+		"details_columns": V.list_columns(),
 		"request":         rd(r),
 	})
 }
@@ -437,13 +472,13 @@ func (mv *ModelView) details(w http.ResponseWriter, r *http.Request) {
 // list_form_pk=a1d13310-7c10-48d5-b63b-3485995ad6a4&currency=USD
 // Record was successfully saved.
 // Model().Where().Update(currency=USD)
-func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
 		return
 	}
 
-	if len(mv.column_editable_list) == 0 {
+	if len(V.column_editable_list) == 0 {
 		w.WriteHeader(404)
 		return
 	}
@@ -453,7 +488,7 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	pk := r.Form.Get("list_form_pk")
 
 	// TODO: type list_form struct, parse
-	row := row{}
+	row := Row{}
 	for k, v := range r.Form {
 		if k == "list_form_pk" {
 			continue
@@ -472,12 +507,12 @@ func (mv *ModelView) ajax_update(w http.ResponseWriter, r *http.Request) {
 	// _ = record
 
 	// update_model
-	if err := mv.model.update(mv.admin.DB, pk, row); err != nil {
+	if err := V.model.update(V.admin.DB, pk, row); err != nil {
 		w.WriteHeader(500)
-		w.Write([]byte(mv.admin.gettext("Failed to update record. %s", err)))
+		w.Write([]byte(V.admin.gettext("Failed to update record. %s", err)))
 		return
 	}
-	w.Write([]byte(mv.admin.gettext("Record was successfully saved.")))
+	w.Write([]byte(V.admin.gettext("Record was successfully saved.")))
 }
 
 // request to dict, like flask.request
@@ -489,9 +524,9 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-func (mv *ModelView) get_form(one row) model_form {
+func (V *ModelView) get_form(one Row) model_form {
 	form := model_form{
-		Fields: lo.Filter(mv.model.columns, func(col Column, _ int) bool {
+		Fields: lo.Filter(V.model.columns, func(col Column, _ int) bool {
 			return !col.PrimaryKey
 		}),
 	}
@@ -499,7 +534,7 @@ func (mv *ModelView) get_form(one row) model_form {
 	return form
 }
 
-func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
+func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	fs := []string{
 		"templates/actions.gotmpl",
@@ -513,31 +548,88 @@ func (mv *ModelView) Render(w http.ResponseWriter, r *http.Request, name string,
 
 	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
-			return mv.admin.GetUrl(mv.Endpoint+".index_view", nil)
+			return V.admin.GetUrl(V.Endpoint+".index_view", nil)
 		},
 		"get_flashed_messages": func() []map[string]any {
 			return GetFlashedMessages(r)
 		},
 		"get_url": func(endpoint string, args ...any) string {
-			return mv.GetUrl(endpoint, nil, args...)
+			return V.GetUrl(endpoint, nil, args...)
 		},
 		"get_value": func(row map[string]any, col Column) any {
 			return row[col.Name]
 		},
 		"page_size_url": func(page_size int) string {
-			return mv.GetUrl(".index_view", nil, "page_size", page_size)
+			return V.GetUrl(".index_view", nil, "page_size", page_size)
 		},
 		"pager_url": func(page int) string {
-			return mv.GetUrl(".index_view", nil, "page", page)
+			return V.GetUrl(".index_view", nil, "page", page)
 		},
 		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
-		"list_form":   mv.list_form,
-		"is_editable": mv.is_editable,
+		"list_form":   V.list_form,
+		"is_editable": V.is_editable,
 	}, funcs)
 
 	fs = append(fs, "templates/"+name)
-	if err := createTemplate(fs, mv.admin.funcs(fm)).
-		ExecuteTemplate(w, name, mv.dict(r, data)); err != nil {
+	if err := createTemplate(fs, V.admin.funcs(fm)).
+		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
+}
+
+func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB {
+	ndb := db
+	limit := lo.Ternary(q.PageSize != 0, q.PageSize, q.default_page_size)
+	if !count_only {
+		ndb = ndb.Limit(limit)
+
+		if q.Page > 0 {
+			ndb = ndb.Offset(limit * q.Page)
+		}
+	}
+
+	if q.Sort != "" {
+		column_index := must(strconv.Atoi(q.Sort))
+		column_name := V.model.columns[column_index].Name
+
+		ndb = ndb.Order(clause.OrderByColumn{
+			Column: clause.Column{Name: column_name},
+			Desc:   q.Desc,
+		})
+	}
+
+	// filter or search
+	return ndb
+}
+
+func (V *ModelView) list(q *Query) *Result {
+	r := Result{Query: q}
+
+	var total int64
+	if err := V.applyQuery(V.admin.DB, q, true).
+		Model(V.model.new()).
+		Count(&total).Error; err != nil {
+		r.Error = err
+		return &r
+	}
+	r.Total = total
+
+	ptr := V.model.newSlice()
+	db := V.applyQuery(V.admin.DB, q, false)
+	if err := V.applyJoins(db).
+		Find(ptr.Interface()).Error; err != nil {
+		r.Error = err
+		return &r
+	}
+
+	// ctx := context.Background() // TODO:
+
+	// better way?
+	len := ptr.Elem().Len()
+
+	r.Rows = make([]any, len)
+	for i := 0; i < len; i++ {
+		r.Rows[i] = ptr.Elem().Index(i).Interface()
+	}
+	return &r
 }

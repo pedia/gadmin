@@ -32,13 +32,13 @@ func TestBlueprint(t *testing.T) {
 	// is.PanicsWithError("endpoint 'not' miss in `foo`", func() { f.GetUrl(".not") })
 	is.NotPanics(func() { f.GetUrl(".not") })
 
-	is.Equal("/foo/", must[string](f.GetUrl(".index")))
-	is.Equal("/foo/", must[string](f.GetUrl("foo.index")))
-	is.Equal("/foo/edit", must[string](f.GetUrl("foo.edit_view")))
+	is.Equal("/foo/", must(f.GetUrl(".index")))
+	is.Equal("/foo/", must(f.GetUrl("foo.index")))
+	is.Equal("/foo/edit", must(f.GetUrl("foo.edit_view")))
 
-	is.Equal("/foo/", must[string](f.GetUrl(".index", url.Values{})))
-	is.Equal("/foo/?a=A", must[string](f.GetUrl(".index", url.Values{"a": []string{"A"}})))
-	is.Equal("/foo/?a=B&a=C", must[string](f.GetUrl(".index", url.Values{"a": []string{"B", "C"}})))
+	is.Equal("/foo/", must(f.GetUrl(".index", url.Values{})))
+	is.Equal("/foo/?a=A", must(f.GetUrl(".index", url.Values{"a": []string{"A"}})))
+	is.Equal("/foo/?a=B&a=C", must(f.GetUrl(".index", url.Values{"a": []string{"B", "C"}})))
 
 	a := Blueprint{
 		Name:     "Admin",
@@ -49,10 +49,10 @@ func TestBlueprint(t *testing.T) {
 			"index": {Endpoint: "index", Path: "/"},
 		},
 	}
-	is.Equal("/admin/", must[string](a.GetUrl(".index")))
-	is.Equal("/admin/foo/", must[string](a.GetUrl("foo.index")))
-	is.Equal("/admin/foo/edit", must[string](a.GetUrl("foo.edit_view")))
+	is.Equal("/admin/", must(a.GetUrl(".index")))
+	is.Equal("/admin/foo/", must(a.GetUrl("foo.index")))
+	is.Equal("/admin/foo/edit", must(a.GetUrl("foo.edit_view")))
 
 	f.Add(&Blueprint{Endpoint: "bar", Path: "/haha"})
-	is.Equal("/admin/foo/haha", must[string](a.GetUrl("foo.bar")))
+	is.Equal("/admin/foo/haha", must(a.GetUrl("foo.bar")))
 }

@@ -62,9 +62,9 @@ func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
 		ep = V.Endpoint + ep
 	}
 	if V.admin != nil {
-		return must[string](V.admin.GetUrl(ep, uv))
+		return must(V.admin.GetUrl(ep, uv))
 	}
-	return must[string](V.Blueprint.GetUrl(ep, uv))
+	return must(V.Blueprint.GetUrl(ep, uv))
 }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }

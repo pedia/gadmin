@@ -67,7 +67,7 @@ type _ctxkey int
 var _sessionKey _ctxkey
 
 func CurrentSession(r *http.Request) *Session {
-	return must[*Session](r.Context().Value(_sessionKey).(*Session))
+	return must(r.Context().Value(_sessionKey).(*Session))
 }
 
 // Get or Create Session from current Request
