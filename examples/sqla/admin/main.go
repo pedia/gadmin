@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"time"
 
+	"gadmin"
+
 	"github.com/google/uuid"
-	"github.com/pedia/gadmin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

@@ -627,9 +627,10 @@ func (V *ModelView) list(q *Query) *Result {
 	// better way?
 	len := ptr.Elem().Len()
 
-	r.Rows = make([]any, len)
+	r.Rows = make([]Row, len)
 	for i := 0; i < len; i++ {
-		r.Rows[i] = ptr.Elem().Index(i).Interface()
+		o := ptr.Elem().Index(i).Interface()
+		r.Rows[i] = V.model.intoRow(o)
 	}
 	return &r
 }

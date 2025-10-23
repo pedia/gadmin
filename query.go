@@ -82,7 +82,7 @@ type Result struct {
 	*Query
 
 	Total int64
-	Rows  []any
+	Rows  []Row
 	Error error
 }
 

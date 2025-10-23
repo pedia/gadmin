@@ -19,8 +19,8 @@ import (
 
 type Row map[string]any
 
-func (r Row) Get(name string) any {
-	return r[name]
+func (r Row) Get(c Column) any {
+	return r[c.Name]
 }
 
 type Model struct {
@@ -98,8 +98,13 @@ func (m *Model) parseForm(uv url.Values) Row {
 }
 
 // Convert struct value to row
-func (m *Model) intoRow(a any) Row {
-	return structs.Map(a)
+func (M *Model) intoRow(a any) Row {
+	m := structs.Map(a)
+	res := map[string]any{}
+	for k, v := range m {
+		res[strings.ToLower(k)] = v
+	}
+	return res
 }
 
 func (m *Model) find(name string) *Column {
@@ -123,7 +128,7 @@ func (m *Model) sortable_list() []string {
 	})
 }
 func (m *Model) get_pk_value(row Row) any {
-	return row.Get(m.pk.Name)
+	return row.Get(m.pk)
 }
 
 // apply query

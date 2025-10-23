@@ -17,7 +17,7 @@ type XEditableWidget struct {
 // data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 func (xw *XEditableWidget) html(r Row) template.HTML {
 	args := map[template.HTMLAttr]any{
-		"data-value": r.Get(xw.column.Name),
+		"data-value": r.Get(xw.column),
 		"data-role":  "x-editable",
 		"data-url":   "./ajax/update/",
 		"data-pk":    xw.model.get_pk_value(r),
@@ -41,7 +41,7 @@ func (xw *XEditableWidget) html(r Row) template.HTML {
 	w := bytes.Buffer{}
 	tmpl.Execute(&w, map[string]any{
 		"args":          args,
-		"display_value": r.Get(xw.column.Name),
+		"display_value": r.Get(xw.column),
 	})
 	return template.HTML(w.String()) // TODO: HTML safe
 }
