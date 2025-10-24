@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -10,22 +11,24 @@ import (
 func TestBlueprint(t *testing.T) {
 	is := assert.New(t)
 
+	h := func(http.ResponseWriter, *http.Request) {}
+
 	f := Blueprint{
 		Name:     "Foo",
 		Endpoint: "foo",
 		Path:     "/foo",
 		Children: map[string]*Blueprint{
 			// flask-admin use `admin.index`, in `gadmin` should not use `view.index``
-			"index":        {Endpoint: "index", Path: "/"},
-			"index_view":   {Endpoint: "index_view", Path: "/"},
-			"create_view":  {Endpoint: "create_view", Path: "/new"},
-			"details_view": {Endpoint: "details_view", Path: "/details"},
-			"action_view":  {Endpoint: "action_view", Path: "/action"},
-			"execute_view": {Endpoint: "execute_view", Path: "/execute"},
-			"edit_view":    {Endpoint: "edit_view", Path: "/edit"},
-			"delete_view":  {Endpoint: "delete_view", Path: "/delete"},
-			// not .export_view
-			"export": {Endpoint: "export", Path: "/export"},
+			"index":        {Handler: h, Endpoint: "index", Path: "/"},
+			"index_view":   {Handler: h, Endpoint: "index_view", Path: "/"},
+			"create_view":  {Handler: h, Endpoint: "create_view", Path: "/new"},
+			"details_view": {Handler: h, Endpoint: "details_view", Path: "/details"},
+			"action_view":  {Handler: h, Endpoint: "action_view", Path: "/action"},
+			"execute_view": {Handler: h, Endpoint: "execute_view", Path: "/execute"},
+			"edit_view":    {Handler: h, Endpoint: "edit_view", Path: "/edit"},
+			"delete_view":  {Handler: h, Endpoint: "delete_view", Path: "/delete"},
+			"export":       {Handler: h, Endpoint: "export", Path: "/export"},
+			"static":       {Endpoint: "static", Path: "/static/", StaticFolder: "path/to/static"},
 		},
 	}
 
@@ -39,6 +42,10 @@ func TestBlueprint(t *testing.T) {
 	is.Equal("/foo/", must(f.GetUrl(".index", url.Values{})))
 	is.Equal("/foo/?a=A", must(f.GetUrl(".index", url.Values{"a": []string{"A"}})))
 	is.Equal("/foo/?a=B&a=C", must(f.GetUrl(".index", url.Values{"a": []string{"B", "C"}})))
+	is.Equal("/foo/static/?file=a.css", must(f.GetUrl(".static", url.Values{"file": []string{"a.css"}})))
+
+	mux := http.NewServeMux()
+	f.registerTo(mux, "/parent")
 
 	a := Blueprint{
 		Name:     "Admin",

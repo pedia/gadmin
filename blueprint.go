@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-type RegisterFunc func(*http.ServeMux, string, *Blueprint)
-
 // like flask.Blueprint
 //
 // | Name  | Endpoint       | Path       |
@@ -28,10 +26,14 @@ type Blueprint struct {
 	Children map[string]*Blueprint // endpoint => *Blueprint
 	Name     string                // Foo
 	Handler  http.HandlerFunc
-	Register RegisterFunc // Custom register to mux, serve static file
-	// StaticFolder
+
+	// Custom register into http.ServerMux
+	RegisterFunc func(*http.ServeMux, string, *Blueprint)
+
+	StaticFolder   string
+	TemplateFolder string
+
 	// StaticUrlPath
-	// TemplateFolder
 	// ErrorHandler
 }
 
@@ -43,34 +45,44 @@ func (B *Blueprint) Add(child *Blueprint) {
 	B.Children[child.Endpoint] = child
 }
 
-// Add `Blueprint` to `http.ServeMux`
-func (B *Blueprint) registerTo(mux *http.ServeMux, path string) {
-	if !strings.HasPrefix(B.Path, "/") {
-		log.Printf("warning Blueprint.Path %s not start with /", B.Path)
-	}
-	// log.Printf("handle %s %v", path+B.Path, B.Handler != nil || B.Register != nil)
-	if B.Register != nil {
-		B.Register(mux, path, B)
+// Register all Blueprint to `http.ServeMux`
+func (B *Blueprint) registerTo(mux *http.ServeMux, parent string) {
+	if B.RegisterFunc != nil {
+		B.RegisterFunc(mux, parent, B)
+	} else if B.Handler != nil {
+		if !strings.HasPrefix(B.Path, "/") {
+			log.Printf("warning: Blueprint(%s path: %s) not start with /", B.Name, B.Path)
+		}
+
+		log.Printf("%s handle %s", B.Name, parent+B.Path)
+		mux.HandleFunc(parent+B.Path, B.Handler)
+	} else if B.Endpoint == "static" && B.StaticFolder != "" {
+		log.Printf("%s handle %s fs: %s", B.Name, parent+B.Path, B.StaticFolder)
+
+		if !strings.HasSuffix(B.Path, "/") {
+			panic("Blueprint(Name='static').Path should end with /")
+		}
+
+		fs := http.FileServer(http.Dir(B.StaticFolder))
+		mux.Handle(parent+B.Path, minified.Middleware(
+			http.StripPrefix(parent+B.Path, fs)))
+
+		// TODO: add an endpoint
 	}
 
-	if B.Handler != nil {
-		mux.HandleFunc(path+B.Path, B.Handler)
-	}
+	// duplicated B.Path
+	up := map[string]bool{}
+	for _, child := range B.Children {
+		if unique := up[child.Path]; !unique {
+			child.registerTo(mux, parent+B.Path)
 
-	unique := map[string]bool{}
-	for _, cb := range B.Children {
-		cp := path + B.Path + cb.Path
-		if _, ok := unique[cp]; !ok {
-			cb.registerTo(mux, path+B.Path)
-			unique[cp] = true
-		} else {
-			log.Printf("duplicated handle %s", cp)
+			up[child.Path] = true
 		}
 	}
 }
 
 func (B *Blueprint) GetUrl(endpoint string, qs ...url.Values) (string, error) {
-	path := ""
+	var path string
 	arr := strings.SplitN(endpoint, ".", 2)
 	if arr[0] == "" || arr[0] == B.Endpoint {
 		path = B.Path
@@ -104,10 +116,7 @@ func (B *Blueprint) dict() map[string]any {
 		"endpoint": B.Endpoint,
 		"path":     B.Path,
 		"handler":  B.Handler == nil,
-	}
-
-	if B.Name != "" {
-		o["name"] = B.Name
+		"name":     B.Name,
 	}
 
 	if B.Children != nil {

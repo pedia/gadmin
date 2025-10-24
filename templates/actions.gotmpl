@@ -19,7 +19,7 @@
             {% if action_form.csrf_token %}
                 {% action_form.csrf_token %}
             {% elif csrf_token %}
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+                <input type="hidden" name="csrf_token" value="{{ .csrf_token }}"/>
             {% end %}
             {% action_form.url(value=return_url) %}
             {% action_form.action() %}

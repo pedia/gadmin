@@ -11,18 +11,16 @@ func flashed(session *Session) *_Flashed {
 	return &_Flashed{Session: session, name: "flashed"}
 }
 
-type _message map[string]any
-
 type _Flashed struct {
 	*Session
 	name string // session name
 }
 
 func (F *_Flashed) Add(data any, category ...string) {
-	ms := append(F.get(), _message(map[string]any{
+	ms := append(F.get(), map[string]any{
 		"data":     data,
 		"category": firstOr(category, "info"),
-	}))
+	})
 	F.Set(F.name, ms)
 }
 

@@ -24,13 +24,14 @@ func (S *Secret) hash(src []byte) []byte {
 }
 
 // Generate string like: {src}.{hash of src}
-func (S *Secret) Sign(src []byte, sep ...string) string {
+// TODO: encode(src)
+func (S *Secret) Sign(src []byte) string {
 	dest := S.hash(src)
-	return string(src) + firstOr(sep, ".") + base64.RawURLEncoding.EncodeToString(dest)
+	return string(src) + "." + base64.RawURLEncoding.EncodeToString(dest)
 }
 
-func (S *Secret) Unsign(s string, sep ...string) ([]byte, error) {
-	arr := strings.Split(s, firstOr(sep, "."))
+func (S *Secret) Unsign(s string) ([]byte, error) {
+	arr := strings.Split(s, ".")
 	if len(arr) != 2 && len(arr[1]) != 64 {
 		return nil, errTokenInvalid
 	}

@@ -63,7 +63,7 @@ func NewModelView(m any, category ...string) *ModelView {
 	cate := firstOr(category, model.label())
 
 	mv := ModelView{
-		BaseView:               NewView(MenuItem{Name: model.label(), Category: cate}),
+		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
 		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -338,8 +338,8 @@ func (V *ModelView) is_editable(name string) bool {
 	return ok
 }
 
-func (V *ModelView) list_row_actions() []action {
-	actions := []action{}
+func (V *ModelView) list_row_actions() []Action {
+	actions := []Action{}
 	if V.can_view_details {
 		actions = append(actions, view_row_action)
 	}

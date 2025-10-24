@@ -50,7 +50,7 @@ type Tag struct {
 
 func NewHomeView() *HomeView {
 	h := HomeView{
-		gadmin.NewView(gadmin.MenuItem{}),
+		gadmin.NewView(gadmin.Menu{}),
 	}
 	h.Blueprint = &gadmin.Blueprint{
 		Path:     "/",
@@ -73,8 +73,7 @@ func main() {
 	db, _ := gorm.Open(sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
-			Logger:         logger.Default.LogMode(logger.Info),
-		})
+			Logger:         logger.Default.LogMode(logger.Info)})
 
 	a := gadmin.NewAdmin("Example: SQLAlchemy", db)
 	a.AddView(gadmin.NewModelView(User{}))
@@ -83,9 +82,9 @@ func main() {
 		SetColumnEditableList("name")
 	a.AddView(gadmin.NewModelView(Post{}))
 
-	a.AddMenuItem(gadmin.MenuItem{Category: "Other", Name: "Other"})
-	a.AddMenuItem(gadmin.MenuItem{Category: "Other", Name: "Tree"})
-	a.AddMenuItem(gadmin.MenuItem{Category: "Other", Name: "Links", Children: []*gadmin.MenuItem{
+	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Other"})
+	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Tree"})
+	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Links", Children: []*gadmin.Menu{
 		{Name: "Back Home", Path: "/"},
 		{Name: "External Link", Path: "http://www.example.com/"},
 	}})

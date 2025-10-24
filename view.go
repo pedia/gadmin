@@ -18,7 +18,7 @@ type View interface {
 	GetUrl(ep string, q *Query, args ...any) string
 
 	GetBlueprint() *Blueprint
-	GetMenu() *MenuItem
+	GetMenu() *Menu
 
 	// Override this method if you want dynamically hide or show
 	// administrative views from Flask-Admin menu structure
@@ -31,12 +31,12 @@ type View interface {
 
 type BaseView struct {
 	*Blueprint
-	menu  MenuItem
+	menu  Menu
 	admin *Admin
 }
 
-func NewView(menu MenuItem) *BaseView {
-	return &BaseView{menu: menu}
+func NewView(menu Menu) *BaseView {
+	return &BaseView{Blueprint: &Blueprint{}, menu: menu}
 }
 
 // Expose "/test" create Blueprint{Endpoint: "test", Path: "/test"}
@@ -68,7 +68,7 @@ func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
 }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
-func (V *BaseView) GetMenu() *MenuItem       { return &V.menu }
+func (V *BaseView) GetMenu() *Menu           { return &V.menu }
 func (V *BaseView) IsVisible() bool          { return true }
 func (V *BaseView) IsAccessible() bool       { return true }
 
@@ -82,7 +82,13 @@ func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, name string, f
 		"templates/master.gotmpl",
 	}
 
-	if err := createTemplate(fs, V.admin.funcs(funcs)).
+	fm := V.admin.funcs(funcs)
+
+	fm["get_flashed_messages"] = func() []map[string]any {
+		return GetFlashedMessages(r)
+	}
+
+	if err := createTemplate(fs, fm).
 		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
@@ -97,6 +103,7 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
 		"admin_fluid_layout": true,
+		"csrf_token":         NewCSRF(CurrentSession(r)).GenerateToken,
 	}
 
 	if len(others) > 0 {

@@ -3,7 +3,7 @@ package gadmin
 import "github.com/samber/lo"
 
 // Tree liked structure
-type MenuItem struct {
+type Menu struct {
 	Category string // parent item Name
 	Name     string
 	Path     string
@@ -15,10 +15,10 @@ type MenuItem struct {
 	IsVisible    bool
 	IsAccessible bool
 
-	Children []*MenuItem
+	Children []*Menu
 }
 
-func (M *MenuItem) dict() map[string]any {
+func (M *Menu) dict() map[string]any {
 	return map[string]any{
 		"category":      M.Category,
 		"name":          M.Name,
@@ -28,42 +28,30 @@ func (M *MenuItem) dict() map[string]any {
 		"is_active":     M.IsActive,
 		"is_visible":    M.IsVisible,
 		"is_accessible": M.IsAccessible,
-		"children": lo.Map(M.Children, func(m *MenuItem, _ int) map[string]any {
-			return m.dict()
+		"children": lo.Map(M.Children, func(c *Menu, _ int) map[string]any {
+			return c.dict()
 		}),
 	}
 }
 
-type Menu []*MenuItem
-
-func (M *Menu) Add(m *MenuItem) {
-	if m.Category != m.Name && m.Category != "" {
-		c := M.find(m.Category)
-		if c == nil {
-			// create stub
-			c = &MenuItem{
-				Category: m.Category,
-				Name:     m.Category,
-				Children: []*MenuItem{},
-			}
-			*M = append(*M, c)
+// TODO: AddCategory/AddLink/AddMenuItem
+func (M *Menu) Add(m *Menu) {
+	c := M.find(m.Category)
+	if c == nil {
+		// create stub
+		c = &Menu{
+			Category: m.Category,
+			Name:     m.Category,
+			Children: []*Menu{},
 		}
-
-		c.Children = append(c.Children, m)
-		return
 	}
-	*M = append(*M, m)
+
+	c.Children = append(c.Children, m)
 }
 
-func (M Menu) find(cate string) *MenuItem {
-	c, _ := lo.Find(M, func(m *MenuItem) bool {
+func (M *Menu) find(cate string) *Menu {
+	c, _ := lo.Find(M.Children, func(m *Menu) bool {
 		return m.Category == cate
 	})
 	return c
-}
-
-func (M Menu) dict() []map[string]any {
-	return lo.Map(M, func(m *MenuItem, _ int) map[string]any {
-		return m.dict()
-	})
 }

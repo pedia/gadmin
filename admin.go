@@ -14,70 +14,47 @@ import (
 
 func NewAdmin(name string, db *gorm.DB) *Admin {
 	A := Admin{
-		DB: db,
-
-		menu:  []*MenuItem{},
-		views: []View{},
-
-		debug: true,
-		// auto_migrate: true,
-		staticUrl: "/admin/static",
-		secret:    NewSecret("hello"), // TODO: read from config
-		mux:       http.NewServeMux(),
+		DB:          db,
+		Menu:        &Menu{},
+		views:       []View{},
+		debug:       true,
+		autoMigrate: true,
+		secret:      NewSecret("hello"), // TODO: read from config
+		mux:         http.NewServeMux(),
 	}
 
 	A.Blueprint = &Blueprint{
 		Name:     name,
 		Endpoint: "admin",
 		Path:     "/admin",
-		Handler:  A.index_handle,
+		Handler:  A.indexHandler,
 		Children: map[string]*Blueprint{
-			// TODO: A.debug
-			"debug": {
-				Endpoint: "debug",
-				Path:     "/debug.json",
-				Handler:  A.debug_handle,
-			},
-			"test": {
-				Endpoint: "test",
-				Path:     "/test.html",
-				Handler:  A.test_handle,
-			},
-			"static": {
-				Endpoint: "static",
-				Path:     "/static/",
-				Register: func(mux *http.ServeMux, path string, bp *Blueprint) {
-					fs := http.FileServer(http.Dir("static")) // TODO: Blueprint.StaticFolder
-					mux.Handle(path+bp.Path, http.StripPrefix(path+bp.Path, fs))
-				},
-			},
+			"debug":      {Endpoint: "debug", Path: "/debug.json", Handler: A.debugHandler},
+			"debug.html": {Endpoint: "debug.html", Path: "/debug.html", Handler: A.debugHtmlHandler},
+			"test":       {Endpoint: "test", Path: "/test", Handler: A.testHandler},
+			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static/admin"},
 		}}
+
 	A.registerTo(A.mux, "")
+	A.Menu.Add(&Menu{Path: "/admin/", Name: A.gettext("Home")})
 
 	// TODO: read lang from config
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
-	A.menu.Add(&MenuItem{Path: "/admin/", Name: A.gettext("Home")})
 
-	AddSecurity(&A)
+	// AddSecurity(&A)
 	return &A
 }
 
 type Admin struct {
 	*Blueprint
+	Menu *Menu
+	DB   *gorm.DB
 
-	DB    *gorm.DB
-	menu  Menu
-	views []View
-
-	debug        bool
-	auto_migrate bool
-
-	// Url prefix for all static resource, default as `/static`
-	// with Admin.name, default as `/admin/static`
-	staticUrl string
-
-	secret *Secret
-	mux    *http.ServeMux
+	views       []View
+	debug       bool
+	autoMigrate bool
+	secret      *Secret
+	mux         *http.ServeMux
 }
 
 func (A *Admin) Register(b *Blueprint) {
@@ -89,7 +66,7 @@ func (A *Admin) Register(b *Blueprint) {
 func (A *Admin) AddView(view View) View {
 	if mv, ok := view.(*ModelView); ok {
 		mv.admin = A
-		if A.auto_migrate {
+		if A.autoMigrate {
 			if err := A.DB.AutoMigrate(mv.Model.new()); err != nil {
 				return nil
 			}
@@ -122,28 +99,19 @@ func (A *Admin) addViewToMenu(view View) {
 		if menu.Path == "" {
 			menu.Path, _ = A.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
-		A.menu.Add(menu)
+		A.Menu.Add(menu)
 	}
 }
-
-func (A *Admin) AddLink(cate, name, path string) {
-	A.menu.Add(&MenuItem{Category: cate, Name: name, Path: path})
-}
-func (A *Admin) AddCategory(cate string) {
-	A.menu.Add(&MenuItem{Category: cate, Name: cate})
-}
-func (A *Admin) AddMenuItem(mi MenuItem) {
-	A.menu.Add(&mi)
-}
-
-// AddCategory/AddLink/AddMenuItem
 
 func (A *Admin) staticURL(filename, ver string) string {
-	s := A.staticUrl + "/" + filename
-	if ver != "" {
-		s += "?ver=" + ver
+	path, err := A.GetUrl(".static")
+	if err == nil {
+		if ver != "" {
+			return path + filename + "?ver=" + ver
+		}
+		return path + filename
 	}
-	return s
+	panic(err)
 }
 
 // Flask.url_for, `endpoint` like:
@@ -184,7 +152,7 @@ func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (A *Admin) Run() {
-	serv := http.Server{Handler: A}
+	serv := http.Server{Handler: Use(A, Logger())}
 
 	l, _ := net.Listen("tcp", ":3333")
 	serv.Serve(l)
@@ -228,10 +196,10 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
 		"debug": A.debug,
 		"name":  A.Name,
-		"url":   "/admin",
+		"url":   A.Path, // "/admin"
 		// "admin_base_template": "base.html",
 		"swatch": theme(), // "cerulean", "default"
-		"menus":  A.menu.dict(),
+		"menu":   A.Menu.dict(),
 		"config": config,
 	}
 
@@ -241,11 +209,13 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 	return o
 }
 
-func (A *Admin) index_handle(w http.ResponseWriter, r *http.Request) {
+func (A *Admin) indexHandler(w http.ResponseWriter, r *http.Request) {
 	// A.Render(w, "index.gotmpl", A.dict())
 }
-
-func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
+func (A *Admin) testHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("test"))
+}
+func (A *Admin) debugHandler(w http.ResponseWriter, r *http.Request) {
 	s := CurrentSession(r)
 	c := s.Get("C")
 	if c == nil {
@@ -253,23 +223,23 @@ func (A *Admin) debug_handle(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Set("C", c.(int)+1)
 	ReplyJson(w, 200, A.dict(map[string]any{
-		"blueprints": A.Blueprint.dict(),
-		"session":    s.Values,
+		"blueprint": A.Blueprint.dict(),
+		"session":   s.Values,
 	}))
 }
-func (A *Admin) test_handle(w http.ResponseWriter, r *http.Request) {
+func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
-	tx, err := template.New("test").
+	tx, err := template.New("debug").
 		Option("missingkey=error").
 		Funcs(A.funcs(nil)).
-		ParseFiles("templates/test.gotmpl")
+		ParseFiles("templates/debug.gotmpl")
 	if err == nil {
 		type foo struct {
 			lower string
 			Upper string
 		}
 
-		err = tx.Lookup("test.gotmpl").Execute(w, map[string]any{
+		err = tx.Lookup("debug.gotmpl").Execute(w, map[string]any{
 			"lower":            "lower",
 			"Upper":            "Upper",
 			"int":              34,
