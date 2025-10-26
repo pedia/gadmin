@@ -203,7 +203,7 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 		"filter_groups":        []string{},
 		"actions_confirmation": V.list_row_actions_confirmation(),
 		"search_supported":     false,
-		"return_url":           V.GetUrl(".index_view", nil),
+		"return_url":           must(V.Blueprint.GetUrl(".index_view", nil)),
 	})
 
 	if len(others) > 0 {
@@ -214,7 +214,7 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 
 func (V *ModelView) debug(w http.ResponseWriter, r *http.Request) {
 	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
-		"menu":      V.menu.dict(),
+		"menu":      V.Menu.dict(),
 		"blueprint": V.Blueprint.dict(),
 	})
 }
@@ -229,7 +229,7 @@ func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		"num_pages": q.num_pages,
 		"page_size": q.PageSize,
 		"page_size_url": func(page_size int) string {
-			return V.GetUrl(".index_view", q, "page_size", page_size)
+			return must(V.Blueprint.GetUrl(".index_view", q, "page_size", page_size))
 		},
 		"can_set_page_size":        V.can_set_page_size,
 		"data":                     result.Rows,
@@ -263,7 +263,7 @@ func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
 			q := *q // simply copy
 			q.Sort = strconv.Itoa(V.get_column_index(name))
 			q.Desc = firstOr(invert)
-			return V.GetUrl(".index_view", &q)
+			return must(V.Blueprint.GetUrl(".index_view", &q))
 		},
 		"column_descriptions": func(name string) string {
 			if desc, ok := V.column_descriptions[name]; ok {
@@ -380,12 +380,12 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 			// "_add_another"
 			// "_continue_editing"
 			if continue_editing != "" {
-				V.redirect(w, r, V.GetUrl(".edit_view", nil, "id", one["id"]))
+				V.redirect(w, r, must(V.Blueprint.GetUrl(".edit_view", nil, "id", one["id"])))
 				return
 			}
 
 			if r.PostFormValue("_add_another") != "" {
-				V.redirect(w, r, V.GetUrl(".create_view", nil))
+				V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view", nil)))
 				return
 			}
 
@@ -408,7 +408,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 
 func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
 	if url == "" {
-		url = V.GetUrl(".index_view", nil)
+		url = must(V.Blueprint.GetUrl(".index_view", nil))
 	}
 	http.Redirect(w, r, url, http.StatusFound)
 }
@@ -448,7 +448,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	redirect := func() {
 		url := q.Get("url")
 		if url == "" {
-			url = V.GetUrl(".index_view", nil)
+			url = must(V.Blueprint.GetUrl(".index_view", nil))
 		}
 		http.Redirect(w, r, url, http.StatusFound)
 	}
@@ -552,19 +552,19 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 
 	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
-			return V.admin.GetUrl(V.Endpoint+".index_view", nil)
+			return V.Blueprint.GetUrl(V.Blueprint.Endpoint+".index_view", nil)
 		},
 		"get_flashed_messages": func() []map[string]any {
 			return GetFlashedMessages(r)
 		},
 		"get_url": func(endpoint string, args ...any) string {
-			return V.GetUrl(endpoint, nil, args...)
+			return must(V.Blueprint.GetUrl(endpoint, args...))
 		},
 		"page_size_url": func(page_size int) string {
-			return V.GetUrl(".index_view", nil, "page_size", page_size)
+			return must(V.Blueprint.GetUrl(".index_view", nil, "page_size", page_size))
 		},
 		"pager_url": func(page int) string {
-			return V.GetUrl(".index_view", nil, "page", page)
+			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
 		},
 		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
 		"list_form":   V.list_form,

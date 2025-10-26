@@ -4,7 +4,7 @@ import "github.com/samber/lo"
 
 // Tree liked structure
 type Menu struct {
-	Category string // parent item Name
+	Category string // parent item Name, TODO: remove, use Name
 	Name     string
 	Path     string
 
@@ -35,18 +35,18 @@ func (M *Menu) dict() map[string]any {
 }
 
 // TODO: AddCategory/AddLink/AddMenuItem
-func (M *Menu) Add(m *Menu) {
-	c := M.find(m.Category)
-	if c == nil {
+func (M *Menu) AddMenu(m *Menu) {
+	parent := M.find(m.Category)
+	if parent == nil {
 		// create stub
-		c = &Menu{
+		parent = &Menu{
 			Category: m.Category,
 			Name:     m.Category,
-			Children: []*Menu{},
 		}
+		M.Children = append(M.Children, parent)
 	}
 
-	c.Children = append(c.Children, m)
+	parent.Children = append(parent.Children, m)
 }
 
 func (M *Menu) find(cate string) *Menu {

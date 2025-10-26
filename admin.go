@@ -13,15 +13,21 @@ import (
 )
 
 func NewAdmin(name string, db *gorm.DB) *Admin {
-	A := Admin{
-		DB:          db,
-		Menu:        &Menu{},
+	A := &Admin{
+		DB: db,
+		BaseView: &BaseView{Menu: Menu{
+			Path: "/admin/",
+			Name: gettext("Home"),
+		}},
 		views:       []View{},
 		debug:       true,
 		autoMigrate: true,
 		secret:      NewSecret("hello"), // TODO: read from config
 		mux:         http.NewServeMux(),
+
+		indexTemplateFile: "index.gotmpl",
 	}
+	A.BaseView.admin = A
 
 	A.Blueprint = &Blueprint{
 		Name:     name,
@@ -29,82 +35,64 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 		Path:     "/admin",
 		Handler:  A.indexHandler,
 		Children: map[string]*Blueprint{
+			"index":      {Endpoint: "index", Path: "/", Handler: A.indexHandler},
 			"debug":      {Endpoint: "debug", Path: "/debug.json", Handler: A.debugHandler},
 			"debug.html": {Endpoint: "debug.html", Path: "/debug.html", Handler: A.debugHtmlHandler},
 			"test":       {Endpoint: "test", Path: "/test", Handler: A.testHandler},
-			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static/admin"},
+			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static"},
 		}}
 
-	A.registerTo(A.mux, "")
-	A.Menu.Add(&Menu{Path: "/admin/", Name: A.gettext("Home")})
+	A.Blueprint.registerTo(A.mux, "")
 
 	// TODO: read lang from config
 	gotext.Configure("translations", "zh_Hant_TW", "admin")
 
 	// AddSecurity(&A)
-	return &A
+	return A
 }
 
 type Admin struct {
-	*Blueprint
-	Menu *Menu
-	DB   *gorm.DB
+	*BaseView
+	DB *gorm.DB
 
-	views       []View
-	debug       bool
-	autoMigrate bool
-	secret      *Secret
-	mux         *http.ServeMux
+	views             []View
+	debug             bool
+	autoMigrate       bool
+	secret            *Secret
+	mux               *http.ServeMux
+	indexTemplateFile string
 }
 
 func (A *Admin) Register(b *Blueprint) {
-	A.Add(b)
+	A.Blueprint.AddChild(b)
 
-	b.registerTo(A.mux, A.Path)
+	b.registerTo(A.mux, A.Blueprint.Path)
 }
 
 func (A *Admin) AddView(view View) View {
-	if mv, ok := view.(*ModelView); ok {
-		mv.admin = A
-		if A.autoMigrate {
-			if err := A.DB.AutoMigrate(mv.Model.new()); err != nil {
-				return nil
-			}
-		}
+	view.setAdmin(A)
 
-		b := mv.GetBlueprint()
-		if b != nil {
-			A.views = append(A.views, mv)
-			A.Register(b)
-
-			A.addViewToMenu(mv)
-		}
-	} else {
-		bv, ok := view.(*BaseView)
-		if ok {
-			bv.admin = A
-		}
+	if b := view.GetBlueprint(); b != nil {
 		A.views = append(A.views, view)
-		// TODO:
-		view.GetBlueprint().registerTo(A.mux, "")
-	}
+		A.Register(b)
 
+		A.addViewToMenu(view)
+	}
 	return view
 }
 
 func (A *Admin) addViewToMenu(view View) {
-	menu := view.GetMenu()
-	if menu != nil {
+	if menu := view.GetMenu(); menu != nil {
 		// patch MenuItem.Path
 		if menu.Path == "" {
-			menu.Path, _ = A.GetUrl(view.GetBlueprint().Endpoint + ".index")
+			menu.Path, _ = A.Blueprint.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
-		A.Menu.Add(menu)
+		A.BaseView.Menu.AddMenu(menu)
 	}
 }
 
 func (A *Admin) staticURL(filename, ver string) string {
-	path, err := A.GetUrl(".static")
+	path, err := A.Blueprint.GetUrl(".static")
 	if err == nil {
 		if ver != "" {
 			return path + filename + "?ver=" + ver
@@ -126,7 +114,7 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("model '%s' miss", model)
 		}
-		prefix = A.Path
+		prefix = A.Blueprint.Path
 		b = cb
 	}
 
@@ -178,8 +166,6 @@ func gettext(format string, a ...any) string {
 	return gotext.Get(format, a...)
 }
 
-var themeIndex = 5
-
 func theme() string {
 	var themes = []string{
 		"cyborg", "darkly", "slate", // night
@@ -188,18 +174,19 @@ func theme() string {
 		"lumen", "lux", "materia", "minty", "united", "pulse",
 		"sandstone", "simplex", "sketchy", "spacelab", "yeti",
 	}
-	// themeIndex = 0
-	return themes[themeIndex%len(themes)]
+	themeIndex := 2
+	return themes[themeIndex]
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
 		"debug": A.debug,
-		"name":  A.Name,
-		"url":   A.Path, // "/admin"
+		"name":  A.Blueprint.Name,
+		"url":   A.Blueprint.Path, // "/admin"
 		// "admin_base_template": "base.html",
+		// 'swatch' from flask-admin
 		"swatch": theme(), // "cerulean", "default"
-		"menu":   A.Menu.dict(),
+		"menu":   A.BaseView.Menu.dict(),
 		"config": config,
 	}
 
@@ -210,7 +197,7 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 }
 
 func (A *Admin) indexHandler(w http.ResponseWriter, r *http.Request) {
-	// A.Render(w, "index.gotmpl", A.dict())
+	A.Render(w, r, A.indexTemplateFile, nil, A.dict())
 }
 func (A *Admin) testHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("test"))
@@ -233,36 +220,11 @@ func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
 		Option("missingkey=error").
 		Funcs(A.funcs(nil)).
 		ParseFiles("templates/debug.gotmpl")
-	if err == nil {
-		type foo struct {
-			lower string
-			Upper string
-		}
-
-		err = tx.Lookup("debug.gotmpl").Execute(w, map[string]any{
-			"lower":            "lower",
-			"Upper":            "Upper",
-			"int":              34,
-			"emptyString":      "",
-			"emptyInt":         0,
-			"emptyIntArray":    []int{},
-			"emptyStringArray": []string{},
-			//
-			"rfoo": foo{Upper: "Upper", lower: "lower"},
-			"ffoo": func() foo { return foo{Upper: "Upper", lower: "lower"} },
-
-			//
-			"msa": map[string]any{"Upper": "Upper", "lower": "lower"},
-
-			"null":  nil,
-			"list":  []string{"a", "b"},
-			"ss":    []struct{ A string }{{A: "a"}, {A: "b"}},
-			"ls":    []map[string]any{{"A": "a"}, {"B": "b"}},
-			"boolf": func() bool { return false },
-			"boolt": func() bool { return true },
-		})
+	if err != nil {
+		panic(err)
 	}
 
+	err = tx.Lookup("debug.gotmpl").Execute(w, A.dict())
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	}
@@ -283,9 +245,9 @@ func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
 //	})
 // func (A *Admin) static_handle(w http.ResponseWriter, r *http.Request) {}
 
-func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
-	fm := merge(sprig.FuncMap(), Funcs)
-	merge(fm, template.FuncMap{
+func (A *Admin) funcs(more template.FuncMap) template.FuncMap {
+	res := merge(sprig.FuncMap(), Funcs)
+	merge(res, template.FuncMap{
 		"admin_static_url": A.staticURL, // used
 		"marshal":          A.marshal,   // test
 		"config":           A.config,    // used
@@ -307,8 +269,12 @@ func (A *Admin) funcs(funcs template.FuncMap) template.FuncMap {
 		},
 	})
 
-	if funcs != nil {
-		merge(fm, funcs)
+	if more != nil {
+		merge(res, more)
 	}
-	return fm
+	return res
+}
+
+func (A *Admin) SetIndexTemplateFile(nfn string) {
+	A.indexTemplateFile = nfn
 }

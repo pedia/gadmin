@@ -5,7 +5,7 @@
 
 <body>
     admin:<br />
-    <textarea rows="10" cols="50">{{ marshal .admin }}</textarea>
+    <textarea rows="10" cols="50">{{ marshal . }}</textarea>
     <br />
     dict(exclude admin):<br />
     <textarea rows="10" cols="50">{{ . | delete "admin" | marshal }}</textarea>
@@ -14,7 +14,7 @@
     <textarea rows="10" cols="50">{{ .menu | marshal }}</textarea>
     <br />
     blueprint:<br />
-    <textarea rows="10" cols="50">{{ .blueprint | marshal }}</textarea>
+    <textarea rows="10" cols="50">{{ .children | marshal }}</textarea>
 
 </body>
 

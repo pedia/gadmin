@@ -4,7 +4,13 @@
     TODO: add active, icon
 */}}
 {{ block "menu" .}}
-    {{- range .admin.menus -}}
+        {{/* patch top menu, right? */}}
+        {{ with $m := .admin.menu -}}
+            <li{{ if $m.class }} class="{{ $m.class }}"{{ end }}>
+                <a class="nav-link" href="{{ $m.path }}">{{ $m.name }}</a>
+            </li>
+        {{- end -}}
+    {{- range .admin.menu.children -}}
         {{- if .children -}}
             <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
                 <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>

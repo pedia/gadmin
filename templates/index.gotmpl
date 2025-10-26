@@ -13,11 +13,4 @@
 {{ end }}
 
 {{ define "body" }}
-<h3>dump dict:</h3>
-    {{ range $key, $value := . }}
-    <li><strong>{{ $key }}</strong>: {{ $value }}</li>
-    {{ end }}
-
-    <pre>{{ marshal . }}</pre>
-
 {{ end }}

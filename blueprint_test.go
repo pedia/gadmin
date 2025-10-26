@@ -60,6 +60,6 @@ func TestBlueprint(t *testing.T) {
 	is.Equal("/admin/foo/", must(a.GetUrl("foo.index")))
 	is.Equal("/admin/foo/edit", must(a.GetUrl("foo.edit_view")))
 
-	f.Add(&Blueprint{Endpoint: "bar", Path: "/haha"})
+	f.AddChild(&Blueprint{Endpoint: "bar", Path: "/haha"})
 	is.Equal("/admin/foo/haha", must(a.GetUrl("foo.bar")))
 }

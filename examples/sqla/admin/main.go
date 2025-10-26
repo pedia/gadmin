@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"time"
 
 	"gadmin"
@@ -48,27 +47,6 @@ type Tag struct {
 	Name string `gorm:"uniqueIndex;size:64"`
 }
 
-func NewHomeView() *HomeView {
-	h := HomeView{
-		gadmin.NewView(gadmin.Menu{}),
-	}
-	h.Blueprint = &gadmin.Blueprint{
-		Path:     "/",
-		Endpoint: "index",
-		Handler:  h.index,
-	}
-	return &h
-}
-
-type HomeView struct {
-	*gadmin.BaseView
-}
-
-func (H *HomeView) index(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", gadmin.ContentTypeUtf8Html)
-	w.Write([]byte(`<h1>home</h1> goto <a href="/admin">/admin</a>`))
-}
-
 func main() {
 	db, _ := gorm.Open(sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
 		&gorm.Config{
@@ -82,13 +60,14 @@ func main() {
 		SetColumnEditableList("name")
 	a.AddView(gadmin.NewModelView(Post{}))
 
-	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Other"})
-	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Tree"})
-	a.Menu.Add(&gadmin.Menu{Category: "Other", Name: "Links", Children: []*gadmin.Menu{
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Other"})
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Tree"})
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Links", Children: []*gadmin.Menu{
 		{Name: "Back Home", Path: "/"},
 		{Name: "External Link", Path: "http://www.example.com/"},
 	}})
 
-	a.AddView(NewHomeView())
+	// TODO: replace index handler /admin/
+
 	a.Run()
 }

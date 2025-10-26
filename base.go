@@ -3,7 +3,7 @@ package gadmin
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 
@@ -69,10 +69,7 @@ func pairToQuery(args ...any) url.Values {
 	uv := url.Values{}
 	for i := 0; i < len(args); i += 2 {
 		if i+1 < len(args) {
-			key, ok := args[i].(string)
-			if !ok {
-				panic(fmt.Errorf("paired-args key not string %v", args[i]))
-			}
+			key := cast.ToString(args[i])
 
 			// `Add` is better than `Set`
 			uv.Add(key, cast.ToString(args[i+1]))
@@ -83,9 +80,7 @@ func pairToQuery(args ...any) url.Values {
 
 // Merge b to a
 func merge[K comparable, V any](a, b map[K]V) map[K]V {
-	for k, v := range b {
-		a[k] = v
-	}
+	maps.Copy(a, b)
 	return a
 }
 

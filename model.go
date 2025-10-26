@@ -142,7 +142,7 @@ type Column struct {
 	Type        string
 	Label       string
 	Widget      *field
-	Errors      string
+	Error       string
 	PrimaryKey  bool
 	Value       any
 }
@@ -157,7 +157,7 @@ func NewColumn(field *schema.Field) Column {
 		Type:        string(field.DataType),
 		Label:       strings.Join(camelcase.Split(field.Name), " "), // Enum Choice Field
 		Widget:      field2widget(field),
-		Errors:      "",
+		Error:       "",
 		PrimaryKey:  field.PrimaryKey,
 	}
 }

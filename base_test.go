@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
+	"text/template"
 
 	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
@@ -162,4 +164,39 @@ func TestBufferWriter(t *testing.T) {
 	is.Equal("World", w.Header().Get("Hello"))
 	is.Equal("body", w0.Body.String())
 	is.True(called)
+}
+
+type base struct{}
+
+type derived struct {
+	*base
+}
+
+func TestBasePtr(t *testing.T) {
+	is := assert.New(t)
+
+	d := &derived{}
+	bp, ok := any(d).(*base)
+	is.False(ok)
+	is.Nil(bp)
+}
+
+func ExampleTemplate() {
+	base := template.Must(template.New("base").Parse(`{{.}}base {{block "body" .}}{{end}}{{println}}`))
+	base.Execute(os.Stdout, 1)
+
+	d1 := template.Must(template.Must(base.Clone()).Parse(`{{define "body"}}d1{{end}}`))
+	d2 := template.Must(base.Parse(`{{define "body"}}d2{{end}}`))
+
+	d1.Execute(os.Stdout, 2)
+	base.Execute(os.Stdout, 3)
+	d2.Execute(os.Stdout, 4)
+	base.Execute(os.Stdout, 5)
+
+	// Output:
+	// 1base
+	// 2base d1
+	// 3base d2
+	// 4base d2
+	// 5base d2
 }

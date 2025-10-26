@@ -3,19 +3,13 @@ package gadmin
 import (
 	"html/template"
 	"net/http"
-	"net/url"
+	"path"
 	"strings"
 )
 
 type View interface {
 	// Add custom handler, eg: /admin/{model}/path
 	Expose(path string, h http.HandlerFunc)
-
-	// CreateBluePrint()
-
-	// Generate URL for the endpoint.
-	// In model view, return {model}/{action}
-	GetUrl(ep string, q *Query, args ...any) string
 
 	GetBlueprint() *Blueprint
 	GetMenu() *Menu
@@ -26,79 +20,98 @@ type View interface {
 
 	// Override this method to add permission checks.
 	IsAccessible() bool
+
 	Render(http.ResponseWriter, *http.Request, string, template.FuncMap, map[string]any)
+
+	setAdmin(*Admin)
 }
 
 type BaseView struct {
-	*Blueprint
-	menu  Menu
-	admin *Admin
+	Blueprint *Blueprint
+	Menu      Menu
+	admin     *Admin
+
+	// all parsed template files
+	groupts *template.Template
 }
 
 func NewView(menu Menu) *BaseView {
-	return &BaseView{Blueprint: &Blueprint{}, menu: menu}
+	return &BaseView{Blueprint: &Blueprint{Path: menu.Path}, Menu: menu}
 }
 
 // Expose "/test" create Blueprint{Endpoint: "test", Path: "/test"}
+// Expose "/test" create Blueprint{Endpoint: "test", Path: "/test"}
 func (V *BaseView) Expose(path string, h http.HandlerFunc) {
-	// TODO: better way to generate default `endpoint`
+	// generate default `endpoint`
 	ep := strings.ToLower(strings.ReplaceAll(path, "/", ""))
 
-	V.Blueprint.Add(
+	V.Blueprint.AddChild(
 		&Blueprint{Endpoint: ep, Path: path, Handler: h},
 	)
 }
 
 // TODO: move query into `ModelView`
-func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
-	var uv url.Values
-	if q != nil {
-		uv = q.withArgs(args...).toValues()
-	} else {
-		uv = pairToQuery(args...)
-	}
+// func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
+// 	var uv url.Values
+// 	if q != nil {
+// 		uv = q.withArgs(args...).toValues()
+// 	} else {
+// 		uv = pairToQuery(args...)
+// 	}
 
-	if strings.HasPrefix(ep, ".") {
-		ep = V.Endpoint + ep
-	}
-	if V.admin != nil {
-		return must(V.admin.GetUrl(ep, uv))
-	}
-	return must(V.Blueprint.GetUrl(ep, uv))
-}
+// 	if strings.HasPrefix(ep, ".") {
+// 		ep = V.Endpoint + ep
+// 	}
+// 	if V.admin != nil {
+// 		return must(V.admin.GetUrl(ep, uv))
+// 	}
+// 	return must(V.Blueprint.GetUrl(ep, uv))
+// }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
-func (V *BaseView) GetMenu() *Menu           { return &V.menu }
+func (V *BaseView) GetMenu() *Menu           { return &V.Menu }
 func (V *BaseView) IsVisible() bool          { return true }
 func (V *BaseView) IsAccessible() bool       { return true }
 
-func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
-	fs := []string{
-		"templates/actions.gotmpl",
-		"templates/base.gotmpl",
-		"templates/layout.gotmpl",
-		"templates/lib.gotmpl",
-		"templates/master.gotmpl",
-	}
-
+func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, fn string, funcs template.FuncMap, data map[string]any) {
 	fm := V.admin.funcs(funcs)
-
 	fm["get_flashed_messages"] = func() []map[string]any {
 		return GetFlashedMessages(r)
 	}
+	if V.groupts == nil {
+		V.groupts = template.Must(template.New("views").
+			Option("missingkey=error").
+			Funcs(fm).
+			ParseFiles("templates/actions.gotmpl",
+				"templates/base.gotmpl",
+				"templates/layout.gotmpl",
+				// "templates/lib.gotmpl", // move to ModelView
+				"templates/master.gotmpl",
+				"templates/index.gotmpl",
+			))
+	}
 
-	if err := createTemplate(fs, fm).
-		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
+	basefn := path.Base(fn)
+
+	// check need to parse a new file
+	if t := V.groupts.Lookup(basefn); t == nil {
+		template.Must(V.groupts.ParseFiles(fn))
+	}
+
+	w.Header().Add("content-type", ContentTypeUtf8Html)
+
+	if err := V.groupts.ExecuteTemplate(w, basefn, V.dict(r, data)); err != nil {
 		panic(err)
 	}
 }
 
+func (V *BaseView) setAdmin(admin *Admin) { V.admin = admin }
+
 func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]any {
 	// TODO: remove r
 	o := map[string]any{
-		"category":           V.menu.Category,
-		"name":               V.menu.Name,
+		"category":           V.Menu.Category,
+		"name":               V.Menu.Name,
 		"extra_css":          []string{},
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),

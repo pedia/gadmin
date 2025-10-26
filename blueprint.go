@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -38,7 +37,7 @@ type Blueprint struct {
 }
 
 // like flask `Blueprint.Register`
-func (B *Blueprint) Add(child *Blueprint) {
+func (B *Blueprint) AddChild(child *Blueprint) {
 	if B.Children == nil {
 		B.Children = map[string]*Blueprint{}
 	}
@@ -55,7 +54,11 @@ func (B *Blueprint) registerTo(mux *http.ServeMux, parent string) {
 		}
 
 		log.Printf("%s handle %s", B.Name, parent+B.Path)
-		mux.HandleFunc(parent+B.Path, B.Handler)
+		if strings.HasSuffix(B.Path, "/") {
+			mux.HandleFunc(parent+B.Path+"{$}", B.Handler)
+		} else {
+			mux.HandleFunc(parent+B.Path, B.Handler)
+		}
 	} else if B.Endpoint == "static" && B.StaticFolder != "" {
 		log.Printf("%s handle %s fs: %s", B.Name, parent+B.Path, B.StaticFolder)
 
@@ -64,13 +67,13 @@ func (B *Blueprint) registerTo(mux *http.ServeMux, parent string) {
 		}
 
 		fs := http.FileServer(http.Dir(B.StaticFolder))
-		mux.Handle(parent+B.Path, minified.Middleware(
-			http.StripPrefix(parent+B.Path, fs)))
+		mux.Handle(parent+B.Path, //minified.Middleware(
+			http.StripPrefix(parent+B.Path, fs))
 
 		// TODO: add an endpoint
 	}
 
-	// duplicated B.Path
+	// avoid duplicated Path
 	up := map[string]bool{}
 	for _, child := range B.Children {
 		if unique := up[child.Path]; !unique {
@@ -81,7 +84,7 @@ func (B *Blueprint) registerTo(mux *http.ServeMux, parent string) {
 	}
 }
 
-func (B *Blueprint) GetUrl(endpoint string, qs ...url.Values) (string, error) {
+func (B *Blueprint) GetUrl(endpoint string, qs ...any) (string, error) {
 	var path string
 	arr := strings.SplitN(endpoint, ".", 2)
 	if arr[0] == "" || arr[0] == B.Endpoint {
@@ -105,8 +108,8 @@ func (B *Blueprint) GetUrl(endpoint string, qs ...url.Values) (string, error) {
 			return "", fmt.Errorf("endpoint '%s' miss in `%s`", arr[1], B.Endpoint)
 		}
 	}
-	if len(qs) > 0 && len(qs[0]) > 0 {
-		return B.Path + "?" + qs[0].Encode(), nil
+	if len(qs) > 0 {
+		return B.Path + "?" + pairToQuery(qs...).Encode(), nil
 	}
 	return B.Path, nil
 }
