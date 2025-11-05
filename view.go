@@ -36,6 +36,7 @@ type BaseView struct {
 }
 
 func NewView(menu Menu) *BaseView {
+	menu.EnsureValid()
 	return &BaseView{Blueprint: &Blueprint{Path: menu.Path}, Menu: menu}
 }
 
@@ -115,7 +116,7 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_css":          []string{},
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
-		"admin_fluid_layout": true,
+		"admin_fluid_layout": false, // TODO: true
 		"csrf_token":         NewCSRF(CurrentSession(r)).GenerateToken,
 	}
 

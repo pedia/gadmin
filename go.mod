@@ -9,11 +9,12 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/handlers v1.5.2
+	github.com/gorilla/sessions v1.4.0
 	github.com/pedia/gadmin v0.0.0-20241029124951-214a8509e0d9
 	github.com/samber/lo v1.39.0
 	github.com/shopspring/decimal v1.2.0
 	github.com/spf13/cast v1.3.1
-	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tdewolff/minify/v2 v2.24.4
 	golang.org/x/net v0.10.0
@@ -27,7 +28,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -39,6 +42,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tdewolff/parse/v2 v2.8.4 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect

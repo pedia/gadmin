@@ -1,7 +1,6 @@
 package gadmin
 
 import (
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -42,8 +41,8 @@ type ModelView struct {
 	form_columns           []string
 	form_excluded_columns  []string
 
-	//
-	list_forms []base_form
+	// ??
+	list_forms []string
 
 	joins      []queryArg
 	innerJoins []queryArg
@@ -63,7 +62,7 @@ func NewModelView(m any, category ...string) *ModelView {
 	cate := firstOr(category, model.label())
 
 	mv := ModelView{
-		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
+		BaseView:               NewView(Menu{Name: model.label(), Path: "/" + model.schema.Table, Category: cate}),
 		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -99,9 +98,7 @@ func NewModelView(m any, category ...string) *ModelView {
 		},
 	}
 
-	mv.column_list = lo.Map(mv.columns, func(col Column, _ int) string {
-		return col.Name
-	})
+	mv.column_list = mv.schema.DBNames
 	mv.column_sortable_list = mv.sortable_list()
 
 	return &mv
@@ -160,7 +157,7 @@ func (V *ModelView) SetColumnList(vs ...string) *ModelView {
 func (V *ModelView) SetColumnEditableList(vs ...string) *ModelView {
 	V.column_editable_list = vs
 	// build list_forms here
-	V.list_forms = []base_form{}
+	// V.list_forms = []base_form{}
 	return V
 }
 func (V *ModelView) SetColumnDescriptions(m map[string]string) *ModelView {
@@ -299,19 +296,20 @@ func (V *ModelView) queryFrom(r *http.Request) *Query {
 }
 
 // TODO: store result
-func (V *ModelView) list_columns() []Column {
-	return lo.Filter(V.columns, func(col Column, _ int) bool {
-		// in `column_list`
-		_, ok := lo.Find(V.column_list, func(c string) bool {
-			return c == col.DBName
-		})
+func (V *ModelView) list_columns() []*Field {
+	// return lo.Filter(V.columns, func(col Column, _ int) bool {
+	// 	// in `column_list`
+	// 	_, ok := lo.Find(V.column_list, func(c string) bool {
+	// 		return c == col.DBName
+	// 	})
 
-		// not in `column_exclude_list`
-		_, exclude := lo.Find(V.column_exclude_list, func(c string) bool {
-			return c == col.DBName
-		})
-		return ok && !exclude
-	})
+	// 	// not in `column_exclude_list`
+	// 	_, exclude := lo.Find(V.column_exclude_list, func(c string) bool {
+	// 		return c == col.DBName
+	// 	})
+	// 	return ok && !exclude
+	// })
+	return nil
 }
 
 func (V *ModelView) get_column_index(name string) int {
@@ -324,10 +322,11 @@ func (V *ModelView) get_column_index(name string) int {
 }
 
 // Generate inline edit form in list view
-func (V *ModelView) list_form(col Column, r Row) template.HTML {
-	x := XEditableWidget{model: V.Model, column: col}
-	return x.html(r)
-}
+//
+//	func (V *ModelView) list_form(col Column, r Row) template.HTML {
+//		x := XEditableWidget{model: V.Model, column: col}
+//		return x.html(r)
+//	}
 func (V *ModelView) is_editable(name string) bool {
 	if !V.can_edit {
 		return false
@@ -397,7 +396,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
-		"form":       V.form(nil).dict(),
+		"form":       V.form(nil),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -421,7 +420,7 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.getOne(q.Get("id")) // TODO: "id" = model.pk.DBName
+	one, err := V.getOne(q.Get("id")) // force "id"
 	if err != nil {
 		// TODO: work?
 		Flash(r, V.admin.gettext("Record does not exist."), "danger")
@@ -489,7 +488,7 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 
 	// form
 	r.ParseForm()
-	pk := r.Form.Get("list_form_pk")
+	rowid := r.Form.Get("list_form_pk")
 
 	// TODO: type list_form struct, parse
 	row := Row{}
@@ -511,7 +510,7 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	// _ = record
 
 	// update_model
-	if err := V.update(pk, row); err != nil {
+	if err := V.update(rowid, row); err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(V.admin.gettext("Failed to update record. %s", err)))
 		return
@@ -528,14 +527,8 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-func (V *ModelView) form(one Row) ModelForm {
-	form := ModelForm{
-		Fields: lo.Filter(V.columns, func(col Column, _ int) bool {
-			return !col.PrimaryKey
-		}),
-	}
-	form.setValue(one)
-	return form
+func (V *ModelView) form(one Row) *modelForm {
+	return ModelForm(V.Model, one)
 }
 
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
@@ -566,8 +559,8 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"pager_url": func(page int) string {
 			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
 		},
-		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
-		"list_form":   V.list_form,
+		"csrf_token": NewCSRF(CurrentSession(r)).GenerateToken,
+		// "list_form":   V.list_form,
 		"is_editable": V.is_editable,
 	}, funcs)
 
@@ -590,8 +583,8 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 	}
 
 	if q.Sort != "" {
-		column_index := must(strconv.Atoi(q.Sort))
-		column_name := V.columns[column_index].Name
+		// column_index := must(strconv.Atoi(q.Sort))
+		column_name := "" // V.columns[column_index].Name
 
 		ndb = ndb.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: column_name},
@@ -623,9 +616,6 @@ func (V *ModelView) list(q *Query) *Result {
 		return &r
 	}
 
-	// ctx := context.Background() // TODO:
-
-	// better way?
 	len := ptr.Elem().Len()
 
 	r.Rows = make([]Row, len)
@@ -636,22 +626,22 @@ func (V *ModelView) list(q *Query) *Result {
 	return &r
 }
 
-func (V *ModelView) getOne(pk any) (Row, error) {
+// rowid: pk1,pk2
+func (V *ModelView) getOne(rowid string) (Row, error) {
 	ptr := V.Model.new()
-	// TODO: set ptr's id=pk
 
 	db := V.applyJoins(V.admin.DB)
-	if err := db.First(ptr, fmt.Sprintf("%s=?", V.pk.DBName), pk).Error; err != nil {
+	if err := db.Where(V.where(rowid)).First(ptr).Error; err != nil {
 		return nil, err
 	}
 	return V.intoRow(ptr), nil
 }
 
-func (V *ModelView) update(pk any, row map[string]any) error {
+func (V *ModelView) update(rowid string, row map[string]any) error {
 	ptr := V.Model.new()
 
 	if rc := V.admin.DB.Model(ptr).
-		Where(map[string]any{V.pk.DBName: pk}).
+		Where(V.where(rowid)).
 		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}

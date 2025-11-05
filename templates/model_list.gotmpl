@@ -166,7 +166,7 @@
                     {{ range $c := $g.list_columns }}
                         <td class="col-{{$c.DBName}}">
                         {{- if is_editable $c.DBName }}
-                            {{ list_form $c $row }}
+                            {{/* list_form $c $row */}}
                         {{ else }}
                             {{- $row.Get $c -}}
                         {{ end -}}

@@ -18,9 +18,11 @@ type User struct {
 	EnumChoiceField          string `gorm:"size:6"`
 	SqlaUtilsChoiceField     string `gorm:"size:255"`
 	SqlaUtilsEnumChoiceField int
-	FirstName                string `gorm:"size:100"`
-	LastName                 string `gorm:"size:100"`
-	Email                    string `gorm:"size:255"`
+	FirstName                string     `gorm:"size:100"`
+	LastName                 string     `gorm:"size:100"`
+	Email                    string     `gorm:"size:255;not null"`
+	Valid                    bool       `gorm:"not null"`
+	BornDate                 *time.Time `gorm:";"`
 	Website                  string
 	IpAddress                string `gorm:"size:50"`
 	Currency                 string `gorm:"size:3"`

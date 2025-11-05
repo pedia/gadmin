@@ -1,12 +1,16 @@
 package gadmin
 
-import "github.com/samber/lo"
+import (
+	"strings"
+
+	"github.com/samber/lo"
+)
 
 // Tree liked structure
 type Menu struct {
 	Category string // parent item Name, TODO: remove, use Name
-	Name     string
-	Path     string
+	Name     string // label
+	Path     string // url linked to, default to /{name}
 
 	Icon  string
 	Class string
@@ -16,6 +20,15 @@ type Menu struct {
 	IsAccessible bool
 
 	Children []*Menu
+}
+
+func (M *Menu) EnsureValid() {
+	if M.Path == "" {
+		panic("invalid path")
+	}
+	if !strings.HasPrefix(M.Path, "/") {
+		panic("invalid path")
+	}
 }
 
 func (M *Menu) dict() map[string]any {
@@ -36,6 +49,12 @@ func (M *Menu) dict() map[string]any {
 
 // TODO: AddCategory/AddLink/AddMenuItem
 func (M *Menu) AddMenu(m *Menu) {
+	if m.Path == "" {
+		m.Path = "/" + strings.ToLower(m.Name)
+	}
+
+	m.EnsureValid()
+
 	parent := M.find(m.Category)
 	if parent == nil {
 		// create stub

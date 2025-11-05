@@ -1,0 +1,121 @@
+{{/*
+// create form
+<form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
+  <fieldset>
+
+  <div class="form-group ">
+    <label for="last_name" class="control-label" >Last Name</label>
+    <input class="form-control" id="last_name" name="last_name" type="text" value="">
+  </div>
+
+  <div class="form-group ">
+    <label for="first_name" class="control-label" >First Name
+        &nbsp;
+    </label>
+      <input class="form-control" id="first_name" name="first_name" type="text" value="">
+  </div>
+
+  <div class="form-group ">
+    <label for="type" class="control-label" >Type
+        &nbsp;
+    </label>
+      <select class="form-control" data-allow-blank="1" data-role="select2" id="type" name="type"><option selected value="__None"> </option><option value="admin">Admin</option><option value="content-writer">Content writer</option><option value="editor">Editor</option><option value="regular-user">Regular user</option></select>
+  </div>
+  
+  <div class="form-group ">
+    <label for="email" class="control-label" >Email
+          <strong style="color: red">&#42;</strong>
+    </label>
+      <input class="form-control" id="email" name="email" required type="text" value="">
+  </div>
+  
+    <hr>
+    <div class="form-group">
+      <div class="col-md-offset-2 col-md-10 submit-row">
+        <input type="submit" class="btn btn-primary" value="Save" />
+  <input name="_add_another" type="submit" class="btn btn-secondary" value="Save and Add Another" />
+    
+  <input name="_continue_editing" type="submit" class="btn btn-secondary" value="Save and Continue Editing" />
+    <a href="/admin/user/" class="btn btn-danger" role="button" >Cancel</a>
+    </div>
+</div>
+
+</fieldset>
+</form>
+
+
+
+// edit form
+<form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
+<fieldset>
+
+<div class="form-group ">
+  <label for="id" class="control-label" >Id&nbsp;</label>
+  <input class="form-control" id="id" name="id" readonly type="text" value="a5c6dc6d-b999-4db9-b409-ac8973624a3f">
+</div>
+
+<div class="form-group ">
+    <label for="type" class="control-label" >Type&nbsp;    </label>
+    <select class="form-control" data-allow-blank="1" data-role="select2" id="type" name="type"><option value="__None"> </option><option value="admin">Admin</option><option value="content-writer">Content writer</option><option value="editor">Editor</option><option selected value="regular-user">Regular user</option></select>
+</div>
+
+
+<div class="form-group ">
+    <label for="last_name" class="control-label" >Last Name&nbsp;</label>    
+    <input class="form-control" id="last_name" name="last_name" type="text" value="Alexander">
+</div>
+
+
+?? <input class="form-control" data-date-format="YYYY-MM-DD" data-role="datepicker" id="date" name="date" type="text" value="">
+
+<hr>
+<div class="form-group">
+    <div class="col-md-offset-2 col-md-10 submit-row">
+    <input type="submit" class="btn btn-primary" value="Save" />
+
+<input name="_add_another" type="submit" class="btn btn-secondary" value="Save and Add Another" />
+
+<input name="_continue_editing" type="submit" class="btn btn-secondary" value="Save and Continue Editing" />
+        <a href="/admin/user/" class="btn btn-danger" role="button" >Cancel</a>
+    </div>
+</div>
+</fieldset>
+</form>
+*/}}
+
+<form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
+  <fieldset>
+  {{$form := .}}
+  {{range .Model.Fields}}
+  <div class="form-group">
+    {{if eq .DataType "bool" }}
+       <label for="{{.DBName}}" class="control-label" style="display: block; margin-bottom: 0">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
+       <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" value="{{if $form.Row}}{{$form.Row.Get .}}{{end}}">
+    {{else if eq .DataType "time" }}
+       <label for="{{.DBName}}" class="control-label" >{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
+       <input class="form-control" type="text" data-date-format="YYYY-MM-DD" data-role="datepicker" id="{{.DBName}}" name="{{.DBName}}" value="{{if $form.Row}}{{$form.Row.Get .}}{{end}}">
+    {{else if eq .DataType "string" }}
+       <label for="{{.DBName}}" class="control-label" >{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
+       <input class="form-control" type="text" id="{{.DBName}}" name="{{.DBName}}" value="{{if $form.Row}}{{$form.Row.Get .}}{{end}}">
+    {{else}}
+       {{/* number*/}}
+       <label for="{{.DBName}}" class="control-label" >{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
+       <input class="form-control" type="number" id="{{.DBName}}" name="{{.DBName}}" value="{{if $form.Row}}{{$form.Row.Get .}}{{end}}">
+    {{end}}
+
+    {{if .Description}}<small class="form-text text-muted">{{.Description}}</small>{{end}}
+  </div>
+  {{end}}
+
+<hr>
+    <div class="form-group">
+      <div class="col-md-offset-2 col-md-10 submit-row">
+        <input type="submit" class="btn btn-primary" value="Save" />
+  <input name="_add_another" type="submit" class="btn btn-secondary" value="Save and Add Another" />
+    
+  <input name="_continue_editing" type="submit" class="btn btn-secondary" value="Save and Continue Editing" />
+    <a href="/admin/user/" class="btn btn-danger" role="button" >Cancel</a>
+    </div>
+</div>
+  </fieldset>
+</form>

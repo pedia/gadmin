@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"net"
 	"net/http"
+	"os"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/gorilla/handlers"
 	"gopkg.in/leonelquinteros/gotext.v1"
 	"gorm.io/gorm"
 )
@@ -45,7 +46,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 	A.Blueprint.registerTo(A.mux, "")
 
 	// TODO: read lang from config
-	gotext.Configure("translations", "zh_Hant_TW", "admin")
+	gotext.Configure("translations", "en", "admin")
 
 	// AddSecurity(&A)
 	return A
@@ -70,6 +71,8 @@ func (A *Admin) Register(b *Blueprint) {
 }
 
 func (A *Admin) AddView(view View) View {
+	view.GetMenu().EnsureValid()
+
 	view.setAdmin(A)
 
 	if b := view.GetBlueprint(); b != nil {
@@ -140,10 +143,11 @@ func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (A *Admin) Run() {
-	serv := http.Server{Handler: Use(A, Logger())}
+	serv := http.Server{
+		Addr:    ":3333",
+		Handler: handlers.LoggingHandler(os.Stdout, A)}
 
-	l, _ := net.Listen("tcp", ":3333")
-	serv.Serve(l)
+	serv.ListenAndServe()
 }
 
 // template function
@@ -174,7 +178,7 @@ func theme() string {
 		"lumen", "lux", "materia", "minty", "united", "pulse",
 		"sandstone", "simplex", "sketchy", "spacelab", "yeti",
 	}
-	themeIndex := 2
+	themeIndex := 5
 	return themes[themeIndex]
 }
 

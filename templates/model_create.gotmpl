@@ -19,12 +19,12 @@
   {{ end }}
 
   {{ define "create_form" }}
-    {{ template "render_form" . }}
+    {{ template "render_form" .form }}
   {{ end }}
 
 {{ define "body" }}
   {{ template "navlinks" .}}
-  {{ template "create_form" .}}
+  {{ .form.Html }}
 {{ end }}
 
 {{ define "tail" }}
