@@ -1,10 +1,5 @@
 package gadmin
 
-// in list.gotmpl
-// form
-//  pk
-//  display_value
-//  csrf
 //
 // html:
 // <a class="icon" href="/admin/familymember/edit/?id=1%2C.%2CKen&amp;url=%2Fadmin%2Ffamilymember%2F" title="Edit Record">

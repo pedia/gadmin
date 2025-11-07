@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"reflect"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -20,6 +21,14 @@ func firstOr[T any](as []T, or ...T) T {
 	}
 	var t T
 	return t
+}
+
+// a != "" ? a or b
+func emptyOr[T any](a, b T) T {
+	if !reflect.ValueOf(a).IsZero() {
+		return a
+	}
+	return b
 }
 
 // Ensure value avoid error/bool trouble
@@ -44,18 +53,10 @@ func must[T any](v T, lefts ...any) T {
 	panic("type wrong")
 }
 
-func anyMapToQuery(m map[string]any) url.Values {
-	uv := url.Values{}
-	for key, val := range m {
-		uv.Add(key, cast.ToString(val))
-	}
-	return uv
-}
-
 // any to query in tradition url
 // bool => "1", "0". behavior in python/flask
 // others => string
-func intoStringSlice(as ...any) []string {
+func pyslice(as ...any) []string {
 	return lo.Map(as, func(a any, _ int) string {
 		if b, ok := a.(bool); ok {
 			return lo.Ternary(b, "1", "0")
@@ -65,7 +66,7 @@ func intoStringSlice(as ...any) []string {
 }
 
 // Input paired args, like: a,b,c,d return "a=b&c=d"
-func pairToQuery(args ...any) url.Values {
+func pairsToQuery(args ...any) url.Values {
 	uv := url.Values{}
 	for i := 0; i < len(args); i += 2 {
 		if i+1 < len(args) {
@@ -76,6 +77,21 @@ func pairToQuery(args ...any) url.Values {
 		}
 	}
 	return uv
+}
+
+func queryToPairs(uv url.Values) []any {
+	arr := []any{}
+	for k, vs := range uv {
+		for _, v := range vs {
+			arr = append(arr, k, v)
+		}
+	}
+	return arr
+}
+
+func mapContains[K comparable, V any](m map[K]V, k K) bool {
+	_, ok := m[k]
+	return ok
 }
 
 // Merge b to a

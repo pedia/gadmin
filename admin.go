@@ -71,8 +71,6 @@ func (A *Admin) Register(b *Blueprint) {
 }
 
 func (A *Admin) AddView(view View) View {
-	view.GetMenu().EnsureValid()
-
 	view.setAdmin(A)
 
 	if b := view.GetBlueprint(); b != nil {
@@ -86,7 +84,7 @@ func (A *Admin) AddView(view View) View {
 
 func (A *Admin) addViewToMenu(view View) {
 	if menu := view.GetMenu(); menu != nil {
-		// patch MenuItem.Path
+		// CAUTION: patch MenuItem.Path
 		if menu.Path == "" {
 			menu.Path, _ = A.Blueprint.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
@@ -121,7 +119,7 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 		b = cb
 	}
 
-	res, err := b.GetUrl(endpoint, pairToQuery(args...))
+	res, err := b.GetUrl(endpoint, pairsToQuery(args...))
 	if err != nil {
 		return "", err
 	}

@@ -5,6 +5,7 @@ import (
 	"html/template"
 
 	"github.com/samber/lo"
+	"gorm.io/gorm/schema"
 )
 
 // form html for create model
@@ -14,15 +15,18 @@ import (
 // data-role="x-editable" data-type="text" data-url="./ajax/update/"
 // data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 
-// <a data-csrf="" data-pk="a5c6dc6d-b999-4db9-b409-ac8973624a3f"
-// data-role="x-editable"
-// data-source="[{&#34;text&#34;: &#34;&#34;, &#34;value&#34;: &#34;__None&#34;}, {&#34;text&#34;: &#34;Admin&#34;, &#34;value&#34;: &#34;admin&#34;}, {&#34;text&#34;: &#34;Content writer&#34;, &#34;value&#34;: &#34;content-writer&#34;}, {&#34;text&#34;: &#34;Editor&#34;, &#34;value&#34;: &#34;editor&#34;}, {&#34;text&#34;: &#34;Regular user&#34;, &#34;value&#34;: &#34;regular-user&#34;}]"
-// data-type="select2" data-url="./ajax/update/"
-// data-value="regular-user" href="#" id="type" name="type">regular-user</a>
+// data-type: text,textarea,select2,combodate,number
+// data-role: elect2-ajax,x-editable,x-editable-boolean,x-editable-combodate,x-editable-select2-multiple
+
+// <a data-csrf="" data-format="YYYY-MM-DD" data-pk="" data-role="x-editable-combodate" data-template="YYYY-MM-DD" data-type="combodate" data-url="./ajax/update/" data-value="" href="#" id="born_date" name="born_date"></a>
+// <a data-csrf="" data-pk="" data-role="x-editable-boolean" data-source="[{&#34;text&#34;: &#34;No&#34;, &#34;value&#34;: &#34;&#34;}, {&#34;text&#34;: &#34;Yes&#34;, &#34;value&#34;: &#34;1&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="" href="#" id="valid" name="valid"></a>
+// <a data-csrf="" data-pk="" data-role="x-editable" data-source="[{&#34;text&#34;: &#34;&#34;, &#34;value&#34;: &#34;__None&#34;}, {&#34;text&#34;: &#34;Admin&#34;, &#34;value&#34;: &#34;admin&#34;}, {&#34;text&#34;: &#34;Content writer&#34;, &#34;value&#34;: &#34;content-writer&#34;}, {&#34;text&#34;: &#34;Editor&#34;, &#34;value&#34;: &#34;editor&#34;}, {&#34;text&#34;: &#34;Regular user&#34;, &#34;value&#34;: &#34;regular-user&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="editor" href="#" id="type" name="type">editor</a>
+// <a data-csrf="" data-pk="" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="EUR" href="#" id="currency" name="currency">EUR</a>
+// <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
 func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	args := map[template.HTMLAttr]any{
 		"data-value": row.Get(field),
-		"data-role":  "x-editable",
+		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
 		"data-url":   "./ajax/update/",
 		"data-pk":    model.get_pk_value(row),
 		"data-csrf":  "", // TODO:
@@ -45,9 +49,6 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	return template.HTML(w.String()) // TODO: HTML safe
 }
 
-// input type = hidden/text/checkbox/file
-func FormEdit(model *Model, row Row) {}
-
 var formTemplate *template.Template
 var inputTemplate *template.Template
 var inlineEditTemplate *template.Template
@@ -66,80 +67,68 @@ func init() {
 
 }
 
-// list_forms[key]
-//
-
-type field struct {
-	Entries []lo.Entry[string, any]
-}
-
-func NewField(es []lo.Entry[string, any]) *field {
-	return &field{Entries: es}
-}
-
-func (F *field) render(t *template.Template) template.HTML {
-	args := map[template.HTMLAttr]any{}
-	for _, e := range F.Entries {
-		args[template.HTMLAttr(e.Key)] = e.Value
-	}
-
-	w := bytes.Buffer{}
-	t.Execute(&w, args)
-	return template.HTML(w.String())
-}
-
-func (F *field) intoFormHtml() template.HTML {
-	return F.render(inputTemplate)
-}
-func (F *field) intoInlineEditHtml() template.HTML {
-	return F.render(inlineEditTemplate)
-}
-
-func NewTextField(id, value string, es ...lo.Entry[string, any]) *field {
-	ps := []lo.Entry[string, any]{
-		{Key: "class", Value: "form-control"},
-		{Key: "id", Value: id},
-		{Key: "name", Value: id},
-		{Key: "type", Value: "text"},
-		{Key: "value", Value: value}}
-	ps = append(ps, es...)
-	return &field{Entries: ps}
-}
-
-func NewHiddenField(id, value string, es ...lo.Entry[string, any]) *field {
-	ps := []lo.Entry[string, any]{
-		{Key: "id", Value: id},
-		{Key: "name", Value: id},
-		{Key: "type", Value: "hidden"},
-		{Key: "value", Value: value}}
-	ps = append(ps, es...)
-	return &field{Entries: ps}
-}
-
 type modelForm struct {
-	Model *Model
-	Row   Row
+	Fields []*Field
+	Row    Row
 }
 
-func ModelForm(model *Model, rows ...Row) *modelForm {
-	mf := &modelForm{Model: model}
+func ModelForm(fields []*Field, rows ...Row) *modelForm {
+	form := &modelForm{Fields: fields}
 	if len(rows) > 0 {
-		mf.Row = rows[0]
+		form.Row = rows[0]
 	}
-	return mf
+	return form
 }
 
-func (f *modelForm) dict() map[string]any {
-	return map[string]any{}
+func (f *modelForm) patchValue() []*valueField {
+	return lo.Map(f.Fields, func(field *Field, _ int) *valueField {
+		return &valueField{field, f.Row.Get(field)}
+	})
 }
 
 func (f *modelForm) Html() template.HTML {
 	w := bytes.Buffer{}
+	// TODO: debug only
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
-	if err := formTemplate.Execute(&w, f); err != nil {
+
+	// TODO: rename form_all to render_form
+	if err := formTemplate.ExecuteTemplate(&w, "form_all", f.patchValue()); err != nil {
 		panic(err)
 	}
 	return template.HTML(w.String())
 }
 
-// type Widget struct
+type valueField struct {
+	*Field
+	Value any
+}
+
+func (f *valueField) Html() template.HTML {
+	if len(f.Choices) > 0 {
+		return f.render("field_select2")
+	}
+
+	switch f.DataType {
+	case schema.Bool:
+		return f.render("field_checkbox")
+	case schema.Int, schema.Uint, schema.Float:
+		return f.render("field_number")
+	case schema.String:
+		if f.TextAreaRow != 0 {
+			return f.render("field_textarea")
+		}
+		return f.render("field_text")
+	case schema.Time:
+		return f.render("field_time")
+	case schema.Bytes:
+	}
+	return ""
+}
+
+func (f *valueField) render(tmpl string) template.HTML {
+	w := bytes.Buffer{}
+	if err := formTemplate.ExecuteTemplate(&w, tmpl, f); err != nil {
+		panic(err)
+	}
+	return template.HTML(w.String())
+}

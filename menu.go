@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"log"
 	"strings"
 
 	"github.com/samber/lo"
@@ -8,27 +9,18 @@ import (
 
 // Tree liked structure
 type Menu struct {
-	Category string // parent item Name, TODO: remove, use Name
+	Category string // parent item Name
 	Name     string // label
-	Path     string // url linked to, default to /{name}
+	Path     string // linked to url
 
 	Icon  string
 	Class string
 
-	IsActive     bool
+	IsActive     bool // TODO:
 	IsVisible    bool
 	IsAccessible bool
 
 	Children []*Menu
-}
-
-func (M *Menu) EnsureValid() {
-	if M.Path == "" {
-		panic("invalid path")
-	}
-	if !strings.HasPrefix(M.Path, "/") {
-		panic("invalid path")
-	}
 }
 
 func (M *Menu) dict() map[string]any {
@@ -48,24 +40,20 @@ func (M *Menu) dict() map[string]any {
 }
 
 // TODO: AddCategory/AddLink/AddMenuItem
-func (M *Menu) AddMenu(m *Menu) {
-	if m.Path == "" {
-		m.Path = "/" + strings.ToLower(m.Name)
+func (M *Menu) AddMenu(i *Menu) {
+	if i.Path == "" || !strings.HasPrefix(i.Path, "/") {
+		np := "/" + strings.ToLower(i.Name)
+		log.Printf(`menu(%s) path '%s' invalid, fixed to '%s'`, i.Name, i.Path, np)
+		i.Path = np
 	}
 
-	m.EnsureValid()
-
-	parent := M.find(m.Category)
-	if parent == nil {
-		// create stub
-		parent = &Menu{
-			Category: m.Category,
-			Name:     m.Category,
-		}
-		M.Children = append(M.Children, parent)
+	parent := M.find(i.Category)
+	if parent != nil {
+		parent.Children = append(parent.Children, i)
+	} else {
+		// self is stub
+		M.Children = append(M.Children, i)
 	}
-
-	parent.Children = append(parent.Children, m)
 }
 
 func (M *Menu) find(cate string) *Menu {

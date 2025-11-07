@@ -36,7 +36,6 @@ type BaseView struct {
 }
 
 func NewView(menu Menu) *BaseView {
-	menu.EnsureValid()
 	return &BaseView{Blueprint: &Blueprint{Path: menu.Path}, Menu: menu}
 }
 
@@ -51,22 +50,22 @@ func (V *BaseView) Expose(path string, h http.HandlerFunc) {
 	)
 }
 
-// TODO: move query into `ModelView`
 // func (V *BaseView) GetUrl(ep string, q *Query, args ...any) string {
 // 	var uv url.Values
 // 	if q != nil {
 // 		uv = q.withArgs(args...).toValues()
 // 	} else {
-// 		uv = pairToQuery(args...)
+// 		uv = pairsToQuery(args...)
 // 	}
+// 	_ = uv
 
 // 	if strings.HasPrefix(ep, ".") {
-// 		ep = V.Endpoint + ep
+// 		ep = V.Blueprint.Endpoint + ep
 // 	}
 // 	if V.admin != nil {
-// 		return must(V.admin.GetUrl(ep, uv))
+// 		return must(V.admin.GetUrl(ep, q, args...))
 // 	}
-// 	return must(V.Blueprint.GetUrl(ep, uv))
+// 	return must(V.Blueprint.GetUrl(ep, queryToPairs(uv)...))
 // }
 
 func (V *BaseView) GetBlueprint() *Blueprint { return V.Blueprint }
@@ -116,7 +115,7 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_css":          []string{},
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
-		"admin_fluid_layout": false, // TODO: true
+		"admin_fluid_layout": true,
 		"csrf_token":         NewCSRF(CurrentSession(r)).GenerateToken,
 	}
 

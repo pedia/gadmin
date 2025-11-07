@@ -20,19 +20,20 @@ import (
 func TestBase(t *testing.T) {
 	is := assert.New(t)
 
-	//
 	is.Equal("a", firstOr([]string{"a", "b"}, "c"))
 	is.Equal("c", firstOr([]string{}, "c"))
 	is.Equal(0, firstOr([]int{}, 0))
 
 	//
-	is.Equal("a=1", pairToQuery("a", 1).Encode())
-	is.Equal("a=1&a=2", pairToQuery("a", "1", "a", "2").Encode())
-	is.Equal("a=+", pairToQuery("a", " ").Encode())
+	is.Equal("a=1", pairsToQuery("a", 1).Encode())
+	is.Equal("a=1&a=2", pairsToQuery("a", "1", "a", "2").Encode())
+	is.Equal("a=+", pairsToQuery("a", " ").Encode())
 
 	// abnormal input
-	is.Equal("", pairToQuery("a").Encode())
-	is.Equal("a=b", pairToQuery("a", "b", "c").Encode())
+	is.Equal("", pairsToQuery("a").Encode())
+	is.Equal("a=b", pairsToQuery("a", "b", "c").Encode())
+
+	is.Equal([]string{"1", "foo", "3.4", "1", "0", "0"}, pyslice(1, "foo", 3.4, true, 0, false))
 
 	//
 	is.Len(merge(map[int]int{}, nil), 0)
@@ -52,22 +53,6 @@ func TestBaseMust(t *testing.T) {
 
 	ff := func() (int, bool) { return 42, false }
 	is.Panics(func() { must(ff()) })
-}
-
-func TestBaseConvert(t *testing.T) {
-	is := assert.New(t)
-
-	m := map[string]any{
-		"name":    "John Doe",
-		"age":     30,
-		"active":  true,
-		"numbers": []int{1, 2, 3}, // This will be skipped as it's not a string
-	}
-
-	uv := anyMapToQuery(m)
-	is.Equal("active=true&age=30&name=John+Doe&numbers=", uv.Encode())
-
-	is.Equal([]string{"1", "foo", "3.4", "1", "0", "0"}, intoStringSlice(1, "foo", 3.4, true, 0, false))
 }
 
 func TestStd(t *testing.T) {
@@ -182,7 +167,7 @@ func TestBasePtr(t *testing.T) {
 }
 
 func ExampleTemplate() {
-	base := template.Must(template.New("base").Parse(`{{.}}base {{block "body" .}}{{end}}{{println}}`))
+	base := template.Must(template.New("base").Parse(`{{.}}base{{block "body" .}}{{end}}{{println}}`))
 	base.Execute(os.Stdout, 1)
 
 	d1 := template.Must(template.Must(base.Clone()).Parse(`{{define "body"}}d1{{end}}`))
@@ -195,8 +180,8 @@ func ExampleTemplate() {
 
 	// Output:
 	// 1base
-	// 2base d1
-	// 3base d2
-	// 4base d2
-	// 5base d2
+	// 2based1
+	// 3based2
+	// 4based2
+	// 5based2
 }

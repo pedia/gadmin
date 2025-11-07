@@ -34,7 +34,7 @@
     {{ $g := . -}}
     {{- range $col := .details_columns }}
       <tr>
-        <td><b>{{ $col.label }}</b></td>
+        <td><b>{{ $col.Label }}</b></td>
         <td>{{ $g.model.Get $col }}</td>
       </tr>
     {{ end }}
@@ -43,6 +43,5 @@
 {{ end }}
 
 {{ define "tail" }}
-  {{ comment "tail" }}
   <script src="{{ admin_static_url "admin/js/details_filter.js" "1.0.0" }}"></script>
 {{ end }}

@@ -3,12 +3,16 @@ package gadmin
 import (
 	"html/template"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 
+	"github.com/fatih/camelcase"
 	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 type ModelView struct {
@@ -38,12 +42,21 @@ type ModelView struct {
 
 	column_display_pk      bool
 	column_display_actions bool
-	form_columns           []string
-	form_excluded_columns  []string
 
-	// ??
-	list_forms []string
+	// form
+	form_choices          map[string][]Choice
+	form_columns          []string
+	form_excluded_columns []string
 
+	// <textarea row=5>
+	textareaRow map[string]int
+	// TODO: date-format="YYYY-MM-DD"
+
+	// runtime: generate from
+	form_fields []*Field
+	list_fields []*Field
+
+	// db relation settings
 	joins      []queryArg
 	innerJoins []queryArg
 	preloads   []queryArg
@@ -62,7 +75,7 @@ func NewModelView(m any, category ...string) *ModelView {
 	cate := firstOr(category, model.label())
 
 	mv := ModelView{
-		BaseView:               NewView(Menu{Name: model.label(), Path: "/" + model.schema.Table, Category: cate}),
+		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
 		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -82,24 +95,24 @@ func NewModelView(m any, category ...string) *ModelView {
 		Path:     "/" + model.name(),
 		Children: map[string]*Blueprint{
 			// In flask-admin use `view.index`. Should use `view.index_view` in `gadmin`
-			"index":        {Endpoint: "index", Path: "/", Handler: mv.index},
-			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.index},
+			"index":        {Endpoint: "index", Path: "/", Handler: mv.indexHandler},
+			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.indexHandler},
 			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.newHandler},
 			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.detailHandler},
 			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajaxUpdate},
-			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.index},
+			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.indexHandler},
 			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.editHandler},
 			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.deleteHandler},
 			// not .export_view
-			"export": {Endpoint: "export", Path: "/export", Handler: mv.index},
-			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debug},
+			"export": {Endpoint: "export", Path: "/export", Handler: mv.indexHandler},
+			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debugHandler},
 			// for json
 			"list": {Endpoint: "list", Path: "/list", Handler: mv.listJson},
 		},
 	}
 
-	mv.column_list = mv.schema.DBNames
-	mv.column_sortable_list = mv.sortable_list()
+	// mv.column_list = mv.schema.DBNames
+	mv.column_sortable_list = mv.sortableColumns()
 
 	return &mv
 }
@@ -156,8 +169,6 @@ func (V *ModelView) SetColumnList(vs ...string) *ModelView {
 
 func (V *ModelView) SetColumnEditableList(vs ...string) *ModelView {
 	V.column_editable_list = vs
-	// build list_forms here
-	// V.list_forms = []base_form{}
 	return V
 }
 func (V *ModelView) SetColumnDescriptions(m map[string]string) *ModelView {
@@ -175,6 +186,91 @@ func (V *ModelView) SetCanSetPageSize(v bool) *ModelView {
 func (V *ModelView) SetPageSize(v int) *ModelView {
 	V.page_size = v
 	return V
+}
+
+func (V *ModelView) SetTextareaRow(rows map[string]int) *ModelView {
+	V.textareaRow = rows
+	return V
+}
+
+// form
+func (V *ModelView) SetFormChoices(choices map[string][]Choice) *ModelView {
+	V.form_choices = choices
+	return V
+}
+func (V *ModelView) SetFormColumns(columns ...string) *ModelView {
+	V.form_columns = columns
+	return V
+}
+func (V *ModelView) SetFormExcludedColumns(columns ...string) *ModelView {
+	V.form_excluded_columns = columns
+	return V
+}
+
+func (V *ModelView) genFormFields() []*Field {
+	if V.form_fields != nil {
+		return V.form_fields
+	}
+
+	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
+		// exclude, return false
+		if slices.Contains(V.form_excluded_columns, field.DBName) {
+			return false
+		}
+
+		// include, return true
+		if slices.Contains(V.form_columns, field.DBName) {
+			return true
+		}
+
+		// default not primaryKey
+		return !field.PrimaryKey
+	})
+
+	V.form_fields = lo.Map(list, func(field *schema.Field, _ int) *Field {
+		return &Field{
+			Field:       field,
+			Label:       strings.Join(camelcase.Split(field.Name), " "),
+			Choices:     V.form_choices[field.DBName],
+			Description: emptyOr(V.column_descriptions[field.DBName], field.Comment),
+			TextAreaRow: V.textareaRow[field.DBName],
+		}
+	})
+	return V.form_fields
+}
+func (V *ModelView) genListFields() []*Field {
+	if V.list_fields != nil {
+		return V.list_fields
+	}
+
+	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
+		// exclude return false
+		if slices.Contains(V.column_exclude_list, field.DBName) {
+			return false
+		}
+
+		// include, return true
+		if slices.Contains(V.column_list, field.DBName) {
+			return true
+		}
+
+		if field.PrimaryKey {
+			return V.column_display_pk
+		}
+
+		return true
+	})
+
+	V.list_fields = lo.Map(list, func(field *schema.Field, _ int) *Field {
+		return &Field{
+			Field:       field,
+			Label:       strings.Join(camelcase.Split(field.Name), " "),
+			Choices:     V.form_choices[field.DBName],
+			Description: emptyOr(V.column_descriptions[field.DBName], field.Comment),
+			TextAreaRow: V.textareaRow[field.DBName],
+		}
+	})
+	return V.list_fields
 }
 
 func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
@@ -209,13 +305,13 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 	return o
 }
 
-func (V *ModelView) debug(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
 	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
 		"menu":      V.Menu.dict(),
 		"blueprint": V.Blueprint.dict(),
 	})
 }
-func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
+func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 
 	result := V.list(q)
@@ -237,7 +333,7 @@ func (V *ModelView) index(w http.ResponseWriter, r *http.Request) {
 		"column_extra_row_actions": nil,
 		"list_row_actions":         V.list_row_actions(),
 		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-		"list_columns":             V.list_columns(),
+		"list_columns":             V.genListFields(),
 		"is_sortable": func(name string) bool {
 			_, ok := lo.Find(V.column_sortable_list, func(s string) bool {
 				return s == name
@@ -293,23 +389,6 @@ func (V *ModelView) queryFrom(r *http.Request) *Query {
 		q.args = append(q.args, k, v[0])
 	}
 	return &q
-}
-
-// TODO: store result
-func (V *ModelView) list_columns() []*Field {
-	// return lo.Filter(V.columns, func(col Column, _ int) bool {
-	// 	// in `column_list`
-	// 	_, ok := lo.Find(V.column_list, func(c string) bool {
-	// 		return c == col.DBName
-	// 	})
-
-	// 	// not in `column_exclude_list`
-	// 	_, exclude := lo.Find(V.column_exclude_list, func(c string) bool {
-	// 		return c == col.DBName
-	// 	})
-	// 	return ok && !exclude
-	// })
-	return nil
 }
 
 func (V *ModelView) get_column_index(name string) int {
@@ -422,7 +501,7 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 	one, err := V.getOne(q.Get("id")) // force "id"
 	if err != nil {
-		// TODO: work?
+		// TODO: make this work
 		Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
 		V.redirect(w, r, q.Get("url"))
@@ -431,8 +510,8 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
 		"model":           one,
-		"form":            V.form(one).dict(),
-		"details_columns": V.list_columns(),
+		"form":            V.form(one),
+		"details_columns": V.genListFields(),
 		"request":         rd(r),
 	})
 }
@@ -467,7 +546,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
 		"model":           one, // TODO: rename 'model' to 'row'
-		"details_columns": V.list_columns(),
+		"details_columns": V.genListFields(),
 		"request":         rd(r),
 	})
 }
@@ -528,7 +607,7 @@ func rd(r *http.Request) map[string]any {
 }
 
 func (V *ModelView) form(one Row) *modelForm {
-	return ModelForm(V.Model, one)
+	return ModelForm(V.genFormFields(), one)
 }
 
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
@@ -597,33 +676,33 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 }
 
 func (V *ModelView) list(q *Query) *Result {
-	r := Result{Query: q}
+	res := Result{Query: q}
 
 	var total int64
 	if err := V.applyQuery(V.admin.DB, q, true).
 		Model(V.Model.new()).
 		Count(&total).Error; err != nil {
-		r.Error = err
-		return &r
+		res.Error = err
+		return &res
 	}
-	r.Total = total
+	res.Total = total
 
 	ptr := V.newSlice()
 	db := V.applyQuery(V.admin.DB, q, false)
 	if err := V.applyJoins(db).
 		Find(ptr.Interface()).Error; err != nil {
-		r.Error = err
-		return &r
+		res.Error = err
+		return &res
 	}
 
 	len := ptr.Elem().Len()
 
-	r.Rows = make([]Row, len)
+	res.Rows = make([]Row, len)
 	for i := 0; i < len; i++ {
 		o := ptr.Elem().Index(i).Interface()
-		r.Rows[i] = V.intoRow(o)
+		res.Rows[i] = V.intoRow(o)
 	}
-	return &r
+	return &res
 }
 
 // rowid: pk1,pk2
@@ -649,6 +728,7 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 }
 
 // row -> Model().Create() RETURNING *
+// TOOD: select2 value with __None
 func (V *ModelView) create(row map[string]any) error {
 	ptr := V.Model.new()
 

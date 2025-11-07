@@ -23,8 +23,8 @@ type User struct {
 	Email                    string     `gorm:"size:255;not null"`
 	Valid                    bool       `gorm:"not null"`
 	BornDate                 *time.Time `gorm:";"`
-	Website                  string
-	IpAddress                string `gorm:"size:50"`
+	Website                  string     `gorm:"default:a.io"`
+	Bio                      string
 	Currency                 string `gorm:"size:3"`
 	Timezone                 string `gorm:"size:50"`
 	DiallingCode             int
@@ -56,15 +56,29 @@ func main() {
 			Logger:         logger.Default.LogMode(logger.Info)})
 
 	a := gadmin.NewAdmin("Example: SQLAlchemy", db)
-	a.AddView(gadmin.NewModelView(User{}))
-	a.AddView(gadmin.NewModelView(Tag{})).(*gadmin.ModelView).
-		SetTablePrefixHtml(`<h5>dismiss table prefix</h5>`).
-		SetColumnEditableList("name")
-	a.AddView(gadmin.NewModelView(Post{}))
+	vu := gadmin.NewModelView(User{})
+	vu.SetColumnDescriptions(map[string]string{"valid": "user passed verified"}).
+		SetTextareaRow(map[string]int{"bio": 3}).
+		SetFormChoices(map[string][]gadmin.Choice{"type": {
+			{Value: "admin", Label: "Admin"},
+			{Value: "content-writer", Label: "Content writer"},
+			{Value: "editor", Label: "Editor"},
+			{Value: "regular-user", Label: "Regular user"}},
+		}).
+		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid")
+	a.AddView(vu)
 
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Other"})
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Tree"})
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Links", Children: []*gadmin.Menu{
+	a.AddView(gadmin.NewModelView(Tag{})).(*gadmin.ModelView).
+		SetTablePrefixHtml(`<h5>dismissible prefix, Tag is important</h5>`).
+		SetColumnEditableList("name")
+
+	vp := gadmin.NewModelView(Post{})
+	vp.SetTextareaRow(map[string]int{"text": 5})
+	a.AddView(vp)
+
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Other", Path: "/other"})
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Tree", Path: "/tree"})
+	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Links", Path: "/links", Children: []*gadmin.Menu{
 		{Name: "Back Home", Path: "/"},
 		{Name: "External Link", Path: "http://www.example.com/"},
 	}})

@@ -27,7 +27,8 @@
   </ul>
   {{/* end navlinks */}}
 
-  {{ template "render_form"  . }}
+  {{/* template "render_form"  . */}}
+  {{ .form.Html }}
 {{ end }}
 
 {{ define "tail" }}

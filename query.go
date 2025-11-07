@@ -2,6 +2,8 @@ package gadmin
 
 import (
 	"errors"
+	"html/template"
+	"iter"
 	"net/url"
 
 	"github.com/go-playground/form/v4"
@@ -14,7 +16,7 @@ type Query struct {
 	PageSize int `form:"page_size,omitempty"`
 	// column index: 0,1,... maybe `null.String` is better
 	Sort string `form:"sort,omitempty"`
-	// desc or asc, default is asc
+	// asc[default] or desc
 	Desc   bool   `form:"desc,omitempty"`
 	Search string `form:"search,omitempty"`
 
@@ -37,9 +39,9 @@ func DefaultQuery() *Query {
 
 func (q *Query) withArgs(args ...any) *Query {
 	if q.args == nil {
-		q.args = intoStringSlice(args...)
+		q.args = pyslice(args...)
 	} else {
-		q.args = append(q.args, intoStringSlice(args)...)
+		q.args = append(q.args, pyslice(args)...)
 	}
 	return q
 }
@@ -78,6 +80,7 @@ func encodeBool(x any) ([]string, error) {
 	}
 }
 
+// generate pager or json
 type Result struct {
 	*Query
 
@@ -86,7 +89,34 @@ type Result struct {
 	Error error
 }
 
-func (R *Result) NumPages() int {
-	page_size := lo.Ternary(R.PageSize != 0, R.PageSize, R.default_page_size)
-	return int(1 + (R.Total-1)/int64(page_size))
+func (r *Result) NumPages() int {
+	page_size := lo.Ternary(r.PageSize != 0, r.PageSize, r.default_page_size)
+	return int(1 + (r.Total-1)/int64(page_size))
+}
+
+func (r *Result) PageRange() iter.Seq[int] {
+	n := r.NumPages()
+
+	low, up := r.Page-3, r.Page+4
+	if low < 0 {
+		up = up - low
+	}
+	if up > n {
+		low = low - up + n
+	}
+
+	low = max(low, 0)
+	up = min(up, n)
+
+	return func(yield func(int) bool) {
+		for i := low; i < up; i++ {
+			if !yield(i) {
+				return
+			}
+		}
+	}
+}
+
+func (r *Result) Html() template.HTML {
+	return ""
 }

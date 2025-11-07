@@ -38,7 +38,7 @@
 {{ define "menu_item" }}
     {{- if .children }}
 
-        <li class="dropdown  dropdown-submenu dropright">
+        <li class="dropdown {{if .is_active}}active{{end}} dropdown-submenu dropright">
             <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
                 <span class=" dropdown-submenu dropright"></span>{{ .name }}<i class="glyphicon glyphicon-chevron-right small"></i>
             </a>

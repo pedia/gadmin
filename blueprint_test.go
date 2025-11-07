@@ -2,7 +2,8 @@ package gadmin
 
 import (
 	"net/http"
-	"net/url"
+	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,9 +12,17 @@ import (
 func TestBlueprint(t *testing.T) {
 	is := assert.New(t)
 
+	is.Equal([]string{"a", "b"}, strings.SplitN("a.b", ".", 2))
+	is.Equal([]string{"a", "b.c"}, strings.SplitN("a.b.c", ".", 2))
+	is.Equal([]string{"", "b"}, strings.SplitN(".b", ".", 2))
+	is.Equal([]string{"", "b.c"}, strings.SplitN(".b.c", ".", 2))
+	is.Equal([]string{"a"}, strings.SplitN("a", ".", 2))
+
+	is.NotEqual("a/", path.Join("a", "/"))
+
 	h := func(http.ResponseWriter, *http.Request) {}
 
-	f := Blueprint{
+	f := &Blueprint{
 		Name:     "Foo",
 		Endpoint: "foo",
 		Path:     "/foo",
@@ -39,10 +48,10 @@ func TestBlueprint(t *testing.T) {
 	is.Equal("/foo/", must(f.GetUrl("foo.index")))
 	is.Equal("/foo/edit", must(f.GetUrl("foo.edit_view")))
 
-	is.Equal("/foo/", must(f.GetUrl(".index", url.Values{})))
-	is.Equal("/foo/?a=A", must(f.GetUrl(".index", url.Values{"a": []string{"A"}})))
-	is.Equal("/foo/?a=B&a=C", must(f.GetUrl(".index", url.Values{"a": []string{"B", "C"}})))
-	is.Equal("/foo/static/?file=a.css", must(f.GetUrl(".static", url.Values{"file": []string{"a.css"}})))
+	is.Equal("/foo/", must(f.GetUrl(".index")))
+	is.Equal("/foo/?a=A", must(f.GetUrl(".index", "a", "A")))
+	is.Equal("/foo/?a=B&a=C", must(f.GetUrl(".index", "a", "B", "a", "C")))
+	is.Equal("/foo/static/?file=a.css", must(f.GetUrl(".static", "file", "a.css")))
 
 	mux := http.NewServeMux()
 	f.registerTo(mux, "/parent")
@@ -52,14 +61,27 @@ func TestBlueprint(t *testing.T) {
 		Endpoint: "admin",
 		Path:     "/admin",
 		Children: map[string]*Blueprint{
-			"foo":   &f,
 			"index": {Endpoint: "index", Path: "/"},
 		},
 	}
+	is.Nil(f.Parent)
+	a.AddChild(f)
+	is.NotNil(f.Parent)
+
 	is.Equal("/admin/", must(a.GetUrl(".index")))
 	is.Equal("/admin/foo/", must(a.GetUrl("foo.index")))
 	is.Equal("/admin/foo/edit", must(a.GetUrl("foo.edit_view")))
 
+	is.Equal("/admin/foo/edit", must(f.GetUrl(".edit_view")))
+
 	f.AddChild(&Blueprint{Endpoint: "bar", Path: "/haha"})
 	is.Equal("/admin/foo/haha", must(a.GetUrl("foo.bar")))
+
+	// level3, replace bar
+	f.AddChild(&Blueprint{Endpoint: "bar", Path: "/bar", Children: map[string]*Blueprint{
+		"index": {Endpoint: "index", Path: "/"},
+	}})
+
+	is.Equal("/admin/foo/bar/", must(a.GetUrl("foo.bar.index")))
+	is.Equal("/admin/foo/bar/", must(f.GetUrl("foo.bar.index")))
 }

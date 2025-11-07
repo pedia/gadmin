@@ -133,8 +133,8 @@ func TestWidget(t *testing.T) {
 	m := NewModel(AllTyped{})
 	_ = is
 
-	html := ModelForm(m).Html()
-	is.Equal("", html)
+	html := ModelForm(m.Fields).Html()
+	is.NotEmpty(html)
 
 	// x := XEditableWidget{model: m, column: m.columns[1]}
 	// is.Equal(template.HTML(

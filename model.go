@@ -19,6 +19,11 @@ func (r Row) Get(f *Field) any {
 	return r[f.DBName]
 }
 
+// TODO: return DisplayValue for nil ptr, *time.Time format
+func (r Row) GetDiplayValue(f *Field) any {
+	return r[f.DBName]
+}
+
 type Model struct {
 	schema *schema.Schema
 	Fields []*Field
@@ -76,6 +81,7 @@ func (M *Model) intoRow(a any) Row {
 	for _, c := range M.schema.Fields {
 		res[c.DBName] = m[c.Name] // LastName -> last_name
 	}
+	// TODO: join
 	return res
 }
 
@@ -90,7 +96,7 @@ func (m *Model) find(name string) *Field {
 
 // Return all field can be sorted
 // exclude relationship fields
-func (m *Model) sortable_list() []string {
+func (m *Model) sortableColumns() []string {
 	return m.schema.DBNames
 }
 
@@ -117,8 +123,8 @@ func (m *Model) where(rowid string) map[string]string {
 }
 
 type Choice struct {
-	Text  string
 	Value any
+	Label string
 }
 
 type Field struct {
@@ -126,4 +132,7 @@ type Field struct {
 	Label       string
 	Choices     []Choice
 	Description string
+	TextAreaRow int
+	TimeFormat  string
+	Hidden      bool
 }
