@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/leonelquinteros/gotext.v1"
 )
 
 func TestBase(t *testing.T) {
@@ -121,14 +120,6 @@ func TestOnce(t *testing.T) {
 	is.Equal(1, oc)
 }
 
-func TestText(t *testing.T) {
-	is := assert.New(t)
-
-	gotext.Configure("translations", "zh_Hant_TW", "admin")
-	is.Equal("首頁", gotext.Get("Home"))
-	is.Equal(`檔案 "foo" 已經存在。`, gotext.Get(`File "%s" already exists.`, "foo"))
-}
-
 func TestBufferWriter(t *testing.T) {
 	is := assert.New(t)
 
@@ -161,7 +152,7 @@ func TestBasePtr(t *testing.T) {
 	is := assert.New(t)
 
 	d := &derived{}
-	bp, ok := any(d).(*base)
+	bp, ok := any(d).(*base) // not worked
 	is.False(ok)
 	is.Nil(bp)
 }

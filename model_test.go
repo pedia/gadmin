@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/fatih/structs"
+	"github.com/glebarez/sqlite"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"

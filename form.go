@@ -50,17 +50,10 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 }
 
 var formTemplate *template.Template
-var inputTemplate *template.Template
 var inlineEditTemplate *template.Template
 
 func init() {
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
-
-	inputTemplate = template.Must(template.New("input").Parse(
-		`<input
-	{{- range $k,$v :=. -}}
-		{{- if eq $k "required" }}required {{ else }} {{$k}}="{{$v}}"{{ end -}}
-	{{- end }} />`))
 
 	inlineEditTemplate = template.Must(template.New("input").Parse(
 		`<a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}>{{.display_value}}</a>`))
