@@ -1,13 +1,12 @@
 package gadmin
 
 import (
-	"errors"
+	"bytes"
 	"html/template"
-	"iter"
 	"net/url"
 
-	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 )
 
 type Query struct {
@@ -24,9 +23,7 @@ type Query struct {
 	// filters []
 	args []string
 
-	//
 	default_page_size int
-	num_pages         int
 }
 
 func DefaultQuery() *Query {
@@ -56,34 +53,45 @@ func (q *Query) Get(arg string) string {
 }
 
 func (q *Query) toValues() url.Values {
-	encoder := must(form.NewEncoder())
-	encoder.RegisterCustomTypeFunc(encodeBool, true)
+	uv := url.Values{}
+	if q.Page > 0 {
+		uv.Set("page", cast.ToString(q.Page))
+	}
+	if q.default_page_size != q.PageSize {
+		uv.Set("page_size", cast.ToString(q.PageSize))
+	}
+	if q.Sort != "" {
+		uv.Set("sort", q.Sort)
+	}
+	if q.Desc {
+		uv.Set("desc", "1") // encode bool to 1
+	}
+	if q.Search != "" {
+		uv.Set("search", q.Search)
+	}
 
-	uv := must(encoder.Encode(q))
 	for i := 0; i < len(q.args); i += 2 {
 		uv.Add(q.args[i], q.args[i+1])
 	}
 	return uv
 }
 
-// flask-admin Encode true to "1", false to "0" in `form`
-func encodeBool(x any) ([]string, error) {
-	v, ok := x.(bool)
-	if !ok {
-		return nil, errors.New("bad type conversion")
+func (q *Query) urlForPage(page int) string {
+	nq := Query{
+		Page:              page,
+		PageSize:          q.PageSize,
+		Sort:              q.Sort,
+		Desc:              q.Desc,
+		Search:            q.Search,
+		default_page_size: q.default_page_size,
+		args:              q.args,
 	}
-
-	if v {
-		return []string{"1"}, nil
-	} else {
-		return []string{"0"}, nil
-	}
+	return nq.toValues().Encode()
 }
 
 // generate pager or json
 type Result struct {
 	*Query
-
 	Total int64
 	Rows  []Row
 	Error error
@@ -94,7 +102,14 @@ func (r *Result) NumPages() int {
 	return int(1 + (r.Total-1)/int64(page_size))
 }
 
-func (r *Result) PageRange() iter.Seq[int] {
+type pager struct {
+	Text     string
+	Href     string
+	Disabled bool
+	Active   bool
+}
+
+func (r *Result) PageItems() []pager {
 	n := r.NumPages()
 
 	low, up := r.Page-3, r.Page+4
@@ -108,15 +123,50 @@ func (r *Result) PageRange() iter.Seq[int] {
 	low = max(low, 0)
 	up = min(up, n)
 
-	return func(yield func(int) bool) {
-		for i := low; i < up; i++ {
-			if !yield(i) {
-				return
-			}
+	notLink := "javascript:void(0)"
+
+	res := make([]pager, 0, 7)
+	// « = &laquo
+	if low > 0 {
+		res = append(res, pager{Text: "«", Href: r.urlForPage(0)})
+	} else {
+		res = append(res, pager{Text: "«", Href: notLink, Disabled: true})
+	}
+
+	if r.Page > 0 {
+		res = append(res, pager{Text: "<", Href: r.urlForPage(r.Page - 1)})
+	} else {
+		res = append(res, pager{Text: "<", Href: notLink, Disabled: true})
+	}
+
+	for i := low; i < up; i++ {
+		if i == r.Page {
+			res = append(res, pager{Text: cast.ToString(i + 1), Href: notLink, Active: true})
+		} else {
+			res = append(res, pager{Text: cast.ToString(i + 1), Href: r.urlForPage(i)})
 		}
 	}
+
+	if r.Page+1 < n {
+		res = append(res, pager{Text: ">", Href: r.urlForPage(r.Page + 1)})
+	} else {
+		res = append(res, pager{Text: ">", Href: notLink, Disabled: true})
+	}
+
+	if up < n {
+		res = append(res, pager{Text: "»", Href: r.urlForPage(n - 1)})
+	} else {
+		res = append(res, pager{Text: "»", Href: notLink, Disabled: true})
+	}
+	return res
 }
 
+var pagerTemplate = template.Must(template.ParseFiles("templates/pager.gotmpl"))
+
 func (r *Result) Html() template.HTML {
-	return ""
+	w := bytes.Buffer{}
+	if err := pagerTemplate.ExecuteTemplate(&w, "npager", r); err != nil {
+		panic(err)
+	}
+	return template.HTML(w.String())
 }

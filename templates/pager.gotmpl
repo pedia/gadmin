@@ -1,0 +1,9 @@
+{{define "npager"}}
+<ul class="pagination">
+  {{range .PageItems}}
+    <li class="page-item {{if .Disabled}}disabled{{else if .Active}}active{{end}}">
+      <a class="page-link" href="{{.Href}}">{{.Text}}</a>
+    </li>
+  {{end}}
+</ul>
+{{end}}

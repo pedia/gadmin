@@ -256,6 +256,7 @@ func (A *Admin) funcs(more template.FuncMap) template.FuncMap {
 		"gettext":          A.gettext,   //
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
+		// TODO: remove
 		"comment": func(format string, args ...any) template.HTML {
 			return template.HTML(
 				"<!-- " + fmt.Sprintf(format, args...) + " -->",

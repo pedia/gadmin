@@ -324,7 +324,7 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 	V.Render(w, r, "model_list.gotmpl", nil, map[string]any{
 		"count":     len(result.Rows),
 		"page":      q.Page,
-		"num_pages": q.num_pages,
+		"num_pages": result.NumPages(),
 		"page_size": q.PageSize,
 		"page_size_url": func(page_size int) string {
 			return must(V.Blueprint.GetUrl(".index_view", q, "page_size", page_size))
@@ -382,6 +382,7 @@ func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
 	ReplyJson(w, 200, map[string]any{"total": res.Total, "data": res.Rows})
 }
 
+// Because `default_page_size`, should place here, not query.go
 func (V *ModelView) queryFrom(r *http.Request) *Query {
 	q := Query{default_page_size: V.page_size}
 	uv := r.URL.Query()
