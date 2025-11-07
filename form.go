@@ -108,6 +108,10 @@ func (f *valueField) Html() template.HTML {
 		return f.render("field_select2")
 	}
 
+	if f.PrimaryKey {
+		return f.render("field_readonly")
+	}
+
 	switch f.DataType {
 	case schema.Bool:
 		return f.render("field_checkbox")

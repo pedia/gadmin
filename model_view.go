@@ -52,8 +52,10 @@ type ModelView struct {
 	textareaRow map[string]int
 	// TODO: date-format="YYYY-MM-DD"
 
-	// runtime: generate from
-	form_fields []*Field
+	// runtime: cache generate from
+	createFormFields []*Field
+	editFormFields   []*Field
+
 	list_fields []*Field
 
 	// db relation settings
@@ -207,11 +209,7 @@ func (V *ModelView) SetFormExcludedColumns(columns ...string) *ModelView {
 	return V
 }
 
-func (V *ModelView) genFormFields() []*Field {
-	if V.form_fields != nil {
-		return V.form_fields
-	}
-
+func (V *ModelView) genFormFields(create bool) []*Field {
 	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
 		// exclude, return false
 		if slices.Contains(V.form_excluded_columns, field.DBName) {
@@ -224,20 +222,27 @@ func (V *ModelView) genFormFields() []*Field {
 		}
 
 		// default not primaryKey
-		return !field.PrimaryKey
+		if create {
+			// create form, do not need primaryKey
+			return !field.PrimaryKey
+		} else {
+			// edit form, need primaryKey
+			return true
+		}
 	})
 
-	V.form_fields = lo.Map(list, func(field *schema.Field, _ int) *Field {
+	return lo.Map(list, func(field *schema.Field, _ int) *Field {
 		return &Field{
 			Field:       field,
 			Label:       strings.Join(camelcase.Split(field.Name), " "),
 			Choices:     V.form_choices[field.DBName],
 			Description: emptyOr(V.column_descriptions[field.DBName], field.Comment),
 			TextAreaRow: V.textareaRow[field.DBName],
+			Hidden:      false,
 		}
 	})
-	return V.form_fields
 }
+
 func (V *ModelView) genListFields() []*Field {
 	if V.list_fields != nil {
 		return V.list_fields
@@ -606,8 +611,23 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
+// create form: no primarykey
+// edit form: hidden primarykey
 func (V *ModelView) form(one Row) *modelForm {
-	return ModelForm(V.genFormFields(), one)
+	var list []*Field
+	if one == nil {
+		// create
+		if V.createFormFields == nil {
+			V.createFormFields = V.genFormFields(true)
+		}
+		list = V.createFormFields
+	} else {
+		if V.editFormFields == nil {
+			V.editFormFields = V.genFormFields(false)
+		}
+		list = V.editFormFields
+	}
+	return ModelForm(list, one)
 }
 
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {

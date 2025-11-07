@@ -33,6 +33,12 @@
     </select>
 {{end}}
 
+
+{{define "field_readonly"}}
+    <input class="form-control" type="text" id="{{.DBName}}" name="{{.DBName}}" readonly value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+{{end}}
+
+
 {{define "form_all"}}
 <form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
   <fieldset>

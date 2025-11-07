@@ -134,5 +134,5 @@ type Field struct {
 	Description string
 	TextAreaRow int
 	TimeFormat  string
-	Hidden      bool
+	Hidden      bool // csrf token
 }
