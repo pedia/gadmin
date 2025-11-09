@@ -1,0 +1,10 @@
+{{ template "master.gotmpl" . }}
+
+{{ define "body" }}
+  <ul id="entry">
+    {{range  .entries}}
+    <li>{{.URL}}
+    <pre>{{.Log}}</pre>
+    {{end}}
+  </ul>
+{{ end }}

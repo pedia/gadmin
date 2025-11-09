@@ -3,6 +3,7 @@ package gadmin
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"text/template"
 
 	"github.com/go-playground/form/v4"
 	"github.com/stretchr/testify/assert"
@@ -158,21 +158,22 @@ func TestBasePtr(t *testing.T) {
 }
 
 func ExampleTemplate() {
-	base := template.Must(template.New("base").Parse(`{{.}}base{{block "body" .}}{{end}}{{println}}`))
-	base.Execute(os.Stdout, 1)
+	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > t/base.html
+	// echo 'd1{{define "body" }}b1{{end}}' > t/d1.html
+	// echo 'd2{{define "body" }}b2{{end}}' > t/d2.html
+	base := must(template.New("base.html").ParseFiles("t/base.html"))
 
-	d1 := template.Must(template.Must(base.Clone()).Parse(`{{define "body"}}d1{{end}}`))
-	d2 := template.Must(base.Parse(`{{define "body"}}d2{{end}}`))
+	d1 := must(must(base.Clone()).ParseFiles("t/d1.html"))
+	if err := d1.Execute(os.Stdout, 3); err != nil {
+		panic(err)
+	}
 
-	d1.Execute(os.Stdout, 2)
-	base.Execute(os.Stdout, 3)
-	d2.Execute(os.Stdout, 4)
-	base.Execute(os.Stdout, 5)
+	d2 := must(must(base.Clone()).ParseFiles("t/d2.html"))
+	if err := d2.Execute(os.Stdout, 4); err != nil {
+		panic(err)
+	}
 
 	// Output:
-	// 1base
-	// 2based1
-	// 3based2
-	// 4based2
-	// 5based2
+	// 3baseb1
+	// 4baseb2
 }

@@ -30,13 +30,12 @@ type BaseView struct {
 	Blueprint *Blueprint
 	Menu      Menu
 	admin     *Admin
-
-	// all parsed template files
-	groupts *template.Template
 }
 
 func NewView(menu Menu) *BaseView {
-	return &BaseView{Blueprint: &Blueprint{Path: menu.Path}, Menu: menu}
+	return &BaseView{Blueprint: &Blueprint{Path: menu.Path},
+		Menu: menu,
+	}
 }
 
 // Expose "/test" create Blueprint{Endpoint: "test", Path: "/test"}
@@ -78,29 +77,23 @@ func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, fn string, fun
 	fm["get_flashed_messages"] = func() []map[string]any {
 		return GetFlashedMessages(r)
 	}
-	if V.groupts == nil {
-		V.groupts = template.Must(template.New("views").
-			Option("missingkey=error").
-			Funcs(fm).
-			ParseFiles("templates/actions.gotmpl",
-				"templates/base.gotmpl",
-				"templates/layout.gotmpl",
-				// "templates/lib.gotmpl", // move to ModelView
-				"templates/master.gotmpl",
-				"templates/index.gotmpl",
-			))
-	}
+	fm["pager_url"] = func() string { return "TODO" }
+	fm["csrf_token"] = func() string { return "TODO" }
 
+	t := template.Must(template.New("views").
+		Option("missingkey=error").
+		Funcs(fm).
+		ParseFiles("templates/actions.gotmpl",
+			"templates/base.gotmpl",
+			"templates/layout.gotmpl",
+			"templates/lib.gotmpl", // move to ModelView
+			"templates/master.gotmpl",
+			// "templates/index.gotmpl",
+			fn))
 	basefn := path.Base(fn)
 
-	// check need to parse a new file
-	if t := V.groupts.Lookup(basefn); t == nil {
-		template.Must(V.groupts.ParseFiles(fn))
-	}
-
 	w.Header().Add("content-type", ContentTypeUtf8Html)
-
-	if err := V.groupts.ExecuteTemplate(w, basefn, V.dict(r, data)); err != nil {
+	if err := t.ExecuteTemplate(w, basefn, V.dict(r, data)); err != nil {
 		panic(err)
 	}
 }

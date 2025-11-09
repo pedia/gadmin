@@ -1,0 +1,77 @@
+{{ template "master.gotmpl" . }}
+
+{{ define "head" }}
+<script type="text/javascript">
+var conn;
+var log;
+
+window.onload = function () {
+  log = document.getElementById("log");
+  if (window["WebSocket"]) {
+    connect();
+  }
+};
+
+function addLog(item) {
+  var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
+  log.prepend(item);
+  if (doScroll) {
+    log.scrollTop = log.scrollHeight - log.clientHeight;
+  }
+}
+
+function connect() {
+  conn = new WebSocket(document.location);
+  conn.onclose = function (evt) {
+      var item = document.createElement("div");
+      item.innerHTML = "<b>Connection closed.</b>";
+      addLog(item);
+  };
+  conn.onmessage = function (evt) {
+      var messages = evt.data.split('\n');
+      for (var i = 0; i < messages.length; i++) {
+          var item = document.createElement("div");
+          item.innerText = messages[i];
+          addLog(item);
+      }
+  };
+}
+</script>
+{{ end }}
+
+{{ define "body" }}
+<form action method="post" role="form" class="admin-form">
+<fieldset>
+
+<div class="form-group">
+<label for="url" class="control-label">Database URL<strong style="color: red">&nbsp;&#42;</strong></label>
+<input class="form-control" type="text" name="url" value="{{if .gen}}{{.gen.Url}}{{else}}sqlite:examples/sqla/admin/sample_db.sqlite{{end}}">
+
+<small class="form-text text-muted">
+Database URL like: sqlite:path/to/sqlite.db postgresql://user:password@localhost:5432/database mysql://user:password@localhost:3366/database?charset=utf8mb4&parseTime=True&loc=Local
+<br>Generate will add all tables to admin
+</small>
+</div>
+
+<div class="form-group">
+<label for="package" class="control-label">Package<strong style="color: red">&nbsp;&#42;</strong></label>
+<input class="form-control" type="text" name="package" value="main">
+
+<small class="form-text text-muted">package main able to build as a plugin, and be loaded into current process</small>
+</div>
+
+  <hr>
+  <div class="form-group">
+    <div class="col-md-offset-2 col-md-10 submit-row">
+    <input type="submit" class="btn btn-primary" value="{{ "Generate"}}" />
+    </div>
+  </div>
+  </fieldset>
+</form>
+
+<!-- <button onclick="connect()">Connect</button> -->
+<div id="log">
+</div>
+
+
+{{ end }}

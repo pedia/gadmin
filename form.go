@@ -3,6 +3,7 @@ package gadmin
 import (
 	"bytes"
 	"html/template"
+	"sync"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm/schema"
@@ -52,7 +53,7 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 var formTemplate *template.Template
 var inlineEditTemplate *template.Template
 
-func init() {
+func loadTemplate() {
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
 
 	inlineEditTemplate = template.Must(template.New("input").Parse(
@@ -82,6 +83,7 @@ func (f *modelForm) patchValue() []*valueField {
 func (f *modelForm) Html() template.HTML {
 	w := bytes.Buffer{}
 	// TODO: debug only
+	sync.OnceFunc(loadTemplate)
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
 
 	// TODO: rename form_all to render_form

@@ -3,13 +3,16 @@ package gadmin
 import (
 	"encoding/json"
 	"fmt"
+	"gadmin/isdebug"
 	"html/template"
+	"iter"
+	"log"
 	"net/http"
-	"os"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/gorilla/handlers"
+	"github.com/gorilla/websocket"
 	"gopkg.in/leonelquinteros/gotext.v1"
+
 	"gorm.io/gorm"
 )
 
@@ -21,14 +24,18 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			Name: gettext("Home"),
 		}},
 		views:       []View{},
-		debug:       true,
+		debug:       isdebug.Enabled,
 		autoMigrate: true,
 		secret:      NewSecret("hello"), // TODO: read from config
 		mux:         http.NewServeMux(),
 
-		indexTemplateFile: "index.gotmpl",
+		indexTemplateFile: "templates/index.gotmpl",
 	}
 	A.BaseView.admin = A
+
+	if A.DB != nil {
+		A.trace = NewTrace(A.DB)
+	}
 
 	A.Blueprint = &Blueprint{
 		Name:     name,
@@ -39,6 +46,9 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			"index":      {Endpoint: "index", Path: "/", Handler: A.indexHandler},
 			"debug":      {Endpoint: "debug", Path: "/debug.json", Handler: A.debugHandler},
 			"debug.html": {Endpoint: "debug.html", Path: "/debug.html", Handler: A.debugHtmlHandler},
+			"generate":   {Endpoint: "generate", Path: "/generate", Handler: A.generateHandler},
+			"console":    {Endpoint: "console", Path: "/console", Handler: A.consoleHandler},
+			"trace":      {Endpoint: "trace", Path: "/trace", Handler: A.traceHandler},
 			"test":       {Endpoint: "test", Path: "/test", Handler: A.testHandler},
 			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static"},
 		}}
@@ -54,7 +64,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 
 type Admin struct {
 	*BaseView
-	DB *gorm.DB
+	DB    *gorm.DB
+	trace *Trace
 
 	views             []View
 	debug             bool
@@ -127,23 +138,29 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 }
 
 func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	r2 := PatchSession(r, A)
-	w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
-		sess := CurrentSession(r2)
-		// log.Printf("session %s save %d", r.URL, len(sess.Values))
-		err := sess.Save(w)
-		if err != nil {
-			// log.Printf("session save failed %s", err)
-		}
-	})
-	A.mux.ServeHTTP(w2, r2)
-	w2.(http.Flusher).Flush()
+	// TODO: NewBufferWriter not implement hijack
+	// r2 := PatchSession(r, A)
+	// w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
+	// 	sess := CurrentSession(r2)
+	// 	// log.Printf("session %s save %d", r.URL, len(sess.Values))
+	// 	err := sess.Save(w)
+	// 	if err != nil {
+	// 		// log.Printf("session save failed %s", err)
+	// 	}
+	// })
+	// A.mux.ServeHTTP(w2, r2)
+	// w2.(http.Flusher).Flush()
+
+	A.mux.ServeHTTP(w, r)
+
+	defer A.trace.CheckTrace(r)
 }
 
 func (A *Admin) Run() {
 	serv := http.Server{
-		Addr:    ":3333",
-		Handler: handlers.LoggingHandler(os.Stdout, A)}
+		Addr: ":3333",
+		// Handler: handlers.LoggingHandler(os.Stdout, A)}
+		Handler: A}
 
 	serv.ListenAndServe()
 }
@@ -183,6 +200,7 @@ func theme() string {
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
 		"debug": A.debug,
+		"db":    A.DB != nil,
 		"name":  A.Blueprint.Name,
 		"url":   A.Blueprint.Path, // "/admin"
 		// "admin_base_template": "base.html",
@@ -280,4 +298,61 @@ func (A *Admin) funcs(more template.FuncMap) template.FuncMap {
 
 func (A *Admin) SetIndexTemplateFile(nfn string) {
 	A.indexTemplateFile = nfn
+}
+
+type wsWriter struct {
+	*websocket.Conn
+}
+
+func (w *wsWriter) Write(p []byte) (n int, err error) {
+	w.WriteMessage(websocket.TextMessage, p)
+	return n, nil
+}
+
+var g *generator
+
+func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
+	// is websocket?
+	if websocket.IsWebSocketUpgrade(r) {
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Println("upgrade failed", err)
+			return
+		}
+		// ignore all input
+		go conn.ReadMessage()
+		go func() {
+			g.Run(A, &wsWriter{conn})
+			g = nil
+		}()
+		return
+	}
+
+	// normal GET/POST
+	if r.Method == http.MethodGet {
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": nil})
+	} else {
+		r.ParseForm()
+		g = NewGenerator(r.FormValue("url"))
+		g.Package = r.FormValue("package")
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": g})
+	}
+}
+func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
+	A.Render(w, r, "templates/console.gotmpl", nil, nil)
+}
+func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {
+	var es iter.Seq[Entry]
+	if A.trace != nil {
+		es = A.trace.Entries()
+	}
+
+	A.Render(w, r, "templates/trace.gotmpl", nil, map[string]any{
+		"entries": es,
+	})
 }

@@ -67,7 +67,13 @@ type _ctxkey int
 var _sessionKey _ctxkey
 
 func CurrentSession(r *http.Request) *Session {
-	return must(r.Context().Value(_sessionKey).(*Session))
+	// TODO:
+	// return must(r.Context().Value(_sessionKey).(*Session))
+	return &Session{
+		Secret:     NewSecret("TODO"),
+		Values:     map[string]any{},
+		cookieName: "session", // TODO: admin.config
+	}
 }
 
 // Get or Create Session from current Request

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 	"net/url"
+	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -161,9 +162,14 @@ func (r *Result) PageItems() []pager {
 	return res
 }
 
-var pagerTemplate = template.Must(template.ParseFiles("templates/pager.gotmpl"))
+var pagerTemplate *template.Template
+
+func loadPagerTemplate() {
+	pagerTemplate = template.Must(template.ParseFiles("templates/pager.gotmpl"))
+}
 
 func (r *Result) Html() template.HTML {
+	sync.OnceFunc(loadPagerTemplate)
 	w := bytes.Buffer{}
 	if err := pagerTemplate.ExecuteTemplate(&w, "npager", r); err != nil {
 		panic(err)
