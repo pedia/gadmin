@@ -106,6 +106,17 @@ func (f *modelForm) patchValue() []*valueField {
 	})
 }
 
+// new hidden Field, and return it's Html
+func (f *modelForm) Hidden(name, value string) template.HTML {
+	field := &valueField{
+		Field: &Field{
+			Field:  &schema.Field{DBName: name},
+			Hidden: true},
+		Value: value,
+	}
+	return field.Html()
+}
+
 func (f *modelForm) Html() template.HTML {
 	w := bytes.Buffer{}
 
@@ -124,6 +135,10 @@ type valueField struct {
 // this not worked:
 // {{ template .TemplateName }}
 func (f *valueField) Html() template.HTML {
+	if f.Hidden {
+		return f.render("field_hidden")
+	}
+
 	if len(f.Choices) > 0 {
 		return f.render("field_select2")
 	}

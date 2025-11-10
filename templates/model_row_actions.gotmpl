@@ -47,11 +47,12 @@
 {{/*(action, row_id, row)*/}}
 {{ define "delete_row" }}
 <form class="icon" method="POST" action="{{ get_url ".delete_view" }}">
-  {{/* delete_form.id(value=get_pk_value(row)) */}}
-  {{/* delete_form.url(value=return_url) */}}
+  {{- $form := delete_form -}}
+  {{- $form.Hidden "id" .row_id -}}
+  {{- $form.Hidden "url" .return_url -}}
   {{ if .action.csrf_token }}
-    {{/* delete_form.csrf_token */}}
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    {{ $form.Hidden "csrf_token" .action.csrf_token }}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
   {{ end }}
   <button onclick="return faHelpers.safeConfirm('{{ gettext "Are you sure you want to delete this record?" }}');" title="{{ gettext "Delete record" }}">
     <span class="fa fa-trash glyphicon glyphicon-trash"></span>

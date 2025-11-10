@@ -387,6 +387,10 @@ func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
 func (V *ModelView) queryFrom(r *http.Request) *Query {
 	q := Query{default_page_size: V.page_size}
 	uv := r.URL.Query()
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		uv = merge(uv, r.Form)
+	}
 
 	form.NewDecoder().Decode(&q, uv)
 	for k, v := range uv {
@@ -407,10 +411,6 @@ func (V *ModelView) get_column_index(name string) int {
 	return -1
 }
 
-// Generate inline edit form in list view
-func (V *ModelView) list_form(field *Field, row Row) template.HTML {
-	return InlineEdit(V.Model, field, row)
-}
 func (V *ModelView) is_editable(name string) bool {
 	if !V.can_edit {
 		return false
@@ -523,6 +523,29 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 // Model().Where(pk field = pk value).Delete()
 func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
+	redirect := func() {
+		url := q.Get("url")
+		if url == "" {
+			url = must(V.Blueprint.GetUrl(".index_view", nil))
+		}
+		http.Redirect(w, r, url, http.StatusFound)
+	}
+
+	if !V.can_delete {
+		redirect()
+		return
+	}
+
+	err := V.delete(q.Get("id"))
+	if err != nil {
+		// flash_errors(form, message='Failed to delete record. %(error)s')
+	} else {
+		// flash(ngettext('Record was successfully deleted.',
+		//                      '%(count)s records were successfully deleted.',
+		//                      count, count=count), 'success')
+	}
+	redirect()
 }
 
 // Model().Where(pk field = pk value).First()
@@ -634,6 +657,14 @@ func (V *ModelView) form(one Row) *modelForm {
 	return ModelForm(list, one)
 }
 
+// Generate inline edit form in list view
+func (V *ModelView) list_form(field *Field, row Row) template.HTML {
+	return InlineEdit(V.Model, field, row)
+}
+func (V *ModelView) delete_form() *modelForm {
+	return &modelForm{Fields: []*Field{}}
+}
+
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	fs := []string{
@@ -664,6 +695,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		},
 		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
 		"list_form":   V.list_form,
+		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,
 	}, funcs)
 
@@ -746,6 +778,16 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 	if rc := V.admin.DB.Model(ptr).
 		Where(V.where(rowid)).
 		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
+		return rc.Error
+	}
+	return nil
+}
+
+func (V *ModelView) delete(rowid string) error {
+	ptr := V.Model.new()
+
+	if rc := V.admin.DB.Model(ptr).
+		Delete(ptr, V.where(rowid)); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil

@@ -20,7 +20,6 @@ func (r Row) Get(f *Field) any {
 	return r[f.DBName]
 }
 
-// TODO: return DisplayValue for nil ptr, *time.Time format
 func (r Row) GetDisplayValue(f *Field) any {
 	v := r[f.DBName]
 	switch f.DataType {

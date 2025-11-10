@@ -1,3 +1,7 @@
+{{define "field_hidden" -}}
+    <input id="{{.DBName}}" name="{{.DBName}}" type="hidden" value="{{.Value}}">
+{{- end}}
+
 {{define "field_checkbox"}}
     <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
 {{end}}
