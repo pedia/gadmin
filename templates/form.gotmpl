@@ -67,3 +67,8 @@
   </fieldset>
 </form>
 {{end}}
+
+
+{{define "inline_field"}}
+  <a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}>{{.display_value}}</a>
+{{end}}

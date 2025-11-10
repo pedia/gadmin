@@ -66,9 +66,6 @@ func NewModel(m any) *Model {
 	fs := lo.Map(s.Fields, func(field *schema.Field, _ int) *Field {
 		return &Field{Field: field, Label: strings.Join(camelcase.Split(field.Name), " ")}
 	})
-	if len(fs) > 4 {
-		fs[4].Description = "Some important" // TODO: hack
-	}
 	return &Model{schema: s, Fields: fs}
 }
 

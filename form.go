@@ -3,8 +3,8 @@ package gadmin
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html/template"
-	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -31,7 +31,7 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	args := map[template.HTMLAttr]any{
 		"data-value": row.GetDisplayValue(field),
 		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
-		"data-url":   "./ajax/update/",
+		"data-url":   "ajax/update",
 		"data-pk":    model.get_pk_value(row),
 		"data-csrf":  "", // TODO:
 		"data-type":  "text",
@@ -63,10 +63,13 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	}
 
 	w := bytes.Buffer{}
-	inlineEditTemplate.Execute(&w, map[string]any{
+	if err := formTemplate.ExecuteTemplate(&w, "inline_field", map[string]any{
 		"args":          args,
 		"display_value": row.GetDisplayValue(field),
-	})
+		"field":         field,
+	}); err != nil {
+		panic(err)
+	}
 	return template.HTML(w.String())
 }
 
@@ -78,10 +81,9 @@ func jsonify(a any) string {
 }
 
 var formTemplate *template.Template
-var inlineEditTemplate = template.Must(template.New("input").Parse(
-	`<a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}></a>`))
 
-func loadTemplate() {
+func init() {
+	fmt.Printf("... load template ...\n")
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
 }
 
@@ -106,9 +108,6 @@ func (f *modelForm) patchValue() []*valueField {
 
 func (f *modelForm) Html() template.HTML {
 	w := bytes.Buffer{}
-	// TODO: debug only
-	sync.OnceFunc(loadTemplate)
-	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
 
 	// TODO: rename form_all to render_form
 	if err := formTemplate.ExecuteTemplate(&w, "form_all", f.patchValue()); err != nil {
@@ -122,6 +121,8 @@ type valueField struct {
 	Value any
 }
 
+// this not worked:
+// {{ template .TemplateName }}
 func (f *valueField) Html() template.HTML {
 	if len(f.Choices) > 0 {
 		return f.render("field_select2")
@@ -144,6 +145,7 @@ func (f *valueField) Html() template.HTML {
 	case schema.Time:
 		return f.render("field_time")
 	case schema.Bytes:
+		// TODO:
 	}
 	return ""
 }
