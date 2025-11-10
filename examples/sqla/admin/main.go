@@ -65,7 +65,7 @@ func main() {
 			{Value: "editor", Label: "Editor"},
 			{Value: "regular-user", Label: "Regular user"}},
 		}).
-		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid")
+		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid", "born_date")
 	a.AddView(vu)
 
 	a.AddView(gadmin.NewModelView(Tag{})).(*gadmin.ModelView).

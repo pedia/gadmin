@@ -2,10 +2,12 @@ package gadmin
 
 import (
 	"bytes"
+	"encoding/json"
 	"html/template"
 	"sync"
 
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 	"gorm.io/gorm/schema"
 )
 
@@ -17,8 +19,9 @@ import (
 // data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 
 // data-type: text,textarea,select2,combodate,number
-// data-role: elect2-ajax,x-editable,x-editable-boolean,x-editable-combodate,x-editable-select2-multiple
+// data-role: select2-ajax,x-editable,x-editable-boolean,x-editable-combodate,x-editable-select2-multiple
 
+// <a data-csrf="" data-pk="2" data-role="x-editable" data-rows="5" data-type="textarea" data-url="./ajax/update/" data-value="" href="#" id="text" name="text"></a>
 // <a data-csrf="" data-format="YYYY-MM-DD" data-pk="" data-role="x-editable-combodate" data-template="YYYY-MM-DD" data-type="combodate" data-url="./ajax/update/" data-value="" href="#" id="born_date" name="born_date"></a>
 // <a data-csrf="" data-pk="" data-role="x-editable-boolean" data-source="[{&#34;text&#34;: &#34;No&#34;, &#34;value&#34;: &#34;&#34;}, {&#34;text&#34;: &#34;Yes&#34;, &#34;value&#34;: &#34;1&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="" href="#" id="valid" name="valid"></a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-source="[{&#34;text&#34;: &#34;&#34;, &#34;value&#34;: &#34;__None&#34;}, {&#34;text&#34;: &#34;Admin&#34;, &#34;value&#34;: &#34;admin&#34;}, {&#34;text&#34;: &#34;Content writer&#34;, &#34;value&#34;: &#34;content-writer&#34;}, {&#34;text&#34;: &#34;Editor&#34;, &#34;value&#34;: &#34;editor&#34;}, {&#34;text&#34;: &#34;Regular user&#34;, &#34;value&#34;: &#34;regular-user&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="editor" href="#" id="type" name="type">editor</a>
@@ -26,7 +29,7 @@ import (
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
 func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	args := map[template.HTMLAttr]any{
-		"data-value": row.Get(field),
+		"data-value": row.GetDisplayValue(field),
 		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
 		"data-url":   "./ajax/update/",
 		"data-pk":    model.get_pk_value(row),
@@ -39,26 +42,47 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 
 	if field.Choices != nil {
 		args["data-type"] = "select2"
-		args["data-source"] = field.Choices // TODO: choices to dict
+		args["data-source"] = jsonify(field.Choices)
+	}
+	if field.TextAreaRow > 0 {
+		args["data-type"] = "textarea"
+		args["data-row"] = cast.ToString(field.TextAreaRow)
+	}
+
+	switch field.DataType {
+	case schema.Time:
+		args["data-type"] = "combodate"
+		args["data-template"] = "YYYY-MM-DD" // TODO
+		args["data-role"] = "x-editable-combodate"
+	case schema.Int, schema.Uint, schema.Float:
+		args["data-type"] = "number"
+	case schema.Bool:
+		args["data-type"] = "select2"
+		args["data-role"] = "x-editable-boolean"
+		args["data-source"] = `[{"text": "No", "value": ""},{"text": "Yes", "value": "1"}]` // TODO: gettext
 	}
 
 	w := bytes.Buffer{}
 	inlineEditTemplate.Execute(&w, map[string]any{
 		"args":          args,
-		"display_value": row.Get(field),
+		"display_value": row.GetDisplayValue(field),
 	})
-	return template.HTML(w.String()) // TODO: HTML safe
+	return template.HTML(w.String())
+}
+
+func jsonify(a any) string {
+	if bs, err := json.Marshal(a); err == nil {
+		return string(bs)
+	}
+	return ""
 }
 
 var formTemplate *template.Template
-var inlineEditTemplate *template.Template
+var inlineEditTemplate = template.Must(template.New("input").Parse(
+	`<a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}></a>`))
 
 func loadTemplate() {
 	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
-
-	inlineEditTemplate = template.Must(template.New("input").Parse(
-		`<a{{range $k,$v :=.args}} {{$k}}="{{$v}}"{{end}}>{{.display_value}}</a>`))
-
 }
 
 type modelForm struct {

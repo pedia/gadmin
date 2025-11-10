@@ -101,12 +101,13 @@ func NewModelView(m any, category ...string) *ModelView {
 			"index_view":   {Endpoint: "index_view", Path: "/", Handler: mv.indexHandler},
 			"create_view":  {Endpoint: "create_view", Path: "/new", Handler: mv.newHandler},
 			"details_view": {Endpoint: "details_view", Path: "/details", Handler: mv.detailHandler},
-			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.ajaxUpdate},
-			"execute_view": {Endpoint: "execute_view", Path: "/execute", Handler: mv.indexHandler},
+			"ajax_update":  {Endpoint: "ajax_update", Path: "/ajax/update", Handler: mv.ajaxUpdate},
+			"ajax_lookup":  {Endpoint: "ajax_lookup", Path: "/ajax/lookup", Handler: mv.ajaxLookup},
+			"action_view":  {Endpoint: "action_view", Path: "/action", Handler: mv.actionHandler},
 			"edit_view":    {Endpoint: "edit_view", Path: "/edit", Handler: mv.editHandler},
 			"delete_view":  {Endpoint: "delete_view", Path: "/delete", Handler: mv.deleteHandler},
 			// not .export_view
-			"export": {Endpoint: "export", Path: "/export", Handler: mv.indexHandler},
+			"export": {Endpoint: "export", Path: "/export", Handler: mv.exportHandler},
 			"debug":  {Endpoint: "debug", Path: "/debug", Handler: mv.debugHandler},
 			// for json
 			"list": {Endpoint: "list", Path: "/list", Handler: mv.listJson},
@@ -407,11 +408,9 @@ func (V *ModelView) get_column_index(name string) int {
 }
 
 // Generate inline edit form in list view
-//
-//	func (V *ModelView) list_form(col Column, r Row) template.HTML {
-//		x := XEditableWidget{model: V.Model, column: col}
-//		return x.html(r)
-//	}
+func (V *ModelView) list_form(field *Field, row Row) template.HTML {
+	return InlineEdit(V.Model, field, row)
+}
 func (V *ModelView) is_editable(name string) bool {
 	if !V.can_edit {
 		return false
@@ -453,7 +452,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method == "POST" {
+	if r.Method == http.MethodPost {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
@@ -561,7 +560,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 // Record was successfully saved.
 // Model().Where().Update(currency=USD)
 func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(405)
 		return
 	}
@@ -602,6 +601,10 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write([]byte(V.admin.gettext("Record was successfully saved.")))
 }
+
+func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request)    {}
+func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
+func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {}
 
 // request to dict, like flask.request
 func rd(r *http.Request) map[string]any {
@@ -659,8 +662,8 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"pager_url": func(page int) string {
 			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
 		},
-		"csrf_token": NewCSRF(CurrentSession(r)).GenerateToken,
-		// "list_form":   V.list_form,
+		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
+		"list_form":   V.list_form,
 		"is_editable": V.is_editable,
 	}, funcs)
 

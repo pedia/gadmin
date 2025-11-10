@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/fatih/structs"
@@ -20,8 +21,36 @@ func (r Row) Get(f *Field) any {
 }
 
 // TODO: return DisplayValue for nil ptr, *time.Time format
-func (r Row) GetDiplayValue(f *Field) any {
-	return r[f.DBName]
+func (r Row) GetDisplayValue(f *Field) any {
+	v := r[f.DBName]
+	switch f.DataType {
+	case schema.Bool:
+		b, _ := v.(bool)
+		if b {
+			return 1
+		}
+		// in template, false is not 0
+		return ""
+	case schema.Time:
+		if t, ok := v.(*time.Time); ok {
+			// in template, nil should be ""
+			if t == nil {
+				return ""
+			}
+
+			switch f.TimeFormat {
+			default:
+				return t.Format(time.DateOnly)
+			case "YYYY-MM-DD":
+				return t.Format(time.DateOnly)
+			case "YYYY-MM-DD HH:mm:ss":
+				return t.Format(time.DateTime)
+			case "HH:mm:ss":
+				return t.Format(time.TimeOnly)
+			}
+		}
+	}
+	return v
 }
 
 type Model struct {
@@ -123,8 +152,8 @@ func (m *Model) where(rowid string) map[string]string {
 }
 
 type Choice struct {
-	Value any
-	Label string
+	Value any    `json:"value"`
+	Label string `json:"text"` // in flask
 }
 
 type Field struct {
