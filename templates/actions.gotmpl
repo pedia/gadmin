@@ -29,7 +29,6 @@
 
 {{/* (message, actions, actions_confirmation) */}}
 {{ define "actionlib_script" }}
-    {{ comment "actionlib_script.message: %s" .message }}
     {{ if .actions }}
         <div id="actions-confirmation-data" style="display:none;">{{ json .actions_confirmation }}</div>
         <div id="message-data" style="display:none;">{{ json .message  }}</div>

@@ -3,14 +3,11 @@
 {{ template "lib.gotmpl" . }}
 
 {{ define "head" }}
-    {{ comment "model_list::head" }}
     {{ template "form_css" . }}
 {{ end }}
 
 
 {{ define "tail" }}
-    {{ comment "tail" }}
-
     {{ if .filter_groups }}
       <div id="filter-groups-data" style="display:none;">{{ marshal .filter_groups }}</div>
       <div id="active-filters-data" style="display:none;">{{ marshal .active_filters }}</div>
@@ -26,7 +23,6 @@
 
 
 {{ define "body" }}
-    {{ comment "model_list::body" -}}
 
     {{ if .table_prefix_html }}
         <div class="alert alert-info alert-dismissable">
@@ -166,9 +162,9 @@
                     {{ range $c := $g.list_columns }}
                         <td class="col-{{$c.DBName}}">
                         {{- if is_editable $c.DBName }}
-                            {{/* list_form $c $row */}}
+                            {{ list_form $c $row }}
                         {{ else }}
-                            {{- $row.Get $c -}}
+                            {{- $row.GetDisplayValue $c -}}
                         {{ end -}}
                         </td>
                     {{ end }}

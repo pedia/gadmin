@@ -1,7 +1,6 @@
 {% import 'admin/lib.html' as lib with context %}
 
 {{ define "render_action" }}
-    {{ comment "model_row_actions::render_action" }}
   {{- if eq .action.name "view" -}}
     {{- template "view_row" . -}}
   {{- else if eq .action.name "edit" -}}

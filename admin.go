@@ -277,13 +277,7 @@ func (A *Admin) funcs(more template.FuncMap) template.FuncMap {
 		"get_url":          A.Blueprint.GetUrl,
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
-		// TODO: remove
-		"comment": func(format string, args ...any) template.HTML {
-			return template.HTML(
-				"<!-- " + fmt.Sprintf(format, args...) + " -->",
-			)
-		},
-		"safejs": func(s string) template.JS { return template.JS(s) },
+		"safejs":   func(s string) template.JS { return template.JS(s) },
 		"json": func(v any) (template.JS, error) {
 			bs, err := json.Marshal(v)
 			if err != nil {
