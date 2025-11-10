@@ -53,13 +53,13 @@ func NewTrace(db *gorm.DB) *Trace {
 	return t
 }
 
-// call in ServeHTTP
+// collect once, should call in ServeHTTP
 //
 //	func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //	  mux.ServeHTTP(w, r)
-//	  defer trace.Trace(r)
+//	  defer trace.CollectOnce(r)
 //	}
-func (t *Trace) Trace(r *http.Request) {
+func (t *Trace) CollectOnce(r *http.Request) {
 	t.m.Lock()
 	defer t.m.Unlock()
 
@@ -67,18 +67,17 @@ func (t *Trace) Trace(r *http.Request) {
 		return
 	}
 
-	h := Entry{r.URL.String(), t.buf.String()}
-	t.entries.PushBack(h)
+	t.entries.PushBack(Entry{r.URL.String(), t.buf.String()})
+
 	if t.entries.Len() > t.MaxCount {
 		t.entries.Remove(t.entries.Front())
 	}
-
 	t.buf.Reset()
 }
 
 func (t *Trace) CheckTrace(r *http.Request) {
 	if t != nil {
-		t.Trace(r)
+		t.CollectOnce(r)
 	}
 }
 
@@ -95,7 +94,7 @@ func (t *Trace) Entries() iter.Seq[Entry] {
 	defer t.m.RUnlock()
 
 	return func(yield func(Entry) bool) {
-		for e := t.entries.Front(); e != nil; e = e.Next() {
+		for e := t.entries.Back(); e != nil; e = e.Prev() {
 			pair := e.Value.(Entry)
 			if !yield(pair) {
 				break

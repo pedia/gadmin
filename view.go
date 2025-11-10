@@ -103,6 +103,7 @@ func (V *BaseView) setAdmin(admin *Admin) { V.admin = admin }
 func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]any {
 	// TODO: remove r
 	o := map[string]any{
+		"path":               r.URL.Path,
 		"category":           V.Menu.Category,
 		"name":               V.Menu.Name,
 		"extra_css":          []string{},

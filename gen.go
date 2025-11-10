@@ -116,7 +116,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 		}
 		g.logger.Printf("load plugin")
 	}
-	g.logger.Printf("generate done, reload page")
+	g.logger.Printf("all done, reload page")
 	return nil
 }
 
@@ -129,7 +129,7 @@ func (g *generator) exec(name string, arg ...string) error {
 		return err
 	}
 
-	g.logger.Println(output)
+	g.logger.Println(string(output))
 	return nil
 }
 

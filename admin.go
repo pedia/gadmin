@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"gadmin/isdebug"
 	"html/template"
-	"iter"
 	"log"
 	"net/http"
 
@@ -76,7 +75,10 @@ type Admin struct {
 }
 
 func (A *Admin) Register(b *Blueprint) {
-	A.Blueprint.AddChild(b)
+	if err := A.Blueprint.AddChild(b); err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	b.registerTo(A.mux, A.Blueprint.Path)
 }
@@ -272,6 +274,7 @@ func (A *Admin) funcs(more template.FuncMap) template.FuncMap {
 		"marshal":          A.marshal,   // test
 		"config":           A.config,    // used
 		"gettext":          A.gettext,   //
+		"get_url":          A.Blueprint.GetUrl,
 		// escape safe
 		"safehtml": func(s string) template.HTML { return template.HTML(s) },
 		// TODO: remove
@@ -344,15 +347,34 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
-	A.Render(w, r, "templates/console.gotmpl", nil, nil)
+	result := &Result{Query: DefaultQuery(), Rows: []Row{}}
+	var sql string
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		sql = r.FormValue("sql")
+		// CAUTION: non-checked sql, even it's drop table
+		var rs []map[string]any
+		tx := A.DB.Raw(sql).Scan(&rs)
+		// Raw/Scan not support offset/limit
+
+		result.Error = tx.Error
+		result.Total = tx.RowsAffected
+		// TODO: How to cast better?
+		result.Rows = make([]Row, len(rs))
+		for i := 0; i < len(rs); i++ {
+			result.Rows[i] = Row(rs[i])
+		}
+	}
+	A.Render(w, r, "templates/console.gotmpl", nil, map[string]any{
+		"result": result,
+		"sql":    sql,
+	})
 }
 func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {
-	var es iter.Seq[Entry]
+	m := map[string]any{"entries": nil}
 	if A.trace != nil {
-		es = A.trace.Entries()
+		m["entries"] = A.trace.Entries()
 	}
 
-	A.Render(w, r, "templates/trace.gotmpl", nil, map[string]any{
-		"entries": es,
-	})
+	A.Render(w, r, "templates/trace.gotmpl", nil, m)
 }

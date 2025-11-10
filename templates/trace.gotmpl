@@ -1,6 +1,8 @@
 {{ template "master.gotmpl" . }}
 
 {{ define "body" }}
+  {{ template "admin_nav" . }}
+
   <ul id="entry">
     {{range  .entries}}
     <li>{{.URL}}

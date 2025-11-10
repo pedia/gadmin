@@ -40,9 +40,12 @@ type Blueprint struct {
 }
 
 // like flask `Blueprint.Register`
-func (b *Blueprint) AddChild(child *Blueprint) {
+func (b *Blueprint) AddChild(child *Blueprint) error {
 	if b.Children == nil {
 		b.Children = map[string]*Blueprint{}
+	}
+	if _, ok := b.Children[child.Endpoint]; ok {
+		return fmt.Errorf("duplicated child %s", child.Endpoint)
 	}
 	b.Children[child.Endpoint] = child
 
@@ -50,6 +53,7 @@ func (b *Blueprint) AddChild(child *Blueprint) {
 
 	// fix all children's Parent
 	fixPointer(b)
+	return nil
 }
 
 func fixPointer(b *Blueprint) {
@@ -84,13 +88,14 @@ func (b *Blueprint) registerTo(mux *http.ServeMux, parent string) {
 		}
 
 		fs := http.FileServer(http.Dir(b.StaticFolder))
-		mux.Handle(parent+b.Path, //minified.Middleware(
+		mux.Handle(parent+b.Path, // minified.Middleware(
 			http.StripPrefix(parent+b.Path, fs))
 
 		// TODO: add an endpoint
 	}
 
-	// avoid duplicated Path
+	// Avoid `ServerMux` duplicated `Path`
+	// eg: `index` `index_view` have same `path`
 	up := map[string]bool{}
 	for _, child := range b.Children {
 		if unique := up[child.Path]; !unique {

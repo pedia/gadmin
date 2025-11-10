@@ -46,9 +46,9 @@ func NewModel(m any) *Model {
 // like:
 // user: schema.NamingStrategy{SingularTable: true}
 // users: schema.NamingStrategy{SingularTable: false}
+// used in Blueprint's {Path/Endpoint}
 func (m *Model) name() string { return m.schema.Table }
 
-// like:
 func (m *Model) label() string { return strings.Join(camelcase.Split(m.schema.Name), " ") }
 
 // new t
@@ -61,16 +61,16 @@ func (m *Model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.schema.ModelType))
 }
 
-// Parse form into map[string]any
+// Parse form into map[string]any, only fields in current model
 func (m *Model) parseForm(uv url.Values) Row {
-	res := map[string]any{}
+	row := Row{}
 	for _, col := range m.schema.Fields {
 		name := col.Name
 		if uv.Has(name) {
-			res[name] = uv.Get(name)
+			row[name] = uv.Get(name)
 		}
 	}
-	return res
+	return row
 }
 
 // Convert struct value to row

@@ -30,8 +30,8 @@ type Query struct {
 func DefaultQuery() *Query {
 	return &Query{
 		Page:              0,
-		PageSize:          10,
-		default_page_size: 10,
+		PageSize:          20,
+		default_page_size: 20,
 	}
 }
 
