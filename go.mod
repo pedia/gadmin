@@ -1,6 +1,6 @@
 module gadmin
 
-go 1.25
+go 1.24.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/sessions v1.4.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/pedia/gadmin v0.0.0-20241029124951-214a8509e0d9
 	github.com/samber/lo v1.39.0
 	github.com/shopspring/decimal v1.2.0
@@ -35,7 +36,6 @@ require (
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
