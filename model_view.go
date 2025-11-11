@@ -1,6 +1,7 @@
 package gadmin
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"slices"
@@ -40,6 +41,8 @@ type ModelView struct {
 	page_size         int
 	can_set_page_size bool
 	column_filters    []string
+
+	column_searchable_list []string
 
 	column_display_pk      bool
 	column_display_actions bool
@@ -183,15 +186,18 @@ func (V *ModelView) SetTablePrefixHtml(v string) *ModelView {
 	V.table_prefix_html = v
 	return V
 }
-func (V *ModelView) SetCanSetPageSize(v bool) *ModelView {
-	V.can_set_page_size = v
+func (V *ModelView) SetCanSetPageSize() *ModelView {
+	V.can_set_page_size = true
 	return V
 }
 func (V *ModelView) SetPageSize(v int) *ModelView {
 	V.page_size = v
 	return V
 }
-
+func (V *ModelView) SetColumnSearchableList(s ...string) *ModelView {
+	V.column_searchable_list = s
+	return V
+}
 func (V *ModelView) SetTextareaRow(rows map[string]int) *ModelView {
 	V.textareaRow = rows
 	return V
@@ -302,7 +308,6 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 		"filters":              []string{},
 		"filter_groups":        []string{},
 		"actions_confirmation": V.list_row_actions_confirmation(),
-		"search_supported":     false,
 		"return_url":           must(V.Blueprint.GetUrl(".index_view", nil)),
 	})
 
@@ -339,16 +344,24 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return V.find(name).Description
 		},
+		"clear_search_url": func() string {
+			q := *q // simply copy
+			q.Search = ""
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
+		},
 	}, map[string]any{
-		"count":     len(result.Rows),
-		"page":      q.Page,
-		"num_pages": result.NumPages(),
-		"page_size": q.PageSize,
+		"count":             len(result.Rows),
+		"page":              q.Page,
+		"num_pages":         result.NumPages(),
+		"page_size":         q.PageSize,
+		"default_page_size": q.default_page_size,
 		"page_size_url": func(page_size int) string {
-			return must(V.Blueprint.GetUrl(".index_view", q, "page_size", page_size))
+			uv := q.toValues()
+			uv.Set("page_size", cast.ToString(page_size))
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(uv)...))
 		},
 		"can_set_page_size":        V.can_set_page_size,
-		"data":                     result.Rows,
+		"data":                     result.Rows, // TODO: remove
 		"result":                   result,
 		"request":                  rd(r),
 		"get_pk_value":             V.get_pk_value,
@@ -358,6 +371,7 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"list_row_actions":         V.list_row_actions(),
 		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
 		"list_columns":             V.genListFields(),
+		"sort":                     q.Sort,
 		// not func, return current sort field name
 		// in template, `sort url` is: ?sort={index}
 		// transform `index` to `column name`
@@ -368,7 +382,10 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return ""
 		}(),
-		"sort_desc": q.Desc,
+		"sort_desc":              q.Desc,
+		"search":                 q.Search,
+		"column_searchable_list": V.column_searchable_list,
+		"search_placeholder":     strings.Join(V.column_searchable_list, ","),
 	})
 }
 func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
@@ -684,9 +701,6 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"get_url": func(endpoint string, args ...any) string {
 			return must(V.Blueprint.GetUrl(endpoint, args...))
 		},
-		"page_size_url": func(page_size int) string {
-			return must(V.Blueprint.GetUrl(".index_view", nil, "page_size", page_size))
-		},
 		"pager_url": func(page int) string {
 			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
 		},
@@ -725,6 +739,19 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 	}
 
 	// filter or search
+	if q.Search != "" && len(V.column_searchable_list) > 0 {
+		for i, c := range V.column_searchable_list {
+			if i == 0 {
+				ndb = ndb.Where(
+					fmt.Sprintf("%s like ?", c),
+					"%"+q.Search+"%")
+			} else {
+				ndb = ndb.Or(
+					fmt.Sprintf("%s like ?", c),
+					"%"+q.Search+"%")
+			}
+		}
+	}
 	return ndb
 }
 

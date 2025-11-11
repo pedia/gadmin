@@ -70,6 +70,8 @@ func main() {
 			{Value: "editor", Label: "Editor"},
 			{Value: "regular-user", Label: "Regular user"}},
 		}).
+		SetCanSetPageSize().
+		SetColumnSearchableList("first_name", "last_name").
 		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid", "born_date")
 	a.AddView(vu)
 
