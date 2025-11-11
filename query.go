@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"html/template"
 	"net/url"
-	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -23,6 +22,7 @@ type Query struct {
 	// flt0_35=2024-10-28&flt2_27=Harry&flt3_0=1
 	// filters []
 	args []string
+	base string // base path
 
 	default_page_size int
 }
@@ -79,7 +79,7 @@ func (q *Query) toValues() url.Values {
 
 func (q *Query) urlForPage(page int) string {
 	nq := Query{
-		Page:              page,
+		Page:              page, //
 		PageSize:          q.PageSize,
 		Sort:              q.Sort,
 		Desc:              q.Desc,
@@ -87,7 +87,12 @@ func (q *Query) urlForPage(page int) string {
 		default_page_size: q.default_page_size,
 		args:              q.args,
 	}
-	return nq.toValues().Encode()
+
+	uv := nq.toValues()
+	if len(uv) > 0 {
+		return q.base + "?" + uv.Encode()
+	}
+	return q.base
 }
 
 // generate pager or json
@@ -124,7 +129,7 @@ func (r *Result) PageItems() []pager {
 	low = max(low, 0)
 	up = min(up, n)
 
-	notLink := "javascript:void(0)"
+	notLink := "#" // TODO: javascript:void(0)? go template escape as "ZgotmplZ"
 
 	res := make([]pager, 0, 7)
 	// « = &laquo
@@ -164,12 +169,11 @@ func (r *Result) PageItems() []pager {
 
 var pagerTemplate *template.Template
 
-func loadPagerTemplate() {
-	pagerTemplate = template.Must(template.ParseFiles("templates/pager.gotmpl"))
+func init() {
+	pagerTemplate = parseTemplate("pager", nil, "templates/pager.gotmpl")
 }
 
-func (r *Result) Html() template.HTML {
-	sync.OnceFunc(loadPagerTemplate)
+func (r *Result) PagerHtml() template.HTML {
 	w := bytes.Buffer{}
 	if err := pagerTemplate.ExecuteTemplate(&w, "npager", r); err != nil {
 		panic(err)

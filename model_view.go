@@ -93,8 +93,8 @@ func NewModelView(m any, category ...string) *ModelView {
 
 	mv.Blueprint = &Blueprint{
 		Name:     model.label(),
-		Endpoint: model.name(),
-		Path:     "/" + model.name(),
+		Endpoint: model.path(),
+		Path:     "/" + model.path(),
 		Children: map[string]*Blueprint{
 			// In flask-admin use `view.index`. Should use `view.index_view` in `gadmin`
 			"index":        {Endpoint: "index", Path: "/", Handler: mv.indexHandler},
@@ -332,6 +332,7 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		"can_set_page_size":        V.can_set_page_size,
 		"data":                     result.Rows,
+		"result":                   result,
 		"request":                  rd(r),
 		"get_pk_value":             V.get_pk_value,
 		"column_display_pk":        V.column_display_pk,
@@ -385,12 +386,11 @@ func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
 
 // Because `default_page_size`, should place here, not query.go
 func (V *ModelView) queryFrom(r *http.Request) *Query {
-	q := Query{default_page_size: V.page_size}
-	uv := r.URL.Query()
-	if r.Method == http.MethodPost {
-		r.ParseForm()
-		uv = merge(uv, r.Form)
-	}
+	base, _ := V.GetBlueprint().GetUrl(".index")
+	q := Query{default_page_size: V.page_size, PageSize: V.page_size,
+		base: base}
+	r.ParseForm()
+	uv := r.Form
 
 	form.NewDecoder().Decode(&q, uv)
 	for k, v := range uv {
@@ -537,7 +537,7 @@ func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := V.delete(q.Get("id"))
+	err := V.deleteOne(q.Get("id"))
 	if err != nil {
 		// flash_errors(form, message='Failed to delete record. %(error)s')
 	} else {
@@ -597,7 +597,6 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	rowid := r.Form.Get("list_form_pk")
 
-	// TODO: type list_form struct, parse
 	row := Row{}
 	for k, v := range r.Form {
 		if k == "list_form_pk" {
@@ -606,15 +605,7 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 		row[k] = v[0]
 	}
 
-	// validate
-	// getOne
-	// record, err := mv.get(mv.DB, pk)
-	// if err == gorm.ErrRecordNotFound {
-	// 	w.WriteHeader(500)
-	// 	w.Write([]byte(mv.gettext("Record does not exist.")))
-	// 	return
-	// }
-	// _ = record
+	// TODO: validate
 
 	// update_model
 	if err := V.update(rowid, row); err != nil {
@@ -700,7 +691,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 	}, funcs)
 
 	fs = append(fs, "templates/"+name)
-	if err := createTemplate(fs, V.admin.funcs(fm)).
+	if err := parseTemplate("view", V.admin.funcs(fm), fs...).
 		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
@@ -761,7 +752,6 @@ func (V *ModelView) list(q *Query) *Result {
 	return &res
 }
 
-// rowid: pk1,pk2
 func (V *ModelView) getOne(rowid string) (Row, error) {
 	ptr := V.Model.new()
 
@@ -783,14 +773,11 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 	return nil
 }
 
-func (V *ModelView) delete(rowid string) error {
+func (V *ModelView) deleteOne(rowid string) error {
 	ptr := V.Model.new()
 
-	if rc := V.admin.DB.Model(ptr).
-		Delete(ptr, V.where(rowid)); rc.Error != nil || rc.RowsAffected != 1 {
-		return rc.Error
-	}
-	return nil
+	rc := V.admin.DB.Delete(ptr, V.where(rowid))
+	return rc.Error
 }
 
 // row -> Model().Create() RETURNING *

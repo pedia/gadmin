@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"iter"
+	"strings"
 
 	"fmt"
 	"net/http"
@@ -67,7 +68,9 @@ func (t *Trace) CollectOnce(r *http.Request) {
 		return
 	}
 
-	t.entries.PushBack(Entry{r.URL.String(), t.buf.String()})
+	// TODO: remove this
+	text := strings.ReplaceAll(t.buf.String(), "/Users/mord/t/", "")
+	t.entries.PushBack(Entry{r.URL.String(), text})
 
 	if t.entries.Len() > t.MaxCount {
 		t.entries.Remove(t.entries.Front())

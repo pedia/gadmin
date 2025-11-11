@@ -343,7 +343,7 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 	result := &Result{Query: DefaultQuery(), Rows: []Row{}}
 	var sql string
-	if r.Method == http.MethodPost {
+	if r.Method == http.MethodPost && A.DB != nil {
 		r.ParseForm()
 		sql = r.FormValue("sql")
 		// CAUTION: non-checked sql, even it's drop table

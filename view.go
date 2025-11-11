@@ -119,9 +119,9 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 	return o
 }
 
-func createTemplate(fs []string, funcs template.FuncMap) *template.Template {
-	return template.Must(template.New("all").
+func parseTemplate(name string, funcs template.FuncMap, fn ...string) *template.Template {
+	return template.Must(template.New(name).
 		Option("missingkey=error").
 		Funcs(funcs).
-		ParseFiles(fs...))
+		ParseFiles(fn...))
 }

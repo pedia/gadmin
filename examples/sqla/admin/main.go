@@ -49,6 +49,11 @@ type Tag struct {
 	Name string `gorm:"uniqueIndex;size:64"`
 }
 
+type PostTags struct {
+	PostId int `gorm:"column:post_id"`
+	TagId  int `gorm:"column:tag_id"`
+}
+
 func main() {
 	db, _ := gorm.Open(sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
 		&gorm.Config{
@@ -75,6 +80,8 @@ func main() {
 	vp := gadmin.NewModelView(Post{})
 	vp.SetTextareaRow(map[string]int{"text": 5})
 	a.AddView(vp)
+
+	a.AddView(gadmin.NewModelView(PostTags{}))
 
 	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Other", Path: "/other"})
 	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Tree", Path: "/tree"})

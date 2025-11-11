@@ -74,6 +74,8 @@ func NewModel(m any) *Model {
 // used in Blueprint's {Path/Endpoint}
 func (m *Model) name() string { return m.schema.Table }
 
+func (m *Model) path() string { return strings.ReplaceAll(m.schema.Table, "_", "") }
+
 func (m *Model) label() string { return strings.Join(camelcase.Split(m.schema.Name), " ") }
 
 // new t
@@ -135,6 +137,8 @@ func (m *Model) get_pk_value(row Row) string {
 	return strings.Join(vs, ",")
 }
 
+// single primarykey, rowid: id
+// multiple primarykey, rowid like: pk1,pk2
 // return where condition map
 func (m *Model) where(rowid string) map[string]string {
 	vs := strings.Split(rowid, ",")
