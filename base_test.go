@@ -158,6 +158,7 @@ func TestBasePtr(t *testing.T) {
 }
 
 func ExampleTemplate() {
+	// mkdir t
 	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > t/base.html
 	// echo 'd1{{define "body" }}b1{{end}}' > t/d1.html
 	// echo 'd2{{define "body" }}b2{{end}}' > t/d2.html
