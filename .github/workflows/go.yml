@@ -22,9 +22,7 @@ jobs:
         go-version: '1.24.0'
 
     - name: Build
-      run: |
-      go mod tidy
-      go build -o main ./cmd
+      run: go mod tidy && go build -o main ./cmd
 
     - name: Test
       run: go test -v ./...
