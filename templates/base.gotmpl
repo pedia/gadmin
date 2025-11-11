@@ -86,5 +86,12 @@
 {{ end -}}
 
     {{ block "tail" .}}{{ end -}}
+
+    {{ if .admin.debug }}
+    <pre>
+        {{range $k, $v := .}}{{$k}}: {{$v|typeOf}} {{if eq (typeOf $v) "string"}}{{$v}}{{end}}
+        {{end}}
+    </pre>
+    {{ end }}
   </body>
 </html>

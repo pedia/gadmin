@@ -145,7 +145,7 @@ func (m *Model) where(rowid string) map[string]string {
 	res := map[string]string{}
 	if len(m.schema.PrimaryFields) == len(vs) {
 		for i := range vs {
-			res[m.schema.PrimaryFields[0].DBName] = vs[i]
+			res[m.schema.PrimaryFields[i].DBName] = vs[i]
 		}
 	}
 	return res

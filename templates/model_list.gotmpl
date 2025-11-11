@@ -113,9 +113,9 @@
 
                     {{ range $index, $c := .list_columns }}
                         <th class="column-header col-{{$c.DBName}}">
-                            {{- if call $g.is_sortable $c.DBName -}}
+                            {{- if is_sortable $c.DBName -}}
                                 {{- if eq $g.sort_column $c.DBName -}}
-                                    <a href="{{ call $g.sort_url $c.DBName (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.Label }}">
+                                    <a href="{{ sort_url $c.DBName (not $g.sort_desc) }}" title="{{ gettext "Sort by %s" $c.Label }}">
                                         {{ $c.Label }}
                                         {{- if $g.sort_desc -}}
                                             <span class="fa fa-chevron-up glyphicon glyphicon-chevron-up"></span>
@@ -124,14 +124,14 @@
                                         {{- end }}
                                     </a>
                                 {{ else }}
-                                    <a href="{{ call $g.sort_url $c.DBName }}" title="{{ gettext "Sort by %s" $c.Label }}">{{ $c.Label }}</a>
+                                    <a href="{{ sort_url $c.DBName }}" title="{{ gettext "Sort by %s" $c.Label }}">{{ $c.Label }}</a>
                                 {{ end -}}
                             {{ else -}}
                                 {{- $c.Label -}}
                             {{- end -}}
-                            {{ if call $g.column_descriptions $c.DBName }}
+                            {{ if column_descriptions $c.DBName }}
                                 <a class="fa fa-question-circle glyphicon glyphicon-question-sign"
-                                title="{{ call $g.column_descriptions $c.DBName }}"
+                                title="{{ column_descriptions $c.DBName }}"
                                 href="javascript:void(0)" data-role="tooltip"
                                 ></a>
                             {{- end }}

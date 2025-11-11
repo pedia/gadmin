@@ -111,6 +111,7 @@ func TestModel(t *testing.T) {
 	m := NewModel(AllTyped{})
 	is.Equal("all_typed", m.name())
 	is.Equal("All Typed", m.label())
+	is.Equal("alltyped", m.path())
 
 	is.Equal("ID", m.Fields[0].Label)
 	is.Equal("id", m.Fields[0].DBName)
@@ -125,6 +126,7 @@ func TestModel(t *testing.T) {
 	is.True(r1["is_normal"].(bool))
 
 	is.Equal("3,foo", m.get_pk_value(r1))
+	is.Equal(map[string]string{"id": "3", "name": "foo"}, m.where("3,foo"))
 }
 
 func TestWidget(t *testing.T) {

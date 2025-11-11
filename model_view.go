@@ -4,12 +4,12 @@ import (
 	"html/template"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/fatih/camelcase"
 	"github.com/go-playground/form/v4"
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
@@ -30,6 +30,7 @@ type ModelView struct {
 	column_list          []string
 	column_exclude_list  []string
 	column_editable_list []string
+	// TODO: id, name, dept.id
 	column_sortable_list []string
 	column_descriptions  map[string]string
 
@@ -322,7 +323,23 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	result := V.list(q)
 
-	V.Render(w, r, "model_list.gotmpl", nil, map[string]any{
+	V.Render(w, r, "model_list.gotmpl", template.FuncMap{
+		"is_sortable": func(name string) bool {
+			return slices.Contains(V.column_sortable_list, name)
+		},
+		"sort_url": func(name string, invert ...bool) string {
+			q := *q // simply copy
+			q.Sort = cast.ToString(V.get_column_index(name))
+			q.Desc = firstOr(invert)
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
+		},
+		"column_descriptions": func(name string) string {
+			if desc, ok := V.column_descriptions[name]; ok {
+				return desc
+			}
+			return V.find(name).Description
+		},
+	}, map[string]any{
 		"count":     len(result.Rows),
 		"page":      q.Page,
 		"num_pages": result.NumPages(),
@@ -341,36 +358,17 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"list_row_actions":         V.list_row_actions(),
 		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
 		"list_columns":             V.genListFields(),
-		"is_sortable": func(name string) bool {
-			_, ok := lo.Find(V.column_sortable_list, func(s string) bool {
-				return s == name
-			})
-			return ok
-		},
+		// not func, return current sort field name
 		// in template, `sort url` is: ?sort={index}
 		// transform `index` to `column name`
 		"sort_column": func() string {
 			if q.Sort != "" {
-				idx := must(strconv.Atoi(q.Sort))
-				if idx != -1 {
-					return V.column_list[idx]
-				}
+				idx := cast.ToInt(q.Sort)
+				return V.column_name(idx)
 			}
 			return ""
 		}(),
 		"sort_desc": q.Desc,
-		"sort_url": func(name string, invert ...bool) string {
-			q := *q // simply copy
-			q.Sort = strconv.Itoa(V.get_column_index(name))
-			q.Desc = firstOr(invert)
-			return must(V.Blueprint.GetUrl(".index_view", &q))
-		},
-		"column_descriptions": func(name string) string {
-			if desc, ok := V.column_descriptions[name]; ok {
-				return desc
-			}
-			return V.find(name).Description
-		},
 	})
 }
 func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
@@ -403,12 +401,20 @@ func (V *ModelView) queryFrom(r *http.Request) *Query {
 }
 
 func (V *ModelView) get_column_index(name string) int {
-	if _, i, ok := lo.FindIndexOf(V.column_list, func(c string) bool {
-		return c == name
+	if _, i, ok := lo.FindIndexOf(V.genListFields(), func(f *Field) bool {
+		return f.DBName == name
 	}); ok {
 		return i
 	}
 	return -1
+}
+
+func (V *ModelView) column_name(i int) string {
+	list := V.genListFields()
+	if i < len(list) {
+		return list[i].DBName
+	}
+	return ""
 }
 
 func (V *ModelView) is_editable(name string) bool {
@@ -709,8 +715,8 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 	}
 
 	if q.Sort != "" {
-		// column_index := must(strconv.Atoi(q.Sort))
-		column_name := "" // V.columns[column_index].Name
+		idx := cast.ToInt(q.Sort)
+		column_name := V.column_name(idx)
 
 		ndb = ndb.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: column_name},

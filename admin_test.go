@@ -13,7 +13,7 @@ func TestPager(t *testing.T) {
 	is.Equal(10, r.NumPages())
 	ps := r.PageItems()
 	is.Len(ps, 11)
-	is.NotEmpty(r.Html())
+	is.NotEmpty(r.PagerHtml())
 
 	r = Result{Query: &Query{Page: 5, PageSize: 10}, Total: 100}
 	r = Result{Query: &Query{Page: 9, PageSize: 10}, Total: 100}
