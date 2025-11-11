@@ -21,7 +21,6 @@ func TestPager(t *testing.T) {
 	r = Result{Query: &Query{Page: 0, PageSize: 10}, Total: 11}
 	r = Result{Query: &Query{Page: 1, PageSize: 10}, Total: 11}
 	r = Result{Query: &Query{Page: 0, PageSize: 1}, Total: 1}
-
 }
 
 func TestText(t *testing.T) {

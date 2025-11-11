@@ -3,8 +3,8 @@ package gadmin
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html/template"
+	"os"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -83,8 +83,9 @@ func jsonify(a any) string {
 var formTemplate *template.Template
 
 func init() {
-	fmt.Printf("... load template ...\n")
-	formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
+	if _, err := os.Stat("templates/form.gotmpl"); err == nil {
+		formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
+	}
 }
 
 type modelForm struct {

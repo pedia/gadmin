@@ -1,11 +1,13 @@
 package gadmin
 
 import (
+	"encoding/csv"
 	"fmt"
 	"html/template"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/go-playground/form/v4"
@@ -122,19 +124,6 @@ func NewModelView(m any, category ...string) *ModelView {
 	mv.column_sortable_list = mv.sortableColumns()
 
 	return &mv
-}
-
-func (V *ModelView) applyJoins(db *gorm.DB) *gorm.DB {
-	for _, q := range V.joins {
-		db = db.Joins(q.query, q.args...)
-	}
-	for _, q := range V.innerJoins {
-		db = db.InnerJoins(q.query, q.args...)
-	}
-	for _, q := range V.preloads {
-		db = db.Preload(q.query, q.args...)
-	}
-	return db
 }
 
 func (V *ModelView) Joins(query string, args ...any) *ModelView {
@@ -343,11 +332,6 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 				return desc
 			}
 			return V.find(name).Description
-		},
-		"clear_search_url": func() string {
-			q := *q // simply copy
-			q.Search = ""
-			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
 		},
 	}, map[string]any{
 		"count":             len(result.Rows),
@@ -641,7 +625,34 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request)    {}
 func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
-func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {}
+func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
+	result := V.list(q)
+	if result.Error != nil {
+		panic(result.Error)
+	}
+
+	fn := fmt.Sprintf("attachment;filename=%s-%s.csv", V.name(),
+		time.Now().Format(time.DateOnly))
+	w.Header().Add("content-disposition", fn)
+	w.Header().Add("content-type", "text/csv")
+
+	cw := csv.NewWriter(w)
+
+	// header
+	header := lo.Map(V.genListFields(), func(f *Field, _ int) string {
+		return f.DBName
+	})
+	cw.Write(header)
+
+	for _, row := range result.Rows {
+		line := lo.Map(V.form(row).Fields, func(f *Field, _ int) string {
+			return cast.ToString(row.GetDisplayValue(f))
+		})
+		cw.Write(line)
+	}
+	cw.Flush()
+}
 
 // request to dict, like flask.request
 func rd(r *http.Request) map[string]any {
@@ -708,6 +719,11 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"list_form":   V.list_form,
 		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,
+		"clear_search_url": func() string {
+			q := V.queryFrom(r)
+			q.Search = ""
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
+		},
 	}, funcs)
 
 	fs = append(fs, "templates/"+name)
@@ -715,6 +731,19 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
+}
+
+func (V *ModelView) applyJoins(db *gorm.DB) *gorm.DB {
+	for _, q := range V.joins {
+		db = db.Joins(q.query, q.args...)
+	}
+	for _, q := range V.innerJoins {
+		db = db.InnerJoins(q.query, q.args...)
+	}
+	for _, q := range V.preloads {
+		db = db.Preload(q.query, q.args...)
+	}
+	return db
 }
 
 func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB {

@@ -37,6 +37,7 @@ type generator struct {
 }
 
 func (g *generator) Run(admin *Admin, w io.Writer) error {
+	// safe guard for call from websocket
 	if g == nil {
 		return errors.New("")
 	}

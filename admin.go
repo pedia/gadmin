@@ -132,7 +132,7 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 		b = cb
 	}
 
-	res, err := b.GetUrl(endpoint, pairsToQuery(args...))
+	res, err := b.GetUrl(endpoint, args...)
 	if err != nil {
 		return "", err
 	}
@@ -309,7 +309,6 @@ func (w *wsWriter) Write(p []byte) (n int, err error) {
 var g *generator
 
 func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
-	// is websocket?
 	if websocket.IsWebSocketUpgrade(r) {
 		upgrader := websocket.Upgrader{
 			ReadBufferSize:  1024,
@@ -321,11 +320,12 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("upgrade failed", err)
 			return
 		}
+
 		// ignore all input
 		go conn.ReadMessage()
 		go func() {
 			g.Run(A, &wsWriter{conn})
-			g = nil
+			g = nil // cleanup
 		}()
 		return
 	}
@@ -346,7 +346,7 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost && A.DB != nil {
 		r.ParseForm()
 		sql = r.FormValue("sql")
-		// CAUTION: non-checked sql, even it's drop table
+		// CAUTION: non-checked sql, even drop table
 		var rs []map[string]any
 		tx := A.DB.Raw(sql).Scan(&rs)
 		// Raw/Scan not support offset/limit
@@ -360,8 +360,8 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	A.Render(w, r, "templates/console.gotmpl", nil, map[string]any{
-		"result": result,
 		"sql":    sql,
+		"result": result,
 	})
 }
 func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {

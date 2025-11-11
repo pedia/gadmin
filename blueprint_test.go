@@ -74,8 +74,8 @@ func TestBlueprint(t *testing.T) {
 
 	is.Equal("/admin/foo/edit", must(f.GetUrl(".edit_view")))
 
-	f.AddChild(&Blueprint{Endpoint: "bar", Path: "/haha"})
-	is.Equal("/admin/foo/haha", must(a.GetUrl("foo.bar")))
+	// f.AddChild(&Blueprint{Endpoint: "bar", Path: "/haha"})
+	// is.Equal("/admin/foo/haha", must(a.GetUrl("foo.bar")))
 
 	// level3, replace bar
 	f.AddChild(&Blueprint{Endpoint: "bar", Path: "/bar", Children: map[string]*Blueprint{

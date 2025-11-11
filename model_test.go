@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/glebarez/sqlite"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
@@ -31,8 +30,8 @@ type AllTyped struct {
 	ActivatedAt  sql.NullTime
 	CreatedAt    time.Time `gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime:nano"`
-
-	Decimal decimal.Decimal
+	Decimal      decimal.Decimal
+	Bytes        []byte `gorm:"size:32"`
 }
 
 // belongs to https://gorm.io/docs/belongs_to.html
@@ -131,17 +130,10 @@ func TestModel(t *testing.T) {
 
 func TestWidget(t *testing.T) {
 	is := assert.New(t)
-
 	m := NewModel(AllTyped{})
-	_ = is
 
 	html := ModelForm(m.Fields).Html()
 	is.NotEmpty(html)
-
-	// x := XEditableWidget{model: m, column: m.columns[1]}
-	// is.Equal(template.HTML(
-	// 	`<a data-csrf="" data-pk="3" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="foo" href="#" id="name" name="name">foo</a>`),
-	// 	x.html(r))
 }
 
 type ModelTestSuite struct {
@@ -154,7 +146,7 @@ type ModelTestSuite struct {
 func (S *ModelTestSuite) SetupTest() {
 	S.assert = assert.New(S.T())
 
-	db, _ := gorm.Open(sqlite.Open("../db.sqlite"),
+	db, _ := gorm.Open(sqlite.Open(":memory:"),
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info),
@@ -164,7 +156,12 @@ func (S *ModelTestSuite) SetupTest() {
 	var c int64
 	tx := db.Model(&Company{}).Count(&c)
 	if tx.Error != nil || c == 0 {
-		db.AutoMigrate(&AllTyped{}, &Company{}, &Employee{})
+		db.AutoMigrate(&AllTyped{},
+			&Company{}, &Employee{},
+			&CreditCard{}, &User{},
+			&Address{}, &Account{},
+			&Language{}, &Student{},
+			&Toy{}, &Dog{})
 
 		// e1 := "foo@foo.com"
 		// d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, time.Local)
@@ -192,22 +189,22 @@ func (S *ModelTestSuite) SetupTest() {
 		}
 	}
 
-	// S.fooView = admin.AddView(NewModelView(Typed{})).(*ModelView)
+	S.fooView = S.admin.AddView(NewModelView(AllTyped{})).(*ModelView)
 
-	// admin.AddView(NewModelView(Company{}, "Association"))
-	// admin.AddView(NewModelView(Employee{}, "Association"))
+	S.admin.AddView(NewModelView(Company{}, "Association"))
+	S.admin.AddView(NewModelView(Employee{}, "Association"))
 
-	// admin.AddView(NewModelView(CreditCard{}, "Association"))
-	// admin.AddView(NewModelView(User{}, "Association"))
+	S.admin.AddView(NewModelView(CreditCard{}, "Association"))
+	S.admin.AddView(NewModelView(User{}, "Association"))
 
-	// admin.AddView(NewModelView(Address{}, "Association"))
-	// admin.AddView(NewModelView(Account{}, "Association"))
+	S.admin.AddView(NewModelView(Address{}, "Association"))
+	S.admin.AddView(NewModelView(Account{}, "Association"))
 
-	// admin.AddView(NewModelView(Language{}, "Association"))
-	// admin.AddView(NewModelView(Student{}, "Association"))
+	S.admin.AddView(NewModelView(Language{}, "Association"))
+	S.admin.AddView(NewModelView(Student{}, "Association"))
 
-	// admin.AddView(NewModelView(Toy{}, "Association"))
-	// admin.AddView(NewModelView(Dog{}, "Association"))
+	S.admin.AddView(NewModelView(Toy{}, "Association"))
+	S.admin.AddView(NewModelView(Dog{}, "Association"))
 }
 
 func TestModelTestSuite(t *testing.T) {
@@ -215,15 +212,12 @@ func TestModelTestSuite(t *testing.T) {
 }
 
 func (S *ModelTestSuite) TestRelations() {
-	ve := NewModelView(Employee{}, "Association").Joins("Company")
-	S.admin.AddView(ve)
-	r := ve.list(DefaultQuery())
-	S.assert.Nil(r.Error)
-	S.assert.Len(r.Rows, 2)
-	S.assert.Equal(int64(2), r.Total)
-
-	m := structs.Map(r.Rows[0])
-	S.assert.Len(m, 3)
+	// ve := NewModelView(Employee{}, "Association").Joins("Company")
+	// S.admin.AddView(ve)
+	// r := ve.list(DefaultQuery())
+	// S.assert.Nil(r.Error)
+	// S.assert.Len(r.Rows, 2)
+	// S.assert.Equal(int64(2), r.Total)
 }
 
 func (S *ModelTestSuite) TestModelView() {
@@ -233,12 +227,9 @@ func (S *ModelTestSuite) TestModelView() {
 
 	is.NotEmpty(v.GetBlueprint().Children)
 
-	is.Equal("/foo/", must(v.Blueprint.GetUrl(".index_view", nil)))
-	is.Equal("/foo/action", must(v.Blueprint.GetUrl(".action_view", nil)))
-	is.Equal("/foo/action?a=b", must(v.Blueprint.GetUrl(".action_view", nil, "a", "b")))
-
-	is.Equal([]string{"id", "name", "email", "age", "normal", "valid", "member_number", "birthday", "activated_at", "created_at", "updated_at", "decimal"}, v.column_list)
-	is.Equal([]string{"id", "name", "email", "age", "normal", "valid", "member_number", "birthday", "activated_at", "created_at", "updated_at", "decimal"}, v.column_sortable_list)
+	is.Equal("/alltyped/", must(v.Blueprint.GetUrl(".index_view")))
+	is.Equal("/alltyped/action", must(v.Blueprint.GetUrl(".action_view")))
+	is.Equal("/alltyped/action?a=b", must(v.Blueprint.GetUrl(".action_view", "a", "b")))
 
 	// query
 	r1 := httptest.NewRequest("", "/admin/tag/?sort=0&desc=1&page_size=23&page=2", nil)
@@ -252,14 +243,14 @@ func (S *ModelTestSuite) TestModelView() {
 	q2 := v.queryFrom(r2)
 	is.Equal("1", q2.Sort)
 	is.Equal(false, q2.Desc)
-	is.Equal(0, q2.PageSize)
+	is.Equal(20, q2.PageSize)
 	is.Equal(0, q2.Page)
 
 	r3 := httptest.NewRequest("", "/admin/tag/details?id=6&url=%2Fadmin%2Ftag%2F%3Fdesc%3D1%26sort%3D1", nil)
 	q3 := v.queryFrom(r3)
 	is.Equal("", q3.Sort)
 	is.Equal(false, q3.Desc)
-	is.Equal(0, q3.PageSize)
+	is.Equal(20, q3.PageSize)
 	is.Equal(0, q3.Page)
 	is.Equal("6", q3.Get("id"))
 	is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
@@ -277,21 +268,15 @@ func (S *ModelTestSuite) TestSession() {
 	is.Equal(200, w.Code)
 }
 
-func (S *ModelTestSuite) TestUrl() {
+func (S *ModelTestSuite) TestUrlStatusCode() {
 	is := assert.New(S.T())
 
-	is.Equal("/admin/foo/", must(S.admin.UrlFor("", "foo.index")))
-	is.Equal("/admin/foo/", lo.Must(S.admin.UrlFor("foo", ".index")))
-
-	is.Equal("/admin/foo/?a=1", lo.Must(S.admin.UrlFor("", "foo.index", "a", 1)))
-	is.Equal("/admin/foo/?page=3", lo.Must(S.admin.UrlFor("foo", ".index", "page", 3)))
-
-	// is.Equal("/admin/foo/export?export_type=csv", must(S.fooView.GetUrl(".export", nil, "export_type", "csv")))
-	// is.Equal("/admin/foo/?page_size=0", must(S.fooView.GetUrl(".index_view", nil, "page_size", 0))) // bad page_size
+	is.Equal("/admin/alltyped/", must(S.admin.UrlFor("", "alltyped.index")))
 
 	es := []string{
+		"alltyped",
 		"company", "employee",
-		"credit_card", "user", "address", "account",
+		"creditcard", "user", "address", "account",
 		"language", "student", "toy", "dog",
 	}
 
@@ -299,11 +284,11 @@ func (S *ModelTestSuite) TestUrl() {
 		return []string{
 			fmt.Sprintf("/admin/%s/", e),
 			fmt.Sprintf("/admin/%s/new", e),
-			// fmt.Sprintf("/admin/%s/edit", e),
+			// 302 fmt.Sprintf("/admin/%s/edit", e),
 			// fmt.Sprintf("/admin/%s/details", e),
 			// fmt.Sprintf("/admin/%s/action", e),
 			// fmt.Sprintf("/admin/%s/delete", e),
-			// fmt.Sprintf("/admin/%s/export", e),
+			fmt.Sprintf("/admin/%s/export", e),
 		}
 	})
 

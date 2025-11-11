@@ -45,7 +45,8 @@ func (b *Blueprint) AddChild(child *Blueprint) error {
 		b.Children = map[string]*Blueprint{}
 	}
 	if _, ok := b.Children[child.Endpoint]; ok {
-		return fmt.Errorf("duplicated child %s", child.Endpoint)
+		// allow replace?
+		log.Printf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
 	}
 	b.Children[child.Endpoint] = child
 
@@ -74,14 +75,14 @@ func (b *Blueprint) registerTo(mux *http.ServeMux, parent string) {
 			log.Printf("warning: Blueprint(%s path: %s) not start with /", b.Name, b.Path)
 		}
 
-		log.Printf("%s handle %s", b.Name, parent+b.Path)
+		// log.Printf("%s handle %s", b.Name, parent+b.Path)
 		if strings.HasSuffix(b.Path, "/") {
 			mux.HandleFunc(parent+b.Path+"{$}", b.Handler)
 		} else {
 			mux.HandleFunc(parent+b.Path, b.Handler)
 		}
 	} else if b.Endpoint == "static" && b.StaticFolder != "" {
-		log.Printf("%s handle %s fs: %s", b.Name, parent+b.Path, b.StaticFolder)
+		// log.Printf("%s handle %s fs: %s", b.Name, parent+b.Path, b.StaticFolder)
 
 		if !strings.HasSuffix(b.Path, "/") {
 			panic("Blueprint(Name='static').Path should end with /")

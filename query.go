@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 	"net/url"
+	"os"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -170,7 +171,9 @@ func (r *Result) PageItems() []pager {
 var pagerTemplate *template.Template
 
 func init() {
-	pagerTemplate = parseTemplate("pager", nil, "templates/pager.gotmpl")
+	if _, err := os.Stat("templates/pager.gotmpl"); err == nil {
+		pagerTemplate = parseTemplate("pager", nil, "templates/pager.gotmpl")
+	}
 }
 
 func (r *Result) PagerHtml() template.HTML {
