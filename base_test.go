@@ -175,6 +175,7 @@ func ExampleTemplate() {
 	}
 
 	// Output:
-	// 3baseb1
-	// 4baseb2
+	// 3b1
+	//
+	// 4b2
 }
