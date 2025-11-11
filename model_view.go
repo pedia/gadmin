@@ -256,11 +256,14 @@ func (V *ModelView) genListFields() []*Field {
 			return true
 		}
 
-		if field.PrimaryKey {
-			return V.column_display_pk
+		if len(V.column_list) > 0 {
+			return false
+		} else {
+			if field.PrimaryKey {
+				return V.column_display_pk
+			}
+			return true
 		}
-
-		return true
 	})
 
 	V.list_fields = lo.Map(list, func(field *schema.Field, _ int) *Field {

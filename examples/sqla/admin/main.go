@@ -71,6 +71,7 @@ func main() {
 			{Value: "regular-user", Label: "Regular user"}},
 		}).
 		SetCanSetPageSize().
+		SetColumnList("type", "first_name", "born_date", "valid", "currency", "dialling_code").
 		SetColumnSearchableList("first_name", "last_name").
 		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid", "born_date")
 	a.AddView(vu)

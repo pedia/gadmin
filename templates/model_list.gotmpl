@@ -182,15 +182,6 @@
         </table>
         </div>
 
-        {{ block "list_pager" . }}
-            {{ if gt .num_pages 0  }}
-                {{ template "pager" . | arg "page" .page 
-                | arg "pages" .num_pages |args }}
-            {{ else }}
-                {{ template "simple_pager" . }}
-            {{ end }}
-        {{ end }}
-
         {{ .result.PagerHtml }}
 
         {{ block "actions" . }}
