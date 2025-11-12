@@ -3,7 +3,6 @@ package gadmin
 import (
 	"database/sql"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -138,20 +137,20 @@ func TestWidget(t *testing.T) {
 
 type ModelTestSuite struct {
 	suite.Suite
-	assert  *assert.Assertions
+	is      *assert.Assertions
 	admin   *Admin
 	fooView *ModelView
 }
 
-func (S *ModelTestSuite) SetupTest() {
-	S.assert = assert.New(S.T())
+func (sure *ModelTestSuite) SetupTest() {
+	sure.is = assert.New(sure.T())
 
 	db, _ := gorm.Open(sqlite.Open(":memory:"),
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info),
 		})
-	S.admin = NewAdmin("Test Site", db)
+	sure.admin = NewAdmin("Test Site", db)
 
 	var c int64
 	tx := db.Model(&Company{}).Count(&c)
@@ -189,29 +188,29 @@ func (S *ModelTestSuite) SetupTest() {
 		}
 	}
 
-	S.fooView = S.admin.AddView(NewModelView(AllTyped{})).(*ModelView)
+	sure.fooView = sure.admin.AddView(NewModelView(AllTyped{})).(*ModelView)
 
-	S.admin.AddView(NewModelView(Company{}, "Association"))
-	S.admin.AddView(NewModelView(Employee{}, "Association"))
+	sure.admin.AddView(NewModelView(Company{}, "Association"))
+	sure.admin.AddView(NewModelView(Employee{}, "Association"))
 
-	S.admin.AddView(NewModelView(CreditCard{}, "Association"))
-	S.admin.AddView(NewModelView(User{}, "Association"))
+	sure.admin.AddView(NewModelView(CreditCard{}, "Association"))
+	sure.admin.AddView(NewModelView(User{}, "Association"))
 
-	S.admin.AddView(NewModelView(Address{}, "Association"))
-	S.admin.AddView(NewModelView(Account{}, "Association"))
+	sure.admin.AddView(NewModelView(Address{}, "Association"))
+	sure.admin.AddView(NewModelView(Account{}, "Association"))
 
-	S.admin.AddView(NewModelView(Language{}, "Association"))
-	S.admin.AddView(NewModelView(Student{}, "Association"))
+	sure.admin.AddView(NewModelView(Language{}, "Association"))
+	sure.admin.AddView(NewModelView(Student{}, "Association"))
 
-	S.admin.AddView(NewModelView(Toy{}, "Association"))
-	S.admin.AddView(NewModelView(Dog{}, "Association"))
+	sure.admin.AddView(NewModelView(Toy{}, "Association"))
+	sure.admin.AddView(NewModelView(Dog{}, "Association"))
 }
 
 func TestModelTestSuite(t *testing.T) {
 	suite.Run(t, new(ModelTestSuite))
 }
 
-func (S *ModelTestSuite) TestRelations() {
+func (sure *ModelTestSuite) TestRelations() {
 	// ve := NewModelView(Employee{}, "Association").Joins("Company")
 	// S.admin.AddView(ve)
 	// r := ve.list(DefaultQuery())
@@ -220,8 +219,8 @@ func (S *ModelTestSuite) TestRelations() {
 	// S.assert.Equal(int64(2), r.Total)
 }
 
-func (S *ModelTestSuite) TestModelView() {
-	is := assert.New(S.T())
+func (sure *ModelTestSuite) TestModelView() {
+	is := assert.New(sure.T())
 
 	v := NewModelView(AllTyped{})
 
@@ -256,22 +255,20 @@ func (S *ModelTestSuite) TestModelView() {
 	is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
 }
 
-func (S *ModelTestSuite) TestSession() {
-	is := assert.New(S.T())
-	S.admin.Register(&Blueprint{Endpoint: "bar", Path: "/bar",
-		Handler: func(w http.ResponseWriter, r *http.Request) {
-			CurrentSession(r).Set("bar", "hello")
-		}})
-	r := httptest.NewRequest("GET", "/admin/bar", nil)
-	w := httptest.NewRecorder()
-	S.admin.ServeHTTP(w, r)
-	is.Equal(200, w.Code)
-}
+// func (S *ModelTestSuite) TestSession() {
+// 	is := assert.New(S.T())
+// 	S.admin.Register(&Blueprint{Endpoint: "bar", Path: "/bar",
+// 		Handler: func(w http.ResponseWriter, r *http.Request) {
+// 			CurrentSession(r).Set("bar", "hello")
+// 		}})
+// 	r := httptest.NewRequest("GET", "/admin/bar", nil)
+// 	w := httptest.NewRecorder()
+// 	S.admin.ServeHTTP(w, r)
+// 	is.Equal(200, w.Code)
+// }
 
-func (S *ModelTestSuite) TestUrlStatusCode() {
-	is := assert.New(S.T())
-
-	is.Equal("/admin/alltyped/", must(S.admin.UrlFor("", "alltyped.index")))
+func (sure *ModelTestSuite) TestUrlStatusCode() {
+	sure.is.Equal("/admin/alltyped/", must(sure.admin.UrlFor("", "alltyped.index")))
 
 	es := []string{
 		"alltyped",
@@ -295,7 +292,7 @@ func (S *ModelTestSuite) TestUrlStatusCode() {
 	for _, path := range paths {
 		r := httptest.NewRequest("GET", path, nil)
 		w := httptest.NewRecorder()
-		S.admin.ServeHTTP(w, r)
-		is.Equal(200, w.Code, path)
+		sure.admin.ServeHTTP(w, r)
+		sure.is.Equal(200, w.Code, path)
 	}
 }

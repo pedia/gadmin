@@ -11,6 +11,7 @@ import (
 
 	"github.com/fatih/camelcase"
 	"github.com/go-playground/form/v4"
+	"github.com/gorilla/csrf"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
@@ -468,7 +469,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 
 		one := V.parseForm(r.PostForm)
 		if err := V.create(one); err == nil {
-			Flash(r, gettext("Record was successfully created."), "success")
+			// Flash(r, gettext("Record was successfully created."), "success")
 
 			// "_add_another"
 			// "_continue_editing"
@@ -490,7 +491,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
-		"form":       V.form(nil),
+		"form":       V.form(nil, csrf.Token(r)),
 		"cancel_url": "TODO:cancel_url",
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
@@ -517,7 +518,7 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	one, err := V.getOne(q.Get("id")) // force "id"
 	if err != nil {
 		// TODO: make this work
-		Flash(r, V.admin.gettext("Record does not exist."), "danger")
+		// Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
 		V.redirect(w, r, q.Get("url"))
 		return
@@ -525,7 +526,7 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
 		"model":           one,
-		"form":            V.form(one),
+		"form":            V.form(one, csrf.Token(r)),
 		"details_columns": V.genListFields(),
 		"request":         rd(r),
 	})
@@ -576,7 +577,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 
 	one, err := V.getOne(q.Get("id"))
 	if err != nil {
-		Flash(r, V.admin.gettext("Record does not exist."), "danger")
+		// Flash(r, V.admin.gettext("Record does not exist."), "danger")
 
 		redirect()
 		return
@@ -649,7 +650,7 @@ func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
 	cw.Write(header)
 
 	for _, row := range result.Rows {
-		line := lo.Map(V.form(row).Fields, func(f *Field, _ int) string {
+		line := lo.Map(V.form(row, csrf.Token(r)).Fields, func(f *Field, _ int) string {
 			return cast.ToString(row.GetDisplayValue(f))
 		})
 		cw.Write(line)
@@ -668,20 +669,21 @@ func rd(r *http.Request) map[string]any {
 
 // create form: no primarykey
 // edit form: hidden primarykey
-func (V *ModelView) form(one Row) *modelForm {
-	var list []*Field
+func (V *ModelView) form(one Row, token string) *modelForm {
+	list := []*Field{HiddenField(token)}
 	if one == nil {
 		// create
 		if V.createFormFields == nil {
 			V.createFormFields = V.genFormFields(true)
 		}
-		list = V.createFormFields
+		list = append(list, V.createFormFields...)
 	} else {
 		if V.editFormFields == nil {
 			V.editFormFields = V.genFormFields(false)
 		}
-		list = V.editFormFields
+		list = append(list, V.editFormFields...)
 	}
+
 	return ModelForm(list, one)
 }
 
@@ -710,7 +712,8 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 			return V.Blueprint.GetUrl(V.Blueprint.Endpoint+".index_view", nil)
 		},
 		"get_flashed_messages": func() []map[string]any {
-			return GetFlashedMessages(r)
+			// return GetFlashedMessages(r)
+			return nil
 		},
 		"get_url": func(endpoint string, args ...any) string {
 			return must(V.Blueprint.GetUrl(endpoint, args...))
@@ -718,7 +721,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"pager_url": func(page int) string {
 			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
 		},
-		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
+		"csrf_token":  func() string { return csrf.Token(r) },
 		"list_form":   V.list_form,
 		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,

@@ -3,7 +3,7 @@
 {{- end}}
 
 {{define "field_checkbox"}}
-    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}0{{end}}">
 {{end}}
 
 
@@ -48,7 +48,7 @@
   <fieldset>
   {{range .}}
     {{if .Hidden}}
-    <input id="csrf_token" name="csrf_token" type="hidden" value="20251107150559##93177da48739fb04a23193debca45352b0235f1a">
+      {{- .Html -}}
     {{else}}
     <div class="form-group">
       <label for="{{.DBName}}" class="control-label">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>

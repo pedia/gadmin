@@ -9,7 +9,9 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/handlers v1.5.2
+	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/pedia/gadmin v0.0.0-20241029124951-214a8509e0d9
@@ -35,7 +37,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

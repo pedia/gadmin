@@ -26,8 +26,8 @@ jobs:
 
     - name: Test
       run: |
-        mkdir t dao
-        echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > t/base.html
-        echo 'd1{{define "body" }}b1{{end}}' > t/d1.html
-        echo 'd2{{define "body" }}b2{{end}}' > t/d2.html
+        mkdir dao
+        echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > templates/base.html
+        echo 'd1{{define "body" }}b1{{end}}' > templates/d1.html
+        echo 'd2{{define "body" }}b2{{end}}' > templates/d2.html
         go test -v ./...

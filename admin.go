@@ -1,33 +1,48 @@
 package gadmin
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"gadmin/isdebug"
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/gorilla/csrf"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
+	"github.com/samber/lo"
+	"github.com/spf13/cast"
 	"gopkg.in/leonelquinteros/gotext.v1"
 
 	"gorm.io/gorm"
 )
 
+func key(secret string) []byte {
+	h := sha256.New()
+	h.Write([]byte(secret))
+	return h.Sum(nil)
+}
+
 func NewAdmin(name string, db *gorm.DB) *Admin {
+	key := key("hello")
 	A := &Admin{
 		DB: db,
 		BaseView: &BaseView{Menu: Menu{
 			Path: "/admin/",
 			Name: gettext("Home"),
 		}},
-		views:       []View{},
-		debug:       isdebug.Enabled,
-		autoMigrate: true,
-		secret:      NewSecret("hello"), // TODO: read from config
-		mux:         http.NewServeMux(),
-
+		views:             []View{},
+		debug:             isdebug.Enabled,
+		autoMigrate:       true,
+		key:               key, // TODO: read from config
+		sessionKey:        "sess",
+		protect:           csrf.Protect(key, csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
+		mux:               http.NewServeMux(),
 		indexTemplateFile: "templates/index.gotmpl",
 	}
 	A.BaseView.admin = A
@@ -48,7 +63,7 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			"generate":   {Endpoint: "generate", Path: "/generate", Handler: A.generateHandler},
 			"console":    {Endpoint: "console", Path: "/console", Handler: A.consoleHandler},
 			"trace":      {Endpoint: "trace", Path: "/trace", Handler: A.traceHandler},
-			"test":       {Endpoint: "test", Path: "/test", Handler: A.testHandler},
+			"ping":       {Endpoint: "ping", Path: "/ping", Handler: A.pingHandler},
 			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static"},
 		}}
 
@@ -69,9 +84,21 @@ type Admin struct {
 	views             []View
 	debug             bool
 	autoMigrate       bool
-	secret            *Secret
+	key               []byte
+	sessionKey        string
+	protect           func(http.Handler) http.Handler
 	mux               *http.ServeMux
 	indexTemplateFile string
+}
+
+func (A *Admin) Session(r *http.Request) *sessions.Session {
+	store := sessions.NewCookieStore(A.key)
+	store.Options.SameSite = http.SameSiteStrictMode // TODO:
+	sess, err := store.Get(r, A.sessionKey)
+	if err != nil {
+		sess = sessions.NewSession(store, A.sessionKey)
+	}
+	return sess
 }
 
 func (A *Admin) Register(b *Blueprint) {
@@ -140,30 +167,24 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 }
 
 func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO: NewBufferWriter not implement hijack
-	// r2 := PatchSession(r, A)
-	// w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
-	// 	sess := CurrentSession(r2)
-	// 	// log.Printf("session %s save %d", r.URL, len(sess.Values))
-	// 	err := sess.Save(w)
-	// 	if err != nil {
-	// 		// log.Printf("session save failed %s", err)
-	// 	}
-	// })
-	// A.mux.ServeHTTP(w2, r2)
-	// w2.(http.Flusher).Flush()
+	// for http
+	r = csrf.PlaintextHTTPRequest(r)
 
-	A.mux.ServeHTTP(w, r)
+	// csrf protect
+	handlers.LoggingHandler(os.Stdout,
+		A.protect(A.mux)).ServeHTTP(w, r)
 
+	// trace
 	defer A.trace.CheckTrace(r)
 }
 
 func (A *Admin) Run() {
 	serv := http.Server{
 		Addr: ":3333",
-		// Handler: handlers.LoggingHandler(os.Stdout, A)}
+		// Handler: (os.Stdout, A)}
 		Handler: A}
 
+	log.Printf("Running on http://127.0.0.1:3333/admin/")
 	serv.ListenAndServe()
 }
 
@@ -205,7 +226,6 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 		"db":    A.DB != nil,
 		"name":  A.Blueprint.Name,
 		"url":   A.Blueprint.Path, // "/admin"
-		// "admin_base_template": "base.html",
 		// 'swatch' from flask-admin
 		"swatch": theme(), // "cerulean", "default"
 		"menu":   A.BaseView.Menu.dict(),
@@ -221,19 +241,31 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 func (A *Admin) indexHandler(w http.ResponseWriter, r *http.Request) {
 	A.Render(w, r, A.indexTemplateFile, nil, A.dict())
 }
-func (A *Admin) testHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("test"))
+func (A *Admin) pingHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("ping"))
 }
 func (A *Admin) debugHandler(w http.ResponseWriter, r *http.Request) {
-	s := CurrentSession(r)
-	c := s.Get("C")
-	if c == nil {
-		c = 0
+	s := A.Session(r)
+
+	cv := r.Context().Value(csrf.PlaintextHTTPContextKey)
+	if cv == nil {
+		panic("not found PlaintextHTTPContextKey")
 	}
-	s.Set("C", c.(int)+1)
+
+	v := s.Flashes("C")
+	if v == nil {
+		s.AddFlash("hello", "C")
+		s.Save(r, w)
+	}
+
+	sv := lo.MapEntries(s.Values, func(k any, v any) (string, any) {
+		return cast.ToString(k), v
+	})
+
 	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprint": A.Blueprint.dict(),
-		"session":   s.Values,
+		"flash":     v,
+		"session":   sv,
 	}))
 }
 func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
@@ -332,12 +364,18 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// normal GET/POST
 	if r.Method == http.MethodGet {
-		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": nil})
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
+			"gen":        nil,
+			"csrf_field": csrf.TemplateField(r),
+		})
 	} else {
 		r.ParseForm()
 		g = NewGenerator(r.FormValue("url"))
 		g.Package = r.FormValue("package")
-		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": g})
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
+			"gen":        g,
+			"csrf_field": csrf.TemplateField(r),
+		})
 	}
 }
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
@@ -360,8 +398,9 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	A.Render(w, r, "templates/console.gotmpl", nil, map[string]any{
-		"sql":    sql,
-		"result": result,
+		"sql":        sql,
+		"result":     result,
+		"csrf_field": csrf.TemplateField(r),
 	})
 }
 func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {

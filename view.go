@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/gorilla/csrf"
 )
 
 type View interface {
@@ -75,10 +77,11 @@ func (V *BaseView) IsAccessible() bool       { return true }
 func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, fn string, funcs template.FuncMap, data map[string]any) {
 	fm := V.admin.funcs(funcs)
 	fm["get_flashed_messages"] = func() []map[string]any {
-		return GetFlashedMessages(r)
+		// return GetFlashedMessages(r)
+		return nil
 	}
 	fm["pager_url"] = func() string { return "TODO" }
-	fm["csrf_token"] = func() string { return "TODO" }
+	fm["csrf_token"] = func() string { return csrf.Token(r) }
 
 	t := template.Must(template.New("views").
 		Option("missingkey=error").
@@ -110,7 +113,7 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
 		"admin_fluid_layout": true,
-		"csrf_token":         NewCSRF(CurrentSession(r)).GenerateToken,
+		"csrf_token":         func() string { return csrf.Token(r) },
 	}
 
 	if len(others) > 0 {

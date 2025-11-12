@@ -40,13 +40,14 @@ type Blueprint struct {
 }
 
 // like flask `Blueprint.Register`
-func (b *Blueprint) AddChild(child *Blueprint) error {
+func (b *Blueprint) AddChild(child *Blueprint) (err error) {
 	if b.Children == nil {
 		b.Children = map[string]*Blueprint{}
 	}
 	if _, ok := b.Children[child.Endpoint]; ok {
 		// allow replace?
 		log.Printf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
+		err = fmt.Errorf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
 	}
 	b.Children[child.Endpoint] = child
 
@@ -54,7 +55,7 @@ func (b *Blueprint) AddChild(child *Blueprint) error {
 
 	// fix all children's Parent
 	fixPointer(b)
-	return nil
+	return err
 }
 
 func fixPointer(b *Blueprint) {

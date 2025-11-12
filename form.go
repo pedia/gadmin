@@ -98,44 +98,48 @@ func ModelForm(fields []*Field, rows ...Row) *modelForm {
 	if len(rows) > 0 {
 		form.Row = rows[0]
 	}
-	return form
-}
 
-func (f *modelForm) patchValue() []*valueField {
-	return lo.Map(f.Fields, func(field *Field, _ int) *valueField {
-		return &valueField{field, f.Row.Get(field)}
-	})
+	if form.Row != nil {
+		lo.ForEach(fields, func(field *Field, _ int) {
+			if !field.Hidden {
+				field.Value = form.Row.Get(field)
+			}
+		})
+	}
+	return form
 }
 
 // new hidden Field, and return it's Html
 func (f *modelForm) Hidden(name, value string) template.HTML {
-	field := &valueField{
-		Field: &Field{
-			Field:  &schema.Field{DBName: name},
-			Hidden: true},
-		Value: value,
+	field := &Field{
+		Field:  &schema.Field{DBName: name},
+		Hidden: true,
+		Value:  value,
 	}
 	return field.Html()
+}
+
+func HiddenField(token string) *Field {
+	return &Field{
+		Field:  &schema.Field{DBName: "csrf_token"},
+		Hidden: true,
+		Value:  token,
+	}
 }
 
 func (f *modelForm) Html() template.HTML {
 	w := bytes.Buffer{}
 
 	// TODO: rename form_all to render_form
-	if err := formTemplate.ExecuteTemplate(&w, "form_all", f.patchValue()); err != nil {
+	if err := formTemplate.ExecuteTemplate(&w, "form_all", f.Fields); err != nil {
 		panic(err)
 	}
 	return template.HTML(w.String())
 }
 
-type valueField struct {
-	*Field
-	Value any
-}
-
 // this not worked:
 // {{ template .TemplateName }}
-func (f *valueField) Html() template.HTML {
+func (f *Field) Html() template.HTML {
 	if f.Hidden {
 		return f.render("field_hidden")
 	}
@@ -166,7 +170,7 @@ func (f *valueField) Html() template.HTML {
 	return ""
 }
 
-func (f *valueField) render(tmpl string) template.HTML {
+func (f *Field) render(tmpl string) template.HTML {
 	w := bytes.Buffer{}
 	if err := formTemplate.ExecuteTemplate(&w, tmpl, f); err != nil {
 		panic(err)

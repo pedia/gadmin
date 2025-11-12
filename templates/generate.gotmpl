@@ -44,6 +44,7 @@ function connect() {
 
 <form action method="post" role="form" class="admin-form">
 <fieldset>
+{{.csrf_field}}
 
 <div class="form-group">
 <label for="url" class="control-label">Database URL<strong style="color: red">&nbsp;&#42;</strong></label>

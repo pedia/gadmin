@@ -158,18 +158,17 @@ func TestBasePtr(t *testing.T) {
 }
 
 func ExampleTemplate() {
-	// mkdir t
-	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > t/base.html
-	// echo 'd1{{define "body" }}b1{{end}}' > t/d1.html
-	// echo 'd2{{define "body" }}b2{{end}}' > t/d2.html
-	base := must(template.New("base.html").ParseFiles("t/base.html"))
+	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > templates/base.html
+	// echo 'd1{{define "body" }}b1{{end}}' > templates/d1.html
+	// echo 'd2{{define "body" }}b2{{end}}' > templates/d2.html
+	base := must(template.New("base.html").ParseFiles("templates/base.html"))
 
-	d1 := must(must(base.Clone()).ParseFiles("t/d1.html"))
+	d1 := must(must(base.Clone()).ParseFiles("templates/d1.html"))
 	if err := d1.Execute(os.Stdout, 3); err != nil {
 		panic(err)
 	}
 
-	d2 := must(must(base.Clone()).ParseFiles("t/d2.html"))
+	d2 := must(must(base.Clone()).ParseFiles("templates/d2.html"))
 	if err := d2.Execute(os.Stdout, 4); err != nil {
 		panic(err)
 	}

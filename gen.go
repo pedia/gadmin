@@ -104,7 +104,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	if isdebug.Enabled {
 		g.exec("go", "build", "-buildmode=plugin",
 			`-gcflags`, `all=-N -l`, // debug
-			"-tags", "debug",
+			"-tags", "debug", // for isdebug.Enabled
 			"-o", "libdao.so", "./dao")
 	} else {
 		g.exec("go", "build", "-buildmode=plugin",
