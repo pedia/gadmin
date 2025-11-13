@@ -1,4 +1,4 @@
-module gadmin
+module gadm
 
 go 1.24.0
 
@@ -21,6 +21,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/tdewolff/minify/v2 v2.24.4
 	golang.org/x/net v0.46.0
+	gopkg.in/guregu/null.v4 v4.0.0
 	gopkg.in/leonelquinteros/gotext.v1 v1.3.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.5.0

@@ -1,14 +1,15 @@
-package gadmin
+package gadm
 
 import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"gadmin/isdebug"
+	"gadm/isdebug"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gorilla/csrf"
@@ -28,28 +29,28 @@ func key(secret string) []byte {
 	return h.Sum(nil)
 }
 
-func NewAdmin(name string, db *gorm.DB) *Admin {
-	key := key("hello")
+func NewAdmin(name string) *Admin {
+	key := key("hello") // TODO: read from config
 	A := &Admin{
-		DB: db,
 		BaseView: &BaseView{Menu: Menu{
 			Path: "/admin/",
 			Name: gettext("Home"),
 		}},
-		views:             []View{},
-		debug:             isdebug.Enabled,
-		autoMigrate:       true,
-		key:               key, // TODO: read from config
-		sessionKey:        "sess",
-		protect:           csrf.Protect(key, csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
-		mux:               http.NewServeMux(),
+		views:       []View{},
+		dbs:         map[string]*gorm.DB{},
+		debug:       isdebug.Enabled,
+		autoMigrate: true,
+		trace:       true,
+		tracer:      NewTrace(),
+		key:         key,
+		sessionKey:  "sess",
+		protect: csrf.Protect(key,
+			csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
+		mux: http.NewServeMux(),
+
 		indexTemplateFile: "templates/index.gotmpl",
 	}
 	A.BaseView.admin = A
-
-	if A.DB != nil {
-		A.trace = NewTrace(A.DB)
-	}
 
 	A.Blueprint = &Blueprint{
 		Name:     name,
@@ -78,12 +79,13 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 
 type Admin struct {
 	*BaseView
-	DB    *gorm.DB
-	trace *Trace
+	views []View
+	dbs   map[string]*gorm.DB
 
-	views             []View
 	debug             bool
 	autoMigrate       bool
+	trace             bool
+	tracer            *Trace
 	key               []byte
 	sessionKey        string
 	protect           func(http.Handler) http.Handler
@@ -103,7 +105,7 @@ func (A *Admin) Session(r *http.Request) *sessions.Session {
 
 func (A *Admin) Register(b *Blueprint) {
 	if err := A.Blueprint.AddChild(b); err != nil {
-		fmt.Println(err)
+		log.Print(err)
 		return
 	}
 
@@ -119,7 +121,30 @@ func (A *Admin) AddView(view View) View {
 
 		A.addViewToMenu(view)
 	}
+
+	if mv, ok := view.(*ModelView); ok {
+		if A.autoMigrate {
+			if err := mv.db.Migrator().AutoMigrate(mv.Model.new()); err != nil {
+				log.Printf("auto migrate failed: %s", err)
+			}
+		}
+
+		if !slices.Contains(lo.Values(A.dbs), mv.db) {
+			A.dbs[mv.Blueprint.Name] = mv.db
+		}
+
+		if A.trace {
+			A.tracer.Trace(mv.db)
+		}
+	}
 	return view
+}
+
+func (A *Admin) FindView(endpoint string) View {
+	v, _ := lo.Find(A.views, func(v View) bool {
+		return v.GetBlueprint().Endpoint == endpoint
+	})
+	return v
 }
 
 func (A *Admin) addViewToMenu(view View) {
@@ -175,7 +200,9 @@ func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		A.protect(A.mux)).ServeHTTP(w, r)
 
 	// trace
-	defer A.trace.CheckTrace(r)
+	if A.tracer != nil {
+		defer A.tracer.CheckTrace(r)
+	}
 }
 
 func (A *Admin) Run() {
@@ -223,7 +250,7 @@ func theme() string {
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
 		"debug": A.debug,
-		"db":    A.DB != nil,
+		"db":    len(A.dbs),
 		"name":  A.Blueprint.Name,
 		"url":   A.Blueprint.Path, // "/admin"
 		// 'swatch' from flask-admin
@@ -380,33 +407,43 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 }
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 	result := &Result{Query: DefaultQuery(), Rows: []Row{}}
+	var name string
 	var sql string
-	if r.Method == http.MethodPost && A.DB != nil {
+	if r.Method == http.MethodPost {
 		r.ParseForm()
 		sql = r.FormValue("sql")
-		// CAUTION: non-checked sql, even drop table
-		var rs []map[string]any
-		tx := A.DB.Raw(sql).Scan(&rs)
-		// Raw/Scan not support offset/limit
+		name = r.FormValue("name")
+		db, ok := A.dbs[name]
+		if !ok {
+			result.Error = fmt.Errorf("db %s not exists", name)
+		} else {
+			// CAUTION: non-checked sql, even drop table
+			var rs []map[string]any
+			tx := db.Raw(sql).Scan(&rs)
+			// Raw/Scan not support offset/limit
+			// TODO: only scan 20 records?
 
-		result.Error = tx.Error
-		result.Total = tx.RowsAffected
-		// TODO: How to cast better?
-		result.Rows = make([]Row, len(rs))
-		for i := 0; i < len(rs); i++ {
-			result.Rows[i] = Row(rs[i])
+			result.Error = tx.Error
+			result.Total = tx.RowsAffected
+			// TODO: How to cast better?
+			result.Rows = make([]Row, len(rs))
+			for i := 0; i < len(rs); i++ {
+				result.Rows[i] = Row(rs[i])
+			}
 		}
 	}
 	A.Render(w, r, "templates/console.gotmpl", nil, map[string]any{
 		"sql":        sql,
 		"result":     result,
+		"dbs":        lo.Keys(A.dbs),
+		"name":       name,
 		"csrf_field": csrf.TemplateField(r),
 	})
 }
 func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {
 	m := map[string]any{"entries": nil}
-	if A.trace != nil {
-		m["entries"] = A.trace.Entries()
+	if A.tracer != nil {
+		m["entries"] = A.tracer.Entries()
 	}
 
 	A.Render(w, r, "templates/trace.gotmpl", nil, m)

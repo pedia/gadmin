@@ -34,7 +34,7 @@
     {{ block "model_menu_bar" . }}
         <ul class="nav nav-tabs">
             <li class="nav-item">
-                <a href="javascript:void(0)" class="nav-link active">{{ gettext "List" }}{{ if .count }} ({{ .count }}){{ end }}</a>
+                <a href="{{ get_url ".index" }}" class="nav-link active">{{ gettext "List" }}{{ if .count }} ({{ .count }}){{ end }}</a>
             </li>
 
         {{ if .can_create }}

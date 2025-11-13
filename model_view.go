@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"encoding/csv"
@@ -22,6 +22,7 @@ import (
 type ModelView struct {
 	*BaseView
 	*Model
+	db *gorm.DB
 
 	// Permissions
 	can_create       bool
@@ -78,13 +79,14 @@ type queryArg struct {
 }
 
 // TODO: ensure m not ptr
-func NewModelView(m any, category ...string) *ModelView {
+func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 	model := NewModel(m)
 
 	cate := firstOr(category, model.label())
 
 	mv := ModelView{
 		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
+		db:                     db,
 		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -794,7 +796,7 @@ func (V *ModelView) list(q *Query) *Result {
 	res := Result{Query: q}
 
 	var total int64
-	if err := V.applyQuery(V.admin.DB, q, true).
+	if err := V.applyQuery(V.db, q, true).
 		Model(V.Model.new()).
 		Count(&total).Error; err != nil {
 		res.Error = err
@@ -803,7 +805,7 @@ func (V *ModelView) list(q *Query) *Result {
 	res.Total = total
 
 	ptr := V.newSlice()
-	db := V.applyQuery(V.admin.DB, q, false)
+	db := V.applyQuery(V.db, q, false)
 	if err := V.applyJoins(db).
 		Find(ptr.Interface()).Error; err != nil {
 		res.Error = err
@@ -823,7 +825,7 @@ func (V *ModelView) list(q *Query) *Result {
 func (V *ModelView) getOne(rowid string) (Row, error) {
 	ptr := V.Model.new()
 
-	db := V.applyJoins(V.admin.DB)
+	db := V.applyJoins(V.db)
 	if err := db.Where(V.where(rowid)).First(ptr).Error; err != nil {
 		return nil, err
 	}
@@ -833,7 +835,7 @@ func (V *ModelView) getOne(rowid string) (Row, error) {
 func (V *ModelView) update(rowid string, row map[string]any) error {
 	ptr := V.Model.new()
 
-	if rc := V.admin.DB.Model(ptr).
+	if rc := V.db.Model(ptr).
 		Where(V.where(rowid)).
 		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
@@ -844,7 +846,7 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 func (V *ModelView) deleteOne(rowid string) error {
 	ptr := V.Model.new()
 
-	rc := V.admin.DB.Delete(ptr, V.where(rowid))
+	rc := V.db.Delete(ptr, V.where(rowid))
 	return rc.Error
 }
 
@@ -853,7 +855,7 @@ func (V *ModelView) deleteOne(rowid string) error {
 func (V *ModelView) create(row map[string]any) error {
 	ptr := V.Model.new()
 
-	if rc := V.admin.DB.Model(ptr).
+	if rc := V.db.Model(ptr).
 		Clauses(clause.Returning{}). // RETURNING *
 		Create(row); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error

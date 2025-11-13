@@ -48,7 +48,7 @@ function connect() {
 
 <div class="form-group">
 <label for="url" class="control-label">Database URL<strong style="color: red">&nbsp;&#42;</strong></label>
-<input class="form-control" type="text" name="url" value="{{if .gen}}{{.gen.Url}}{{else}}sqlite:examples/sqla/admin/sample_db.sqlite{{end}}">
+<input class="form-control" type="text" name="url" value="{{if .gen}}{{.gen.Url}}{{else}}sqlite:examples/sqla/sample.db{{end}}">
 
 <small class="form-text text-muted">
 Database URL like: sqlite:path/to/sqlite.db postgresql://user:password@localhost:5432/database mysql://user:password@localhost:3366/database?charset=utf8mb4&parseTime=True&loc=Local

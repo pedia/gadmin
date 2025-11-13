@@ -1,17 +1,17 @@
 package main
 
 import (
-	"gadmin"
+	"gadm"
 	"net/http"
 )
 
 type MyView struct {
-	*gadmin.BaseView
+	*gadm.BaseView
 }
 
 func NewMyView() *MyView {
 	v := &MyView{
-		BaseView: gadmin.NewView(gadmin.Menu{Name: "View3", Category: "Test"}),
+		BaseView: gadm.NewView(gadm.Menu{Name: "View3", Category: "Test"}),
 	}
 	v.Expose("/", v.indexHandler)
 	return v
@@ -22,14 +22,14 @@ func (M *MyView) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	admin := gadmin.NewAdmin("Example: Simple Views", nil)
+	admin := gadm.NewAdmin("Example: Simple Views")
 
-	v := gadmin.NewView(gadmin.Menu{Name: "View1", Category: "Test"})
+	v := gadm.NewView(gadm.Menu{Name: "View1", Category: "Test"})
 	v.Expose("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("raw view"))
 	})
 	admin.AddView(v)
-	admin.AddView(gadmin.NewView(gadmin.Menu{Category: "Test", Name: "View2"}))
+	admin.AddView(gadm.NewView(gadm.Menu{Category: "Test", Name: "View2"}))
 	admin.AddView(NewMyView())
 	admin.Run()
 }

@@ -1,6 +1,8 @@
-# gadmin
+# gadm
 
-gadmin generates a friendly admin UI for your database with minimal code. It is inspired by Flask-Admin but written for Go and integrates with GORM.
+![logo](gadm.png)
+
+gadm generates a friendly admin UI for your database with minimal code. It is inspired by Flask-Admin but written for Go and integrates with GORM.
 
 Key goals:
 - Fast admin pages for CRUD and basic relations
@@ -11,7 +13,7 @@ Key goals:
 
 Quick example
 ```go
-mv := gadmin.NewModelView(User{}).
+mv := gadm.NewModelView(User{}).
     SetColumnList("type", "first_name", "last_name", "email", "timezone", "phone_number").
     SetColumnEditableList("first_name", "type", "timezone").
     SetColumnDescriptions(map[string]string{"type": "editor will cause ..."}).
@@ -35,10 +37,10 @@ go run ./cmd
 - `postgresql://user:password@localhost:5432/dbname`
 - `mysql://user:password@localhost:3306/dbname?charset=utf8mb4&parseTime=True&loc=Local`
 
-3. Click "Generate" — gadmin will inspect the schema and produce model/view code you can copy into your project.
+3. Click "Generate" — gadm will inspect the schema and produce model/view code you can copy into your project.
 
 How it works (brief)
-- gadmin maps database tables to ModelViews. Each view exposes routes and templates for list, edit, details, delete, and export.
+- gadm maps database tables to ModelViews. Each view exposes routes and templates for list, edit, details, delete, and export.
 - The generator inspects the DB via GORM's migrator and builds a simple Go struct representation plus GORM tags.
 - Frontend templates are adapted from Flask-Admin (Bootstrap 4) and are included in `static/` and `templates/`.
 

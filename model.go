@@ -1,6 +1,7 @@
-package gadmin
+package gadm
 
 import (
+	"database/sql/driver"
 	"net/url"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/fatih/structs"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
+	"gopkg.in/guregu/null.v4"
 	"gorm.io/gorm/schema"
 )
 
@@ -22,6 +24,13 @@ func (r Row) Get(f *Field) any {
 
 func (r Row) GetDisplayValue(f *Field) any {
 	v := r[f.DBName]
+
+	if vi, ok := v.(driver.Valuer); ok {
+		if v, err := vi.Value(); err == nil {
+			return v
+		}
+	}
+
 	switch f.DataType {
 	case schema.Bool:
 		b, _ := v.(bool)
@@ -31,6 +40,14 @@ func (r Row) GetDisplayValue(f *Field) any {
 		// in template, false is not 0
 		return ""
 	case schema.Time:
+		// struct is map now
+		if nt, ok := v.(map[string]any); ok {
+			if b, ok := nt["Valid"].(bool); ok && b {
+				return nt["Time"] // TODO: format
+			}
+			return ""
+		}
+
 		if t, ok := v.(*time.Time); ok {
 			// in template, nil should be ""
 			if t == nil {
@@ -47,6 +64,10 @@ func (r Row) GetDisplayValue(f *Field) any {
 			case "HH:mm:ss":
 				return t.Format(time.TimeOnly)
 			}
+		}
+	case schema.String:
+		if ns, ok := v.(null.String); ok {
+			return ns.ValueOrZero()
 		}
 	}
 	return v

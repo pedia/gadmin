@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"fmt"
@@ -46,15 +46,15 @@ func (b *Blueprint) AddChild(child *Blueprint) (err error) {
 	}
 	if _, ok := b.Children[child.Endpoint]; ok {
 		// allow replace?
-		log.Printf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
 		err = fmt.Errorf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
+	} else {
+		b.Children[child.Endpoint] = child
+
+		child.Parent = b
+
+		// fix all children's Parent
+		fixPointer(b)
 	}
-	b.Children[child.Endpoint] = child
-
-	child.Parent = b
-
-	// fix all children's Parent
-	fixPointer(b)
 	return err
 }
 

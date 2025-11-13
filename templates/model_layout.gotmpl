@@ -7,6 +7,7 @@
     </div>
 {{ end }}
 
+
 {{ define "export_options" }}
     {{ if gt (len .export_types) 1 }}
         <li class="dropdown">
@@ -28,6 +29,7 @@
         </li>
     {{ end }}
 {{ end }}
+
 
 {{ define "filter_form" }}
     <form id="filter_form" method="GET" action="{{ .return_url }}">

@@ -1,9 +1,9 @@
-package gadmin
+package gadm
 
 import (
 	"errors"
 	"fmt"
-	"gadmin/isdebug"
+	"gadm/isdebug"
 	"io"
 	"log"
 	"os"
@@ -73,6 +73,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	}
 	g.logger.Printf("database closed")
 
+	_ = os.Mkdir("dao", 0766)
 	//
 	g.logger.Printf("write dao/models.gen.go")
 	f, err := os.OpenFile("dao/models.gen.go", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -80,7 +81,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 		return err
 	}
 
-	f.WriteString("// generate by gadmin.generator\n")
+	f.WriteString("// generate by gadm.generator\n")
 	f.WriteString(fmt.Sprintf("package %s\n\n", g.Package))
 	f.WriteString("import \"time\"\n\n")
 	g.WriteModels(f)
@@ -151,11 +152,13 @@ func namify(name string) string {
 func dialectTypeToDataType(n string) schema.DataType {
 	n = strings.ToUpper(n)
 	table := map[string]schema.DataType{
+		"":         schema.String, // CREATE TABLE sqlite_sequence(name,seq);
 		"BOOLEAN":  schema.Bool,
 		"CHAR":     schema.String,
 		"DATE":     schema.Time,
 		"DATETIME": schema.Time,
 		"INTEGER":  schema.Int,
+		"NUMERIC":  schema.Int,
 		"DOUBLE":   schema.Float,
 		"REAL":     schema.Float,
 		"TEXT":     schema.String,
@@ -350,7 +353,7 @@ var testcode = template.Must(template.New("testcode").Parse(`
 package {{.Package}}
 
 import (
-	"gadmin"
+	"gadm"
 	"os"
 	"strings"
 	"testing"
@@ -366,7 +369,7 @@ func TestDaoModels(t *testing.T) {
 		_ = os.Chdir("..")
 	}
 
-	db, err := gadmin.Parse("{{.Url}}").Open(
+	db, err := gadm.Parse("{{.Url}}").Open(
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info)})
@@ -381,7 +384,7 @@ func TestDaoModels(t *testing.T) {
 	for _, m := range models {
 		tx := db.First(m)
 		if tx.Error != nil {
-			t.Fatal(tx.Error)
+			t.Error(tx.Error)
 		}
 	}
 }
@@ -390,17 +393,20 @@ func TestDaoModels(t *testing.T) {
 var viewscode = template.Must(template.New("viewscode").Parse(`
 package {{.Package}}
 
-import "gadmin"
+import "gadm"
 
-func Views() []*gadmin.ModelView {
-	return []*gadmin.ModelView{
+func Views() []*gadm.ModelView {
+	db, err := gadm.Parse("{{.Url}})").OpenDefault()
+	if err != nil {
+		return nil
+	}
+
+	return []*gadm.ModelView{
 	{{range .Tables}}
-		gadmin.NewModelView({{.Name}}{}),
-	{{end}}
+		gadm.NewModelView({{.Name}}{}, db),
+	{{- end}}
 	}
 }
-
-func Url() string { return "{{.Url}}" }
 `))
 
 func LoadPlugin(admin *Admin, fn string) error {
@@ -411,16 +417,6 @@ func LoadPlugin(admin *Admin, fn string) error {
 	p, err := plugin.Open(fn)
 	if err != nil {
 		return err
-	}
-
-	// Open db
-	if f, err := p.Lookup("Url"); err == nil {
-		if ft, ok := f.(func() string); ok {
-			url := ft()
-			if db, err := Parse(url).OpenDefault(); err == nil {
-				admin.DB = db
-			}
-		}
 	}
 
 	// Add Views

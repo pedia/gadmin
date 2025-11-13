@@ -1,15 +1,15 @@
-package gadmin
+package gadm
 
 import (
 	"database/sql"
 	"fmt"
+	"gadm/examples/sqla"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/samber/lo"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/gorm"
@@ -17,96 +17,39 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type AllTyped struct {
-	ID           uint   `gorm:"primaryKey"`
-	Name         string `gorm:"primaryKey"`
-	Email        *string
-	Age          uint8
-	IsNormal     bool
-	Valid        *bool `gorm:"default:true"`
-	MemberNumber sql.NullString
-	Birthday     *time.Time
-	ActivatedAt  sql.NullTime
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime:nano"`
-	Decimal      decimal.Decimal
-	Bytes        []byte `gorm:"size:32"`
+func views(db *gorm.DB) []View {
+	return []View{
+		NewModelView(sqla.AllTyped{}, db),
+		NewModelView(sqla.Company{}, db, "Association"),
+		NewModelView(sqla.Employee{}, db, "Association"),
+		NewModelView(sqla.CreditCard{}, db, "Association"),
+		NewModelView(sqla.User{}, db, "Association"),
+		NewModelView(sqla.Address{}, db, "Association"),
+		NewModelView(sqla.Account{}, db, "Association"),
+		NewModelView(sqla.Language{}, db, "Association"),
+		NewModelView(sqla.Student{}, db, "Association"),
+		NewModelView(sqla.Toy{}, db, "Association"),
+		NewModelView(sqla.Dog{}, db, "Association"),
+	}
 }
 
-// belongs to https://gorm.io/docs/belongs_to.html
-type Company struct {
-	Id   int
-	Name string
-}
-type Employee struct {
-	Id        int
-	Name      string
-	CompanyId int
-	Company   *Company
-}
-
-// has one https://gorm.io/docs/has_one.html
-type CreditCard struct {
-	gorm.Model
-	Number string
-	UserID uint
-}
-type User struct {
-	gorm.Model
-	CreditCard CreditCard
-}
-
-// has many https://gorm.io/docs/has_many.html
-type Address struct {
-	gorm.Model
-	Number    string
-	AccountID uint
-}
-type Account struct {
-	gorm.Model
-	Addresses []Address
-}
-
-// many to many https://gorm.io/docs/many_to_many.html
-type Language struct {
-	gorm.Model
-	Name string
-}
-type Student struct {
-	gorm.Model
-	Languages []Language `gorm:"many2many:student_language"`
-}
-
-// polymorphic https://gorm.io/docs/polymorphism.html
-type Toy struct {
-	ID        int
-	Name      string
-	OwnerID   int
-	OwnerType string
-}
-type Dog struct {
-	ID   int
-	Name string
-	Toys []Toy `gorm:"polymorphic:Owner"`
-}
-
-func typeds() []AllTyped {
+func typeds() []sqla.AllTyped {
 	e1 := "foo@foo.com"
 	d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, time.Local)
 	e2 := "bar@foo.com"
 	d2 := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
-	return []AllTyped{
+	return []sqla.AllTyped{
 		{ID: 3, Name: "foo", Email: &e1, Age: 42, IsNormal: true, Birthday: &d1,
-			MemberNumber: sql.NullString{String: "9527", Valid: true}},
+			Badge: sql.NullString{String: "9527", Valid: true}},
 		{ID: 4, Name: "bar", Email: &e2, Age: 21, IsNormal: false, Birthday: &d2,
-			MemberNumber: sql.NullString{String: "3699", Valid: true}},
+			Badge: sql.NullString{String: "3699", Valid: true}},
 	}
 }
 
 func TestModel(t *testing.T) {
 	is := assert.New(t)
 
-	m := NewModel(AllTyped{})
+	m := NewModel(sqla.AllTyped{})
 	is.Equal("all_typed", m.name())
 	is.Equal("All Typed", m.label())
 	is.Equal("alltyped", m.path())
@@ -115,9 +58,9 @@ func TestModel(t *testing.T) {
 	is.Equal("id", m.Fields[0].DBName)
 	is.Equal("ID", m.Fields[0].Name)
 	is.Equal("Email", m.Fields[2].Label)
-	is.Equal("Member Number", m.Fields[6].Label)
-	is.Equal("member_number", m.Fields[6].DBName)
-	is.Equal("MemberNumber", m.Fields[6].Name)
+	is.Equal("Activated At", m.Fields[10].Label)
+	is.Equal("activated_at", m.Fields[10].DBName)
+	is.Equal("ActivatedAt", m.Fields[10].Name)
 
 	r1 := m.intoRow(typeds()[0])
 	is.Equal("foo", r1["name"])
@@ -129,7 +72,7 @@ func TestModel(t *testing.T) {
 
 func TestWidget(t *testing.T) {
 	is := assert.New(t)
-	m := NewModel(AllTyped{})
+	m := NewModel(sqla.AllTyped{})
 
 	html := ModelForm(m.Fields).Html()
 	is.NotEmpty(html)
@@ -142,25 +85,20 @@ type ModelTestSuite struct {
 	fooView *ModelView
 }
 
-func (sure *ModelTestSuite) SetupTest() {
-	sure.is = assert.New(sure.T())
+func (ts *ModelTestSuite) SetupTest() {
+	ts.is = assert.New(ts.T())
 
 	db, _ := gorm.Open(sqlite.Open(":memory:"),
 		&gorm.Config{
 			NamingStrategy: schema.NamingStrategy{SingularTable: true},
 			Logger:         logger.Default.LogMode(logger.Info),
 		})
-	sure.admin = NewAdmin("Test Site", db)
+	ts.admin = NewAdmin("Test Site")
 
 	var c int64
-	tx := db.Model(&Company{}).Count(&c)
+	tx := db.Model(&sqla.Company{}).Count(&c)
 	if tx.Error != nil || c == 0 {
-		db.AutoMigrate(&AllTyped{},
-			&Company{}, &Employee{},
-			&CreditCard{}, &User{},
-			&Address{}, &Account{},
-			&Language{}, &Student{},
-			&Toy{}, &Dog{})
+		db.AutoMigrate(sqla.Models...)
 
 		// e1 := "foo@foo.com"
 		// d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, time.Local)
@@ -175,10 +113,10 @@ func (sure *ModelTestSuite) SetupTest() {
 		// db.Create(&fs)
 
 		samples := []any{
-			&Company{Name: "talk ltd"},
-			&Company{Name: "chat ltd"},
-			&Employee{Name: "Alice", CompanyId: 1},
-			&Employee{Name: "Bob", CompanyId: 1},
+			&sqla.Company{Name: "talk ltd"},
+			&sqla.Company{Name: "chat ltd"},
+			&sqla.Employee{Name: "Alice", CompanyId: 1},
+			&sqla.Employee{Name: "Bob", CompanyId: 1},
 		}
 		for _, o := range samples {
 			tx := db.Create(o)
@@ -188,30 +126,19 @@ func (sure *ModelTestSuite) SetupTest() {
 		}
 	}
 
-	sure.fooView = sure.admin.AddView(NewModelView(AllTyped{})).(*ModelView)
+	for _, v := range views(db) {
+		ts.admin.AddView(v)
+	}
 
-	sure.admin.AddView(NewModelView(Company{}, "Association"))
-	sure.admin.AddView(NewModelView(Employee{}, "Association"))
-
-	sure.admin.AddView(NewModelView(CreditCard{}, "Association"))
-	sure.admin.AddView(NewModelView(User{}, "Association"))
-
-	sure.admin.AddView(NewModelView(Address{}, "Association"))
-	sure.admin.AddView(NewModelView(Account{}, "Association"))
-
-	sure.admin.AddView(NewModelView(Language{}, "Association"))
-	sure.admin.AddView(NewModelView(Student{}, "Association"))
-
-	sure.admin.AddView(NewModelView(Toy{}, "Association"))
-	sure.admin.AddView(NewModelView(Dog{}, "Association"))
+	ts.fooView = ts.admin.FindView("alltyped").(*ModelView)
 }
 
 func TestModelTestSuite(t *testing.T) {
 	suite.Run(t, new(ModelTestSuite))
 }
 
-func (sure *ModelTestSuite) TestRelations() {
-	// ve := NewModelView(Employee{}, "Association").Joins("Company")
+func (ts *ModelTestSuite) TestRelations() {
+	// ve := NewModelView(Employee{}, db, "Association").Joins("Company")
 	// S.admin.AddView(ve)
 	// r := ve.list(DefaultQuery())
 	// S.assert.Nil(r.Error)
@@ -219,40 +146,42 @@ func (sure *ModelTestSuite) TestRelations() {
 	// S.assert.Equal(int64(2), r.Total)
 }
 
-func (sure *ModelTestSuite) TestModelView() {
-	is := assert.New(sure.T())
+func (ts *ModelTestSuite) TestAdmin() {
+	ts.is.NotNil(ts.admin.FindView("alltyped"))
+}
 
-	v := NewModelView(AllTyped{})
+func (ts *ModelTestSuite) TestModelView() {
+	v := ts.fooView
 
-	is.NotEmpty(v.GetBlueprint().Children)
+	ts.is.NotEmpty(v.GetBlueprint().Children)
 
-	is.Equal("/alltyped/", must(v.Blueprint.GetUrl(".index_view")))
-	is.Equal("/alltyped/action", must(v.Blueprint.GetUrl(".action_view")))
-	is.Equal("/alltyped/action?a=b", must(v.Blueprint.GetUrl(".action_view", "a", "b")))
+	ts.is.Equal("/admin/alltyped/", must(v.Blueprint.GetUrl(".index_view")))
+	ts.is.Equal("/admin/alltyped/action", must(v.Blueprint.GetUrl(".action_view")))
+	ts.is.Equal("/admin/alltyped/action?a=b", must(v.Blueprint.GetUrl(".action_view", "a", "b")))
 
 	// query
 	r1 := httptest.NewRequest("", "/admin/tag/?sort=0&desc=1&page_size=23&page=2", nil)
 	q1 := v.queryFrom(r1)
-	is.Equal("0", q1.Sort)
-	is.Equal(true, q1.Desc)
-	is.Equal(23, q1.PageSize)
-	is.Equal(2, q1.Page)
+	ts.is.Equal("0", q1.Sort)
+	ts.is.Equal(true, q1.Desc)
+	ts.is.Equal(23, q1.PageSize)
+	ts.is.Equal(2, q1.Page)
 
 	r2 := httptest.NewRequest("", "/admin/tag/?sort=1", nil)
 	q2 := v.queryFrom(r2)
-	is.Equal("1", q2.Sort)
-	is.Equal(false, q2.Desc)
-	is.Equal(20, q2.PageSize)
-	is.Equal(0, q2.Page)
+	ts.is.Equal("1", q2.Sort)
+	ts.is.Equal(false, q2.Desc)
+	ts.is.Equal(20, q2.PageSize)
+	ts.is.Equal(0, q2.Page)
 
 	r3 := httptest.NewRequest("", "/admin/tag/details?id=6&url=%2Fadmin%2Ftag%2F%3Fdesc%3D1%26sort%3D1", nil)
 	q3 := v.queryFrom(r3)
-	is.Equal("", q3.Sort)
-	is.Equal(false, q3.Desc)
-	is.Equal(20, q3.PageSize)
-	is.Equal(0, q3.Page)
-	is.Equal("6", q3.Get("id"))
-	is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
+	ts.is.Equal("", q3.Sort)
+	ts.is.Equal(false, q3.Desc)
+	ts.is.Equal(20, q3.PageSize)
+	ts.is.Equal(0, q3.Page)
+	ts.is.Equal("6", q3.Get("id"))
+	ts.is.Equal("/admin/tag/?desc=1&sort=1", q3.Get("url"))
 }
 
 // func (S *ModelTestSuite) TestSession() {
@@ -267,8 +196,8 @@ func (sure *ModelTestSuite) TestModelView() {
 // 	is.Equal(200, w.Code)
 // }
 
-func (sure *ModelTestSuite) TestUrlStatusCode() {
-	sure.is.Equal("/admin/alltyped/", must(sure.admin.UrlFor("", "alltyped.index")))
+func (ts *ModelTestSuite) TestUrlStatusCode() {
+	ts.is.Equal("/admin/alltyped/", must(ts.admin.UrlFor("", "alltyped.index")))
 
 	es := []string{
 		"alltyped",
@@ -292,7 +221,7 @@ func (sure *ModelTestSuite) TestUrlStatusCode() {
 	for _, path := range paths {
 		r := httptest.NewRequest("GET", path, nil)
 		w := httptest.NewRecorder()
-		sure.admin.ServeHTTP(w, r)
-		sure.is.Equal(200, w.Code, path)
+		ts.admin.ServeHTTP(w, r)
+		ts.is.Equal(200, w.Code, path)
 	}
 }

@@ -1,7 +1,7 @@
 /*
 Package reformism provides several utility functions for native text/template
 */
-package gadmin
+package gadm
 
 import (
 	"errors"

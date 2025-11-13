@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"bytes"
@@ -28,12 +28,13 @@ import (
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
 func InlineEdit(model *Model, field *Field, row Row) template.HTML {
+	dv := row.GetDisplayValue(field)
 	args := map[template.HTMLAttr]any{
-		"data-value": row.GetDisplayValue(field),
+		"data-value": dv,
 		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
 		"data-url":   "ajax/update",
 		"data-pk":    model.get_pk_value(row),
-		"data-csrf":  "", // TODO:
+		"data-csrf":  "TODO:", // TODO:
 		"data-type":  "text",
 		"id":         field.DBName,
 		"name":       field.DBName,
@@ -65,7 +66,7 @@ func InlineEdit(model *Model, field *Field, row Row) template.HTML {
 	w := bytes.Buffer{}
 	if err := formTemplate.ExecuteTemplate(&w, "inline_field", map[string]any{
 		"args":          args,
-		"display_value": row.GetDisplayValue(field),
+		"display_value": dv,
 		"field":         field,
 	}); err != nil {
 		panic(err)
