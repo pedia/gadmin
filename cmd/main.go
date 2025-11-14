@@ -12,7 +12,5 @@ func main() {
 		_ = os.Chdir("..")
 	}
 
-	admin := gadm.NewAdmin("Admin", nil)
-
-	admin.Run()
+	gadm.NewAdmin("Admin").Run()
 }

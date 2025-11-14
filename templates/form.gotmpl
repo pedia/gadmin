@@ -1,5 +1,5 @@
 {{define "field_hidden" -}}
-    <input id="{{.DBName}}" name="{{.DBName}}" type="hidden" value="{{.Value}}">
+    <input name="{{.DBName}}" type="hidden" value="{{.Value}}">
 {{- end}}
 
 {{define "field_checkbox"}}
@@ -46,16 +46,15 @@
 {{define "form_all"}}
 <form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
   <fieldset>
-  {{range .}}
-    {{if .Hidden}}
-      {{- .Html -}}
-    {{else}}
+    {{if .CsrfToken -}}
+    <input name="csrf_token" type="hidden" value="{{.CsrfToken}}">
+    {{- end}}
+  {{range .Fields}}
     <div class="form-group">
-      <label for="{{.DBName}}" class="control-label">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
+      <label for="{{.DBName}}" class="control-label">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;*</strong>{{end}}</label>
       {{- .Html -}}
       {{- if .Description}}<small class="form-text text-muted">{{.Description}}</small>{{end}} {{/* if gt .Size 0}}{{.Size}}{{end */}}
     </div>
-    {{end}}
   {{end}}
 
   <hr>

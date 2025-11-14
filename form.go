@@ -90,21 +90,17 @@ func init() {
 }
 
 type modelForm struct {
-	Fields []*Field
-	Row    Row
+	Fields    []*Field
+	Row       Row
+	CsrfToken string // csrf token
 }
 
-func ModelForm(fields []*Field, rows ...Row) *modelForm {
-	form := &modelForm{Fields: fields}
-	if len(rows) > 0 {
-		form.Row = rows[0]
-	}
+func ModelForm(fields []*Field, token string, row ...Row) *modelForm {
+	form := &modelForm{Fields: fields, Row: firstOr(row), CsrfToken: token}
 
 	if form.Row != nil {
 		lo.ForEach(fields, func(field *Field, _ int) {
-			if !field.Hidden {
-				field.Value = form.Row.Get(field)
-			}
+			field.Value = form.Row.Get(field)
 		})
 	}
 	return form
@@ -126,16 +122,6 @@ func HiddenField(token string) *Field {
 		Hidden: true,
 		Value:  token,
 	}
-}
-
-func (f *modelForm) Html() template.HTML {
-	w := bytes.Buffer{}
-
-	// TODO: rename form_all to render_form
-	if err := formTemplate.ExecuteTemplate(&w, "form_all", f.Fields); err != nil {
-		panic(err)
-	}
-	return template.HTML(w.String())
 }
 
 // this not worked:

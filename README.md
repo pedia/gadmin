@@ -1,6 +1,4 @@
-# gadm
-
-![logo](gadm.png)
+<span style="font-size:48pt;color:red">gadm</span>
 
 gadm generates a friendly admin UI for your database with minimal code. It is inspired by Flask-Admin but written for Go and integrates with GORM.
 

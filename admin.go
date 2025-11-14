@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gorilla/csrf"
@@ -17,7 +18,6 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/samber/lo"
-	"github.com/spf13/cast"
 	"gopkg.in/leonelquinteros/gotext.v1"
 
 	"gorm.io/gorm"
@@ -44,7 +44,8 @@ func NewAdmin(name string) *Admin {
 		tracer:      NewTrace(),
 		key:         key,
 		sessionKey:  "sess",
-		protect: csrf.Protect(key,
+		store:       sessions.NewCookieStore(key),
+		CSRF: csrf.Protect(key,
 			csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
 		mux: http.NewServeMux(),
 
@@ -88,17 +89,17 @@ type Admin struct {
 	tracer            *Trace
 	key               []byte
 	sessionKey        string
-	protect           func(http.Handler) http.Handler
+	store             sessions.Store
+	CSRF              func(http.Handler) http.Handler
 	mux               *http.ServeMux
 	indexTemplateFile string
 }
 
 func (A *Admin) Session(r *http.Request) *sessions.Session {
-	store := sessions.NewCookieStore(A.key)
-	store.Options.SameSite = http.SameSiteStrictMode // TODO:
-	sess, err := store.Get(r, A.sessionKey)
+	// store.Options.SameSite = http.SameSiteStrictMode // TODO:
+	sess, err := sessions.GetRegistry(r).Get(A.store, A.sessionKey)
 	if err != nil {
-		sess = sessions.NewSession(store, A.sessionKey)
+		panic(err)
 	}
 	return sess
 }
@@ -192,12 +193,27 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 }
 
 func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/admin/static/") ||
+		strings.HasPrefix(r.URL.Path, "/.well-known/") {
+		A.mux.ServeHTTP(w, r)
+		return
+	}
+
 	// for http
 	r = csrf.PlaintextHTTPRequest(r)
+	sessions.GetRegistry(r) // make sure session put in r.Context
 
+	cw := NewCachedWriter(w)
 	// csrf protect
 	handlers.LoggingHandler(os.Stdout,
-		A.protect(A.mux)).ServeHTTP(w, r)
+		A.CSRF(A.mux)).ServeHTTP(cw, r)
+
+	// save sesstion before flush
+	if err := sessions.Save(r, cw); err != nil {
+		panic(err)
+	}
+
+	cw.Flush()
 
 	// trace
 	if A.tracer != nil {
@@ -211,7 +227,7 @@ func (A *Admin) Run() {
 		// Handler: (os.Stdout, A)}
 		Handler: A}
 
-	log.Printf("Running on http://127.0.0.1:3333/admin/")
+	fmt.Println("\aRunning on http://127.0.0.1:3333/admin/")
 	serv.ListenAndServe()
 }
 
@@ -272,34 +288,22 @@ func (A *Admin) pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ping"))
 }
 func (A *Admin) debugHandler(w http.ResponseWriter, r *http.Request) {
-	s := A.Session(r)
-
 	cv := r.Context().Value(csrf.PlaintextHTTPContextKey)
 	if cv == nil {
 		panic("not found PlaintextHTTPContextKey")
 	}
 
-	v := s.Flashes("C")
-	if v == nil {
-		s.AddFlash("hello", "C")
-		s.Save(r, w)
-	}
-
-	sv := lo.MapEntries(s.Values, func(k any, v any) (string, any) {
-		return cast.ToString(k), v
-	})
-
 	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprint": A.Blueprint.dict(),
-		"flash":     v,
-		"session":   sv,
 	}))
 }
 func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("debug").
 		Option("missingkey=error").
-		Funcs(A.funcs(nil)).
+		Funcs(A.funcs(template.FuncMap{
+			"get_flashed_messages": func() []any { return A.Session(r).Flashes() },
+		})).
 		ParseFiles("templates/debug.gotmpl")
 	if err != nil {
 		panic(err)
@@ -389,14 +393,14 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// normal GET/POST
 	if r.Method == http.MethodGet {
+		// GET
 		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
 			"gen":        nil,
 			"csrf_field": csrf.TemplateField(r),
 		})
 	} else {
-		r.ParseForm()
+		// POST
 		g = NewGenerator(r.FormValue("url"))
 		g.Package = r.FormValue("package")
 		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
@@ -410,7 +414,6 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 	var name string
 	var sql string
 	if r.Method == http.MethodPost {
-		r.ParseForm()
 		sql = r.FormValue("sql")
 		name = r.FormValue("name")
 		db, ok := A.dbs[name]

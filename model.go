@@ -112,10 +112,9 @@ func (m *Model) newSlice() reflect.Value {
 // Parse form into map[string]any, only fields in current model
 func (m *Model) parseForm(uv url.Values) Row {
 	row := Row{}
-	for _, col := range m.schema.Fields {
-		name := col.Name
-		if uv.Has(name) {
-			row[name] = uv.Get(name)
+	for _, f := range m.schema.Fields {
+		if uv.Has(f.DBName) {
+			row[f.DBName] = uv.Get(f.DBName)
 		}
 	}
 	return row

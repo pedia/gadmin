@@ -219,13 +219,18 @@ func (g *generator) EmitTable(table string, columns []gorm.ColumnType, indexes [
 
 		if dt := dialectTypeToDataType(col.DatabaseTypeName()); dt != "" {
 			f.DataType = dt
+			f.GORMDataType = dt
 
-			if dt == schema.Time {
+			// special
+			if dt == schema.Int {
+				// SQLite does not have a separate Boolean storage class
+				if dv, ok := col.DefaultValue(); ok && dv == "true" || dv == "false" {
+					f.GORMDataType = schema.Bool
+				}
+			} else if dt == schema.Time {
 				f.GORMDataType = schema.DataType("*time.Time")
 			} else if dt == schema.Bytes {
 				f.GORMDataType = schema.DataType("[]byte")
-			} else {
-				f.GORMDataType = dt
 			}
 		}
 

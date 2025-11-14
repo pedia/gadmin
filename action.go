@@ -27,13 +27,3 @@ var edit_row_action = Action(map[string]any{
 	"title":         gettext("Edit Record"),
 	"template_name": "row_actions.edit_row",
 })
-
-var delete_row_action = Action(map[string]any{
-	"name":          "delete",
-	"title":         gettext("Delete Record"),
-	"template_name": "row_actions.delete_row",
-	"confirmation":  gettext("Are you sure you want to delete selected records?"),
-	"csrf_token":    "",
-	"id":            "", // HiddenField(validators=[InputRequired()]).Render(value)
-	"url":           "",
-})

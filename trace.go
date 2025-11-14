@@ -99,6 +99,8 @@ func (t *Trace) Entries() iter.Seq[Entry] {
 	t.m.RLock()
 	defer t.m.RUnlock()
 
+	// TODO: copy entries
+
 	return func(yield func(Entry) bool) {
 		for e := t.entries.Back(); e != nil; e = e.Prev() {
 			pair := e.Value.(Entry)

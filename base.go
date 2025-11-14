@@ -1,9 +1,12 @@
 package gadm
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -114,40 +117,59 @@ func ReplyJson(w http.ResponseWriter, status int, o any) {
 	}
 }
 
-// Cache http.ResponseWriter, Output Cookie after template rendering
-func NewBufferWriter(w http.ResponseWriter, f func(http.ResponseWriter)) http.ResponseWriter {
-	return &bufferWriter{
-		buf:         bytes.NewBuffer([]byte{}),
-		w:           w,
-		beforeFlush: f}
+// Some go template actions might change headers(Cookie)
+// [CacheWriter] cache body and output headers before any body
+// Flush in admin.ServeHTTP
+type CachedWriter struct {
+	http.ResponseWriter
+	cache      bytes.Buffer
+	header     http.Header
+	statusCode int
 }
 
-type bufferWriter struct {
-	buf *bytes.Buffer
-
-	// origin `ResponseWriter`
-	w http.ResponseWriter
-
-	// excute before flush, eg. Set-Cookie
-	beforeFlush func(http.ResponseWriter)
-}
-
-func (B *bufferWriter) Write(p []byte) (n int, err error) {
-	return B.buf.Write(p)
-}
-
-func (B *bufferWriter) Header() http.Header {
-	return B.w.Header()
-}
-
-func (B *bufferWriter) WriteHeader(statusCode int) {
-	B.w.WriteHeader(statusCode)
-}
-
-func (B *bufferWriter) Flush() {
-	if B.beforeFlush != nil {
-		B.beforeFlush(B.w)
+func NewCachedWriter(w http.ResponseWriter) *CachedWriter {
+	return &CachedWriter{ResponseWriter: w,
+		header:     http.Header{},
+		statusCode: http.StatusOK,
 	}
-	B.w.Write(B.buf.Bytes())
-	B.w.(http.Flusher).Flush()
+}
+
+func (cw *CachedWriter) Header() http.Header         { return cw.header }
+func (cw *CachedWriter) Write(b []byte) (int, error) { return cw.cache.Write(b) }
+func (cw *CachedWriter) WriteHeader(statusCode int)  { cw.statusCode = statusCode }
+
+// Hijack implements the http.Hijacker interface by attempting to unwrap the writer.
+func (cw *CachedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	// Attempt to unwrap the underlying ResponseWriter if possible
+	unwrapped := cw.ResponseWriter
+	if u, ok := unwrapped.(interface{ Unwrap() http.ResponseWriter }); ok {
+		unwrapped = u.Unwrap()
+	}
+
+	// Try to perform the hijack on the potentially unwrapped writer
+	if hijacker, ok := unwrapped.(http.Hijacker); ok {
+		fmt.Println("Hijacking connection...")
+		return hijacker.Hijack()
+	}
+
+	// If the underlying writer doesn't support hijacking, use ResponseController (Go 1.20+)
+	// to attempt it in a standard way, or return an error.
+	rc := http.NewResponseController(cw.ResponseWriter)
+	if conn, bufrw, err := rc.Hijack(); err == nil {
+		fmt.Println("Hijacking connection via ResponseController...")
+		return conn, bufrw, nil
+	}
+
+	// Return error if not supported
+	return nil, nil, http.ErrNotSupported
+}
+
+func (cw *CachedWriter) Flush() {
+	for k, vs := range cw.header {
+		for _, v := range vs {
+			cw.ResponseWriter.Header().Add(k, v)
+		}
+	}
+	cw.ResponseWriter.WriteHeader(cw.statusCode)
+	cw.ResponseWriter.Write(cw.cache.Bytes())
 }

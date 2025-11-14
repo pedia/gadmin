@@ -13,5 +13,7 @@
 {{ end }}
 
 {{ define "body" }}
-  {{if .db}}Click <a href="generate">Generate</a> to add database{{end}}
+  {{if not .db}}Click <a href="generate">Generate</a> to add database{{else}}
+  Click <a href="trace">Trace</a> or <a href="console">SQL Console</a>
+  {{end}}
 {{ end }}

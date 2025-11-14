@@ -123,7 +123,6 @@ func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 		},
 	}
 
-	// mv.column_list = mv.schema.DBNames
 	mv.column_sortable_list = mv.sortableColumns()
 
 	return &mv
@@ -303,90 +302,13 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 		"filters":              []string{},
 		"filter_groups":        []string{},
 		"actions_confirmation": V.list_row_actions_confirmation(),
-		"return_url":           must(V.Blueprint.GetUrl(".index_view", nil)),
+		"return_url":           must(V.Blueprint.GetUrl(".index_view")),
 	})
 
 	if len(others) > 0 {
 		merge(o, others[0])
 	}
 	return o
-}
-
-func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
-	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
-		"menu":      V.Menu.dict(),
-		"blueprint": V.Blueprint.dict(),
-	})
-}
-func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
-	q := V.queryFrom(r)
-
-	result := V.list(q)
-
-	V.Render(w, r, "model_list.gotmpl", template.FuncMap{
-		"is_sortable": func(name string) bool {
-			return slices.Contains(V.column_sortable_list, name)
-		},
-		"sort_url": func(name string, invert ...bool) string {
-			q := *q // simply copy
-			q.Sort = cast.ToString(V.get_column_index(name))
-			q.Desc = firstOr(invert)
-			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
-		},
-		"column_descriptions": func(name string) string {
-			if desc, ok := V.column_descriptions[name]; ok {
-				return desc
-			}
-			return V.find(name).Description
-		},
-	}, map[string]any{
-		"count":             len(result.Rows),
-		"page":              q.Page,
-		"num_pages":         result.NumPages(),
-		"page_size":         q.PageSize,
-		"default_page_size": q.default_page_size,
-		"page_size_url": func(page_size int) string {
-			uv := q.toValues()
-			uv.Set("page_size", cast.ToString(page_size))
-			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(uv)...))
-		},
-		"can_set_page_size":        V.can_set_page_size,
-		"data":                     result.Rows, // TODO: remove
-		"result":                   result,
-		"request":                  rd(r),
-		"get_pk_value":             V.get_pk_value,
-		"column_display_pk":        V.column_display_pk,
-		"column_display_actions":   V.column_display_actions,
-		"column_extra_row_actions": nil,
-		"list_row_actions":         V.list_row_actions(),
-		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-		"list_columns":             V.genListFields(),
-		"sort":                     q.Sort,
-		// not func, return current sort field name
-		// in template, `sort url` is: ?sort={index}
-		// transform `index` to `column name`
-		"sort_column": func() string {
-			if q.Sort != "" {
-				idx := cast.ToInt(q.Sort)
-				return V.column_name(idx)
-			}
-			return ""
-		}(),
-		"sort_desc":              q.Desc,
-		"search":                 q.Search,
-		"column_searchable_list": V.column_searchable_list,
-		"search_placeholder":     strings.Join(V.column_searchable_list, ","),
-	})
-}
-func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
-	q := V.queryFrom(r)
-
-	res := V.list(q)
-	if res.Error != nil {
-		ReplyJson(w, 200, map[string]any{"error": res.Error})
-		return
-	}
-	ReplyJson(w, 200, map[string]any{"total": res.Total, "data": res.Rows})
 }
 
 // Because `default_page_size`, should place here, not query.go
@@ -434,7 +356,7 @@ func (V *ModelView) is_editable(name string) bool {
 	return ok
 }
 
-func (V *ModelView) list_row_actions() []Action {
+func (V *ModelView) list_row_actions(r *http.Request) []Action {
 	actions := []Action{}
 	if V.can_view_details {
 		actions = append(actions, view_row_action)
@@ -443,19 +365,114 @@ func (V *ModelView) list_row_actions() []Action {
 		actions = append(actions, edit_row_action)
 	}
 	if V.can_delete {
-		actions = append(actions, delete_row_action)
+		actions = append(actions, Action(map[string]any{
+			"name":          "delete",
+			"title":         gettext("Delete Record"),
+			"template_name": "row_actions.delete_row",
+			"confirmation":  gettext("Are you sure you want to delete selected records?"),
+			"csrf_token":    csrf.Token(r),
+			"id":            "", // HiddenField(validators=[InputRequired()]).Render(value)
+			"url":           "",
+		}))
 	}
 	return actions
 }
 
 func (V *ModelView) list_row_actions_confirmation() map[string]string {
-	res := map[string]string{}
-	for _, a := range V.list_row_actions() {
-		if c, ok := a["confirmation"]; ok {
-			res[a["name"].(string)] = c.(string)
-		}
+	// res := map[string]string{}
+	// for _, a := range V.list_row_actions() {
+	// 	if c, ok := a["confirmation"]; ok {
+	// 		res[a["name"].(string)] = c.(string)
+	// 	}
+	// }
+	// return res
+	return nil
+}
+
+func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("a") == "1" {
+		V.AddFlash(r, FlashSuccess(`Record was successfully deleted.
+1 records were successfully deleted.`))
+		V.redirect(w, r, "/admin/company")
+		return
 	}
-	return res
+	w.Header().Set("foo", "bar")
+
+	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
+		"query":     V.queryFrom(r),
+		"menu":      V.Menu.dict(),
+		"blueprint": V.Blueprint.dict(),
+	})
+}
+func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
+
+	result := V.list(q)
+
+	V.Render(w, r, "model_list.gotmpl", template.FuncMap{
+		"is_sortable": func(name string) bool {
+			return slices.Contains(V.column_sortable_list, name)
+		},
+		"sort_url": func(name string, invert ...bool) string {
+			q := *q // simply copy
+			q.Sort = cast.ToString(V.get_column_index(name))
+			q.Desc = firstOr(invert)
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
+		},
+		"column_descriptions": func(name string) string {
+			if desc, ok := V.column_descriptions[name]; ok {
+				return desc
+			}
+			return V.find(name).Description
+		},
+	}, map[string]any{
+		"count":             len(result.Rows),
+		"page":              q.Page,
+		"num_pages":         result.NumPages(),
+		"page_size":         q.PageSize,
+		"default_page_size": q.default_page_size,
+		"page_size_url": func(page_size int) string {
+			uv := q.toValues()
+			uv.Set("page_size", cast.ToString(page_size))
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(uv)...))
+		},
+		"can_set_page_size":        V.can_set_page_size,
+		"data":                     result.Rows, // TODO: remove
+		"result":                   result,
+		"request":                  rd(r),
+		"get_pk_value":             V.get_pk_value,
+		"column_display_pk":        V.column_display_pk,
+		"column_display_actions":   V.column_display_actions,
+		"column_extra_row_actions": nil,
+		"list_row_actions":         V.list_row_actions(r),
+		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
+		"list_columns":             V.genListFields(),
+		"sort":                     q.Sort,
+		// not func, return current sort field name
+		// in template, `sort url` is: ?sort={index}
+		// transform `index` to `column name`
+		"sort_column": func() string {
+			if q.Sort != "" {
+				idx := cast.ToInt(q.Sort)
+				return V.column_name(idx)
+			}
+			return ""
+		}(),
+		"sort_desc":              q.Desc,
+		"search":                 q.Search,
+		"column_searchable_list": V.column_searchable_list,
+		"search_placeholder":     strings.Join(V.column_searchable_list, ","),
+	})
+}
+func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
+	q := V.queryFrom(r)
+
+	res := V.list(q)
+	if res.Error != nil {
+		ReplyJson(w, 200, map[string]any{"error": res.Error})
+		return
+	}
+	ReplyJson(w, 200, map[string]any{"total": res.Total, "data": res.Rows})
 }
 
 func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
@@ -470,31 +487,32 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 		continue_editing := r.PostFormValue("_continue_editing")
 
 		one := V.parseForm(r.PostForm)
-		if err := V.create(one); err == nil {
-			// Flash(r, gettext("Record was successfully created."), "success")
+		err := V.create(one)
+		if err != nil {
+			V.AddFlash(r, FlashError(err))
+		} else {
+			V.AddFlash(r, FlashInfo(gettext("Record was successfully created.")))
+		}
 
-			// "_add_another"
-			// "_continue_editing"
-			if continue_editing != "" {
-				V.redirect(w, r, must(V.Blueprint.GetUrl(".edit_view", nil, "id", one["id"])))
-				return
-			}
-
-			if r.PostFormValue("_add_another") != "" {
-				V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view", nil)))
-				return
-			}
-
-			V.redirect(w, r, q.Get("url"))
+		if continue_editing != "" {
+			rowid := V.get_pk_value(one)
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".edit_view", "id", rowid)))
+			return
+		}
+		if r.PostFormValue("_add_another") != "" {
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view")))
 			return
 		}
 
+		V.redirect(w, r, q.Get("url"))
+		return
 	}
 
+	// GET
 	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
 		"form":       V.form(nil, csrf.Token(r)),
-		"cancel_url": "TODO:cancel_url",
+		"cancel_url": must(V.Blueprint.GetUrl(".index_view")),
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
 		},
@@ -502,11 +520,15 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
-	if url == "" {
-		url = must(V.Blueprint.GetUrl(".index_view", nil))
+func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, urls ...string) {
+	path := firstOr(urls)
+	if path == "" {
+		path = r.URL.Query().Get("url")
 	}
-	http.Redirect(w, r, url, http.StatusFound)
+	if path == "" {
+		path = must(V.Blueprint.GetUrl(".index_view"))
+	}
+	http.Redirect(w, r, path, http.StatusFound)
 }
 
 func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
@@ -517,13 +539,26 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.getOne(q.Get("id")) // force "id"
-	if err != nil {
-		// TODO: make this work
-		// Flash(r, V.admin.gettext("Record does not exist."), "danger")
+	rowid := q.Get("id")
 
+	one, err := V.getOne(rowid)
+	if err != nil {
+		V.AddFlash(r, FlashInfo(gettext("Record does not exist.")))
 		V.redirect(w, r, q.Get("url"))
 		return
+	}
+	if r.Method == http.MethodPost {
+
+		one := V.parseForm(r.PostForm)
+		if V.update(rowid, one) != nil {
+			V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
+		}
+
+		if r.PostFormValue("_continue_editing") != "" {
+			V.redirect(w, r, q.Get("url"))
+		} else if r.PostFormValue("_add_another") != "" {
+			V.redirect(w, r)
+		}
 	}
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
@@ -536,52 +571,36 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 // Model().Where(pk field = pk value).Delete()
 func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
-	q := V.queryFrom(r)
-	redirect := func() {
-		url := q.Get("url")
-		if url == "" {
-			url = must(V.Blueprint.GetUrl(".index_view", nil))
-		}
-		http.Redirect(w, r, url, http.StatusFound)
-	}
-
 	if !V.can_delete {
-		redirect()
+		V.redirect(w, r)
 		return
 	}
 
+	q := V.queryFrom(r)
 	err := V.deleteOne(q.Get("id"))
 	if err != nil {
-		// flash_errors(form, message='Failed to delete record. %(error)s')
+		V.AddFlash(r, Flash(gettext("Failed to delete record. %s", err), "error"))
 	} else {
-		// flash(ngettext('Record was successfully deleted.',
-		//                      '%(count)s records were successfully deleted.',
-		//                      count, count=count), 'success')
+		V.AddFlash(r, FlashSuccess(gettext(`Record was successfully deleted.
+1 records were successfully deleted.`)))
 	}
-	redirect()
+	V.redirect(w, r)
 }
 
 // Model().Where(pk field = pk value).First()
 func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
-	redirect := func() {
-		url := q.Get("url")
-		if url == "" {
-			url = must(V.Blueprint.GetUrl(".index_view", nil))
-		}
-		http.Redirect(w, r, url, http.StatusFound)
-	}
 
 	if !V.can_view_details {
-		redirect()
+		V.redirect(w, r)
 		return
 	}
 
 	one, err := V.getOne(q.Get("id"))
 	if err != nil {
-		// Flash(r, V.admin.gettext("Record does not exist."), "danger")
+		V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 
-		redirect()
+		V.redirect(w, r)
 		return
 	}
 
@@ -672,21 +691,21 @@ func rd(r *http.Request) map[string]any {
 // create form: no primarykey
 // edit form: hidden primarykey
 func (V *ModelView) form(one Row, token string) *modelForm {
-	list := []*Field{HiddenField(token)}
+	var list []*Field
 	if one == nil {
 		// create
 		if V.createFormFields == nil {
 			V.createFormFields = V.genFormFields(true)
 		}
-		list = append(list, V.createFormFields...)
+		list = V.createFormFields
 	} else {
 		if V.editFormFields == nil {
 			V.editFormFields = V.genFormFields(false)
 		}
-		list = append(list, V.editFormFields...)
+		list = V.editFormFields
 	}
 
-	return ModelForm(list, one)
+	return ModelForm(list, token, one)
 }
 
 // Generate inline edit form in list view
@@ -706,22 +725,23 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"templates/lib.gotmpl",
 		"templates/master.gotmpl",
 		"templates/model_layout.gotmpl",
+		"templates/form.gotmpl",
 		"templates/model_row_actions.gotmpl",
 	}
 
 	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
-			return V.Blueprint.GetUrl(V.Blueprint.Endpoint+".index_view", nil)
+			return V.Blueprint.GetUrl(".index_view")
 		},
-		"get_flashed_messages": func() []map[string]any {
-			// return GetFlashedMessages(r)
-			return nil
+		// TODO: move into BaseView
+		"get_flashed_messages": func() []any {
+			return V.admin.Session(r).Flashes()
 		},
 		"get_url": func(endpoint string, args ...any) string {
 			return must(V.Blueprint.GetUrl(endpoint, args...))
 		},
 		"pager_url": func(page int) string {
-			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
+			return must(V.Blueprint.GetUrl(".index_view", "page", page))
 		},
 		"csrf_token":  func() string { return csrf.Token(r) },
 		"list_form":   V.list_form,

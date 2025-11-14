@@ -120,26 +120,27 @@ func TestOnce(t *testing.T) {
 	is.Equal(1, oc)
 }
 
-func TestBufferWriter(t *testing.T) {
+func TestCachedWriter(t *testing.T) {
 	is := assert.New(t)
 
-	called := false
-	bf := func(w http.ResponseWriter) {
-		w.Header().Add("Hello", "World")
-		called = true
-	}
+	r := httptest.NewRequest("GET", "/foo", nil)
 	w0 := httptest.NewRecorder()
 
-	w := NewBufferWriter(w0, bf)
+	w := NewCachedWriter(w0)
 	w.Write([]byte("body"))
+	http.Redirect(w, r, "/bar", http.StatusFound)
+	w.Header().Add("set-cookie", "session=xx")
+	w.Flush()
 
-	is.False(called)
-
-	w.(http.Flusher).Flush()
-
-	is.Equal("World", w.Header().Get("Hello"))
-	is.Equal("body", w0.Body.String())
-	is.True(called)
+	_, ok1 := any(w).(http.ResponseWriter)
+	is.True(ok1)
+	_, ok := any(w).(http.Hijacker)
+	is.True(ok)
+	is.Len(w0.Header(), 3)
+	is.Equal("session=xx", w0.Header().Get("set-cookie"))
+	is.Equal("/bar", w0.Header().Get("location"))
+	is.Equal(302, w0.Result().StatusCode)
+	is.Equal("body<a href=\"/bar\">Found</a>.\n\n", w0.Body.String())
 }
 
 type base struct{}
