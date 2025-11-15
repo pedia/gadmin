@@ -4,7 +4,9 @@ import (
 	"encoding/csv"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -486,7 +488,7 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
-		one := V.parseForm(r.PostForm)
+		one := V.intoRow(r.PostForm, V.createFormFields)
 		err := V.create(one)
 		if err != nil {
 			V.AddFlash(r, FlashError(err))
@@ -549,7 +551,7 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 
-		one := V.parseForm(r.PostForm)
+		one := V.intoRow(r.PostForm, V.editFormFields)
 		if V.update(rowid, one) != nil {
 			V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 		}
@@ -629,13 +631,7 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	rowid := r.Form.Get("list_form_pk")
 
-	row := Row{}
-	for k, v := range r.Form {
-		if k == "list_form_pk" {
-			continue
-		}
-		row[k] = v[0]
-	}
+	row := V.intoRow(r.Form, V.editFormFields)
 
 	// TODO: validate
 
@@ -690,7 +686,7 @@ func rd(r *http.Request) map[string]any {
 
 // create form: no primarykey
 // edit form: hidden primarykey
-func (V *ModelView) form(one Row, token string) *modelForm {
+func (V *ModelView) form(one *Row, token string) *modelForm {
 	var list []*Field
 	if one == nil {
 		// create
@@ -709,8 +705,10 @@ func (V *ModelView) form(one Row, token string) *modelForm {
 }
 
 // Generate inline edit form in list view
-func (V *ModelView) list_form(field *Field, row Row) template.HTML {
-	return InlineEdit(V.Model, field, row)
+func (V *ModelView) inline_form(token string) func(field *Field, row *Row) template.HTML {
+	return func(field *Field, row *Row) template.HTML {
+		return InlineEdit(token, V.Model, field, row)
+	}
 }
 func (V *ModelView) delete_form() *modelForm {
 	return &modelForm{Fields: []*Field{}}
@@ -744,7 +742,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 			return must(V.Blueprint.GetUrl(".index_view", "page", page))
 		},
 		"csrf_token":  func() string { return csrf.Token(r) },
-		"list_form":   V.list_form,
+		"list_form":   V.inline_form(csrf.Token(r)),
 		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,
 		"clear_search_url": func() string {
@@ -759,6 +757,61 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
 		panic(err)
 	}
+}
+
+// Parse form into map[string]any, only fields in current model
+func (V *ModelView) intoRow(uv url.Values, fields []*Field) *Row {
+	row := newRow(V.new(), V.Fields)
+
+	if fields == nil {
+		fields = V.Fields
+	}
+
+	for _, f := range fields {
+		if !uv.Has(f.DBName) {
+			continue
+		}
+
+		var v any
+		v = uv.Get(f.DBName)
+
+		if len(f.Choices) > 0 {
+			// fix field_select2 formerly None(in python) to null
+			// TODO: fix in form.gotmpl
+			if v == "__None" {
+				continue // ignore
+			}
+		}
+
+		switch f.DataType {
+		case schema.Bool:
+			switch v {
+			case "0":
+				v = false
+			case "1":
+				v = true
+			default:
+				log.Printf("not expected bool %v\n", v)
+			}
+		case schema.Int:
+			v = cast.ToInt(v)
+		case schema.Uint:
+			v = cast.ToUint(v)
+		case schema.Float:
+			v = cast.ToFloat64(v)
+		case schema.Time:
+			if v == "" {
+				continue // ignore
+			}
+		case schema.String:
+			if !f.NotNull && v == "" {
+				continue
+			}
+		}
+
+		row.Set(f, v)
+	}
+	return row
 }
 
 func (V *ModelView) applyJoins(db *gorm.DB) *gorm.DB {
@@ -834,30 +887,28 @@ func (V *ModelView) list(q *Query) *Result {
 
 	len := ptr.Elem().Len()
 
-	res.Rows = make([]Row, len)
+	res.Rows = make([]*Row, len)
 	for i := 0; i < len; i++ {
 		o := ptr.Elem().Index(i).Interface()
-		res.Rows[i] = V.intoRow(o)
+		res.Rows[i] = newRow(o, V.Fields)
 	}
 	return &res
 }
 
-func (V *ModelView) getOne(rowid string) (Row, error) {
+func (V *ModelView) getOne(rowid string) (*Row, error) {
 	ptr := V.Model.new()
-
 	db := V.applyJoins(V.db)
 	if err := db.Where(V.where(rowid)).First(ptr).Error; err != nil {
 		return nil, err
 	}
-	return V.intoRow(ptr), nil
+	return newRow(ptr, V.Fields), nil
 }
 
-func (V *ModelView) update(rowid string, row map[string]any) error {
+func (V *ModelView) update(rowid string, row *Row) error {
 	ptr := V.Model.new()
-
 	if rc := V.db.Model(ptr).
 		Where(V.where(rowid)).
-		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
+		Updates(row.m); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil
@@ -865,19 +916,17 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 
 func (V *ModelView) deleteOne(rowid string) error {
 	ptr := V.Model.new()
-
 	rc := V.db.Delete(ptr, V.where(rowid))
 	return rc.Error
 }
 
 // row -> Model().Create() RETURNING *
-// TOOD: select2 value with __None
-func (V *ModelView) create(row map[string]any) error {
+func (V *ModelView) create(row *Row) error {
 	ptr := V.Model.new()
 
 	if rc := V.db.Model(ptr).
 		Clauses(clause.Returning{}). // RETURNING *
-		Create(row); rc.Error != nil || rc.RowsAffected != 1 {
+		Create(row.m); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil

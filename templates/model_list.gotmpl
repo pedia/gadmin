@@ -163,6 +163,8 @@
                         <td class="col-{{$c.DBName}}">
                         {{- if is_editable $c.DBName }}
                             {{ list_form $c $row }}
+                        {{ else if eq $c.DBName "" }}
+                            <a href="{{get_url "company.details_view" "id" ($row.GetPkValue $c) }}">{{ $row.GetDisplayValue $c }}</a>
                         {{ else }}
                             {{- $row.GetDisplayValue $c -}}
                         {{ end -}}

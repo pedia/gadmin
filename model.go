@@ -2,75 +2,73 @@ package gadm
 
 import (
 	"database/sql/driver"
-	"net/url"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/fatih/camelcase"
-	"github.com/fatih/structs"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
-	"gopkg.in/guregu/null.v4"
 	"gorm.io/gorm/schema"
 )
 
-type Row map[string]any
-
-func (r Row) Get(f *Field) any {
-	return r[f.DBName]
+type Row struct {
+	// db -> Row
+	v      any // struct ptr
+	rv     reflect.Value
+	fields []*Field
+	// form -> map -> db
+	// difficult to set struct field, use map instead
+	m map[string]any
 }
 
-func (r Row) GetDisplayValue(f *Field) any {
-	v := r[f.DBName]
+func newRow(v any, fields []*Field) *Row {
+	row := &Row{v: v, fields: fields, m: map[string]any{}}
 
-	if vi, ok := v.(driver.Valuer); ok {
-		if v, err := vi.Value(); err == nil {
-			return v
-		}
+	row.rv = reflect.ValueOf(v)
+	if row.rv.Kind() == reflect.Pointer {
+		row.v = row.rv.Elem().Interface()
+		row.rv = reflect.ValueOf(row.v)
 	}
+	return row
+}
 
-	switch f.DataType {
-	case schema.Bool:
-		b, _ := v.(bool)
-		if b {
-			return 1
-		}
-		// in template, false is not 0
-		return ""
-	case schema.Time:
-		// struct is map now
-		if nt, ok := v.(map[string]any); ok {
-			if b, ok := nt["Valid"].(bool); ok && b {
-				return nt["Time"] // TODO: format
-			}
-			return ""
-		}
-
-		if t, ok := v.(*time.Time); ok {
-			// in template, nil should be ""
-			if t == nil {
-				return ""
-			}
-
-			switch f.TimeFormat {
-			default:
-				return t.Format(time.DateOnly)
-			case "YYYY-MM-DD":
-				return t.Format(time.DateOnly)
-			case "YYYY-MM-DD HH:mm:ss":
-				return t.Format(time.DateTime)
-			case "HH:mm:ss":
-				return t.Format(time.TimeOnly)
-			}
-		}
-	case schema.String:
-		if ns, ok := v.(null.String); ok {
-			return ns.ValueOrZero()
-		}
+func fieldValue(a any, name string) any {
+	rv := reflect.ValueOf(a)
+	if rv.Kind() == reflect.Pointer {
+		rv = reflect.ValueOf(rv.Elem().Interface())
 	}
-	return v
+	return rv.FieldByName(name).Interface()
+}
+
+func (r *Row) Set(field *Field, v any) {
+	// How to set struct field?
+	r.m[field.DBName] = v
+}
+
+func (r *Row) Get(f *Field) any {
+	v := r.rv.FieldByName(f.Name)
+	if v.IsValid() {
+		return v.Interface()
+	}
+	return r.rv.FieldByName(f.Name).Interface()
+}
+
+func (r *Row) GetDisplayValue(f *Field) any {
+	v := r.Get(f)
+
+	vf := &Field{Field: f.Field, Value: v}
+	return vf.Display()
+}
+
+func (r *Row) GetPkValue(f *Field) string {
+	if v := r.Get(f); v != nil {
+		nf := &Field{Field: f.Field, Value: v}
+		return nf.GetPkValue()
+	}
+	return ""
 }
 
 type Model struct {
@@ -109,29 +107,6 @@ func (m *Model) newSlice() reflect.Value {
 	return reflect.New(reflect.SliceOf(m.schema.ModelType))
 }
 
-// Parse form into map[string]any, only fields in current model
-func (m *Model) parseForm(uv url.Values) Row {
-	row := Row{}
-	for _, f := range m.schema.Fields {
-		if uv.Has(f.DBName) {
-			row[f.DBName] = uv.Get(f.DBName)
-		}
-	}
-	return row
-}
-
-// Convert struct value to row
-func (M *Model) intoRow(a any) Row {
-	m := structs.Map(a)
-
-	res := map[string]any{}
-	for _, c := range M.schema.Fields {
-		res[c.DBName] = m[c.Name] // LastName -> last_name
-	}
-	// TODO: join
-	return res
-}
-
 func (m *Model) find(name string) *Field {
 	if f, ok := lo.Find(m.Fields, func(field *Field) bool {
 		return field.DBName == name
@@ -147,11 +122,12 @@ func (m *Model) sortableColumns() []string {
 	return m.schema.DBNames
 }
 
+// TODO: null
 // in detail/edit url is: id=pk1,pk2
-func (m *Model) get_pk_value(row Row) string {
+func (m *Model) get_pk_value(row *Row) string {
 	vs := []string{}
 	for _, pkf := range m.schema.PrimaryFields {
-		v := row[pkf.DBName]
+		v := row.Get(&Field{Field: pkf})
 		vs = append(vs, cast.ToString(v))
 	}
 	return strings.Join(vs, ",")
@@ -183,6 +159,83 @@ type Field struct {
 	Description string
 	TextAreaRow int
 	TimeFormat  string
+	Readonly    bool // primary key
 	Hidden      bool // csrf token
 	Value       any
+}
+
+func (f *Field) GetPkValue() string {
+	vs := []string{}
+	for _, pkf := range f.Schema.PrimaryFields {
+		v := fieldValue(f.Value, pkf.Name)
+		vs = append(vs, cast.ToString(v))
+	}
+	return strings.Join(vs, ",")
+}
+
+// Edit or display in HTML
+// Empty string means nil = sql null, null.String.Valid = false
+func (f *Field) Display() string {
+	// refer field
+	if f.DBName == "" && f.DataType == "" {
+		if str, ok := f.Value.(fmt.Stringer); ok {
+			return str.String()
+		}
+		return f.Name
+	}
+
+	switch v := f.Value.(type) {
+	case driver.Valuer:
+		dv, _ := v.Value()
+		if dv == nil {
+			return ""
+		}
+		return cast.ToString(dv)
+	case string:
+		return v
+	case *string:
+		if v != nil {
+			return *v
+		}
+		return ""
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, []byte:
+		return cast.ToString(v)
+	case bool:
+		return f.displayBool(v)
+	case *bool:
+		if v != nil {
+			return f.displayBool(*v)
+		}
+		return ""
+	case time.Time:
+		return f.displayTime(v)
+	case *time.Time:
+		if v != nil {
+			return f.displayTime(*v)
+		}
+		return ""
+	default:
+		fmt.Printf("todo: %v %t", v, v)
+	}
+	return ""
+}
+
+func (f *Field) displayBool(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+func (f *Field) displayTime(t time.Time) string {
+	switch f.TimeFormat {
+	default:
+		return t.Format(time.DateOnly)
+	case "YYYY-MM-DD":
+		return t.Format(time.DateOnly)
+	case "YYYY-MM-DD HH:mm:ss":
+		return t.Format(time.DateTime)
+	case "HH:mm:ss":
+		return t.Format(time.TimeOnly)
+	}
 }

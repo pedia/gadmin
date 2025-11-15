@@ -27,14 +27,14 @@ import (
 // <a data-csrf="" data-pk="" data-role="x-editable" data-source="[{&#34;text&#34;: &#34;&#34;, &#34;value&#34;: &#34;__None&#34;}, {&#34;text&#34;: &#34;Admin&#34;, &#34;value&#34;: &#34;admin&#34;}, {&#34;text&#34;: &#34;Content writer&#34;, &#34;value&#34;: &#34;content-writer&#34;}, {&#34;text&#34;: &#34;Editor&#34;, &#34;value&#34;: &#34;editor&#34;}, {&#34;text&#34;: &#34;Regular user&#34;, &#34;value&#34;: &#34;regular-user&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="editor" href="#" id="type" name="type">editor</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
-func InlineEdit(model *Model, field *Field, row Row) template.HTML {
+func InlineEdit(token string, model *Model, field *Field, row *Row) template.HTML {
 	dv := row.GetDisplayValue(field)
 	args := map[template.HTMLAttr]any{
 		"data-value": dv,
 		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
 		"data-url":   "ajax/update",
 		"data-pk":    model.get_pk_value(row),
-		"data-csrf":  "TODO:", // TODO:
+		"data-csrf":  token,
 		"data-type":  "text",
 		"id":         field.DBName,
 		"name":       field.DBName,
@@ -91,11 +91,11 @@ func init() {
 
 type modelForm struct {
 	Fields    []*Field
-	Row       Row
+	Row       *Row
 	CsrfToken string // csrf token
 }
 
-func ModelForm(fields []*Field, token string, row ...Row) *modelForm {
+func ModelForm(fields []*Field, token string, row ...*Row) *modelForm {
 	form := &modelForm{Fields: fields, Row: firstOr(row), CsrfToken: token}
 
 	if form.Row != nil {
@@ -135,7 +135,7 @@ func (f *Field) Html() template.HTML {
 		return f.render("field_select2")
 	}
 
-	if f.PrimaryKey {
+	if f.PrimaryKey { // TODO: Field.Readonly
 		return f.render("field_readonly")
 	}
 

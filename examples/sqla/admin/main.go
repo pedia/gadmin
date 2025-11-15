@@ -30,8 +30,7 @@ func main() {
 			{Value: "regular-user", Label: "Regular user"}},
 		}).
 		SetCanSetPageSize().
-		SetColumnList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
-			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login").
+		SetFormColumns("name").
 		SetColumnSearchableList("name", "email", "bdge").
 		SetColumnEditableList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
 			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login")
@@ -40,7 +39,9 @@ func main() {
 	vp := gadm.NewModelView(sqla.Company{}, db)
 	a.AddView(vp)
 
-	a.AddView(gadm.NewModelView(sqla.Employee{}, db))
+	ve := gadm.NewModelView(sqla.Employee{}, db).
+		Joins("Company")
+	a.AddView(ve)
 
 	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Other", Path: "/other"})
 	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Tree", Path: "/tree"})

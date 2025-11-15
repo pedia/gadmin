@@ -154,6 +154,9 @@ func (b *Blueprint) GetUrl(endpoint string, qs ...any) (string, error) {
 			return res, nil
 		}
 	}
+	if b.Parent != nil && !strings.HasPrefix(endpoint, ".") {
+		return b.Parent.GetUrl(endpoint, qs...)
+	}
 	return "", fmt.Errorf(`endpoint miss for '%s'`, endpoint)
 }
 

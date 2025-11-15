@@ -100,7 +100,7 @@ func (q *Query) urlForPage(page int) string {
 type Result struct {
 	*Query
 	Total int64
-	Rows  []Row
+	Rows  []*Row
 	Error error
 }
 

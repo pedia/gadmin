@@ -410,7 +410,7 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
-	result := &Result{Query: DefaultQuery(), Rows: []Row{}}
+	result := &Result{Query: DefaultQuery(), Rows: []*Row{}}
 	var name string
 	var sql string
 	if r.Method == http.MethodPost {
@@ -429,9 +429,9 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 			result.Error = tx.Error
 			result.Total = tx.RowsAffected
 			// TODO: How to cast better?
-			result.Rows = make([]Row, len(rs))
+			result.Rows = make([]*Row, len(rs))
 			for i := 0; i < len(rs); i++ {
-				result.Rows[i] = Row(rs[i])
+				result.Rows[i].m = rs[i]
 			}
 		}
 	}

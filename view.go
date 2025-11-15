@@ -144,9 +144,9 @@ type flash struct {
 	Category string
 }
 
-// flash category: success, danger, error, info
+// flash category: success(green), info(blue), danger(red)
 func Flash(data, category string) flash { return flash{data, category} }
 func FlashSuccess(data string) flash    { return flash{data, "success"} }
 func FlashInfo(data string) flash       { return flash{data, "info"} }
-func FlashError(err error) flash        { return flash{err.Error(), "error"} }
+func FlashError(err error) flash        { return flash{err.Error(), "danger"} }
 func FlashDanger(data string) flash     { return flash{data, "danger"} }
