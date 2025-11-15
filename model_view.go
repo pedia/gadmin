@@ -84,7 +84,7 @@ type queryArg struct {
 func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 	model := NewModel(m)
 
-	cate := firstOr(category, model.label())
+	cate := firstOr(category, "")
 
 	mv := ModelView{
 		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
@@ -104,8 +104,8 @@ func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 
 	mv.Blueprint = &Blueprint{
 		Name:     model.label(),
-		Endpoint: model.path(),
-		Path:     "/" + model.path(),
+		Endpoint: model.endpoint(),
+		Path:     "/" + model.endpoint(),
 		Children: map[string]*Blueprint{
 			// In flask-admin use `view.index`. Should use `view.index_view` in `gadmin`
 			"index":        {Endpoint: "index", Path: "/", Handler: mv.indexHandler},

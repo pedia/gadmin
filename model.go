@@ -93,7 +93,7 @@ func NewModel(m any) *Model {
 // used in Blueprint's {Path/Endpoint}
 func (m *Model) name() string { return m.schema.Table }
 
-func (m *Model) path() string { return strings.ReplaceAll(m.schema.Table, "_", "") }
+func (m *Model) endpoint() string { return strings.ReplaceAll(m.schema.Table, "_", "") }
 
 func (m *Model) label() string { return strings.Join(camelcase.Split(m.schema.Name), " ") }
 
@@ -164,6 +164,14 @@ type Field struct {
 	Value       any
 }
 
+func (f *Field) Endpoint() string {
+	if f.Schema == nil {
+		panic("not refer field")
+	}
+	ns := schema.NamingStrategy{SingularTable: true}
+	tn := ns.TableName(f.StructField.Name)
+	return strings.ReplaceAll(tn, "_", "")
+}
 func (f *Field) GetPkValue() string {
 	vs := []string{}
 	for _, pkf := range f.Schema.PrimaryFields {

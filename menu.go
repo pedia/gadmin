@@ -51,12 +51,18 @@ func (M *Menu) AddMenu(i *Menu) {
 	if parent != nil {
 		parent.Children = append(parent.Children, i)
 	} else {
-		// self is stub
-		M.Children = append(M.Children, i)
+		// stub, create a new stub or self is stub
+		stub := &Menu{Name: i.Category, Category: i.Category}
+		stub.Children = append(stub.Children, i)
+		M.Children = append(M.Children, stub)
 	}
 }
 
 func (M *Menu) find(cate string) *Menu {
+	if M.Category == cate {
+		return M
+	}
+
 	c, _ := lo.Find(M.Children, func(m *Menu) bool {
 		return m.Category == cate
 	})

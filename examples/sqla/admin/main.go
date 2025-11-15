@@ -17,8 +17,8 @@ func main() {
 			Logger:         logger.Default.LogMode(logger.Info)})
 
 	a := gadm.NewAdmin("Example: SQLAlchemy")
-	vu := gadm.NewModelView(sqla.AllTyped{}, db)
-	vu.SetColumnDescriptions(map[string]string{
+	vat := gadm.NewModelView(sqla.AllTyped{}, db)
+	vat.SetColumnDescriptions(map[string]string{
 		"is_normal": "nobody is normal",
 		"type":      "3 career",
 	}).
@@ -34,14 +34,22 @@ func main() {
 		SetColumnSearchableList("name", "email", "bdge").
 		SetColumnEditableList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
 			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login")
-	a.AddView(vu)
+	a.AddView(vat)
 
-	vp := gadm.NewModelView(sqla.Company{}, db)
-	a.AddView(vp)
-
-	ve := gadm.NewModelView(sqla.Employee{}, db).
+	a.AddView(gadm.NewModelView(sqla.Company{}, db, "BelongsTo"))
+	ve := gadm.NewModelView(sqla.Employee{}, db, "BelongsTo").
 		Joins("Company")
 	a.AddView(ve)
+
+	a.AddView(gadm.NewModelView(sqla.CreditCard{}, db, "HasOne"))
+	vu := gadm.NewModelView(sqla.User{}, db, "HasOne").
+		Joins("CreditCard")
+	a.AddView(vu)
+
+	a.AddView(gadm.NewModelView(sqla.Address{}, db, "HasMany"))
+	va := gadm.NewModelView(sqla.Account{}, db, "HasMany").
+		Preload("Address")
+	a.AddView(va)
 
 	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Other", Path: "/other"})
 	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Tree", Path: "/tree"})

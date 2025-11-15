@@ -13,6 +13,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/guregu/null.v4"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
@@ -59,7 +60,7 @@ func TestModel(t *testing.T) {
 	if false {
 		is.Equal("all_typed", m.name())
 		is.Equal("All Typed", m.label())
-		is.Equal("alltyped", m.path())
+		is.Equal("alltyped", m.endpoint())
 
 		is.Equal("ID", m.Fields[0].Label)
 		is.Equal("id", m.Fields[0].DBName)
@@ -174,8 +175,8 @@ func (ts *ModelTestSuite) SetupTest() {
 		samples := []any{
 			&sqla.Company{Name: "talk ltd"},
 			&sqla.Company{Name: "chat ltd"},
-			&sqla.Employee{Name: "Alice", CompanyId: 1},
-			&sqla.Employee{Name: "Bob", CompanyId: 1},
+			&sqla.Employee{Name: "Alice", CompanyId: null.NewInt(1, true)},
+			&sqla.Employee{Name: "Bob", CompanyId: null.NewInt(1, true)},
 		}
 		for _, o := range samples {
 			tx := db.Create(o)
