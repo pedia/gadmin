@@ -11,7 +11,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 // JdbcURL Parsed result
@@ -28,7 +27,7 @@ func (du *databaseURL) Open(opts ...gorm.Option) (*gorm.DB, error) {
 
 func (du *databaseURL) OpenDefault() (*gorm.DB, error) {
 	return gorm.Open(du.Creator(du.DSN), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true},
+		NamingStrategy: Namer,
 		Logger:         logger.Default.LogMode(logger.Info)})
 }
 

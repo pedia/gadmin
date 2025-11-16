@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -115,6 +116,18 @@ func ReplyJson(w http.ResponseWriter, status int, o any) {
 	if err := json.NewEncoder(w).Encode(o); err != nil {
 		panic(err)
 	}
+}
+
+func isNil(object interface{}) bool {
+	if object == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(object)
+	return slices.Contains(
+		[]reflect.Kind{reflect.Chan, reflect.Func, reflect.Interface,
+			reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer},
+		rv.Kind()) && rv.IsNil()
 }
 
 // Some go template actions might change headers(Cookie)

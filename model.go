@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -65,7 +64,7 @@ func (r *Row) Get(f *Field) any {
 	if v.IsValid() {
 		return v.Interface()
 	}
-	return r.rv.FieldByName(f.Name).Interface()
+	return nil
 }
 
 func (r *Row) GetDisplayValue(f *Field) any {
@@ -83,7 +82,7 @@ func (r *Row) GetPkValue(f *Field) string {
 	return ""
 }
 
-func (r *Row) Of(f *Field) *Field {
+func (r *Row) FieldOf(f *Field) *Field {
 	return &Field{Field: f.Field, Value: r.Get(f)}
 }
 
@@ -92,11 +91,13 @@ type Model struct {
 	Fields []*Field
 }
 
+// used in Open, Struct to table name
+var Namer = schema.NamingStrategy{SingularTable: true}
 var schemaStore = sync.Map{}
 
 func NewModel(m any) *Model {
 	// TODO: option SingularTable
-	s := must(schema.Parse(m, &schemaStore, schema.NamingStrategy{SingularTable: true}))
+	s := must(schema.Parse(m, &schemaStore, Namer))
 	fs := lo.Map(s.Fields, func(field *schema.Field, _ int) *Field {
 		return &Field{Field: field, Label: strings.Join(camelcase.Split(field.Name), " ")}
 	})
@@ -184,8 +185,7 @@ func (f *Field) Endpoint() string {
 	if f.Schema == nil {
 		panic("not refer field")
 	}
-	ns := schema.NamingStrategy{SingularTable: true}
-	tn := ns.TableName(f.Schema.Table)
+	tn := Namer.TableName(f.Schema.Table)
 	return strings.ReplaceAll(tn, "_", "")
 }
 func (f *Field) IsSlice() bool {
@@ -204,23 +204,12 @@ func (f *Field) GetPkValue() string {
 	return strings.Join(vs, ",")
 }
 
-func isNil(object interface{}) bool {
-	if object == nil {
-		return true
-	}
-
-	rv := reflect.ValueOf(object)
-	return slices.Contains(
-		[]reflect.Kind{reflect.Chan, reflect.Func, reflect.Interface,
-			reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer},
-		rv.Kind()) && rv.IsNil()
-}
-
 // Edit or display in HTML
 // Empty string means nil = sql null, null.String.Valid = false
 func (f *Field) Display() string {
-	// refer field
+	// relation field
 	if f.DBName == "" && f.DataType == "" {
+		// strong nil check
 		if !isNil(f.Value) {
 			if str, ok := f.Value.(fmt.Stringer); ok && str != nil {
 				return str.String()
@@ -243,7 +232,8 @@ func (f *Field) Display() string {
 			return *v
 		}
 		return ""
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, []byte:
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
+		float32, float64, []byte:
 		return cast.ToString(v)
 	case bool:
 		return f.displayBool(v)

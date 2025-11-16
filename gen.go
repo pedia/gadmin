@@ -46,7 +46,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	g.logger.Println("generate start")
 
 	db, err := Parse(g.Url).Open(&gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true},
+		NamingStrategy: Namer,
 		Logger: logger.New(g.logger, logger.Config{
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  logger.Warn,
@@ -102,10 +102,10 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	g.exec("go", "fmt", "./dao")
 	g.exec("go", "test", "./dao")
 
-	if isdebug.Enabled {
+	if isdebug.On {
 		g.exec("go", "build", "-buildmode=plugin",
 			`-gcflags`, `all=-N -l`, // debug
-			"-tags", "debug", // for isdebug.Enabled
+			"-tags", "debug", // for isdebug.On
 			"-o", "libdao.so", "./dao")
 	} else {
 		g.exec("go", "build", "-buildmode=plugin",
@@ -365,7 +365,6 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 func TestDaoModels(t *testing.T) {
@@ -376,7 +375,7 @@ func TestDaoModels(t *testing.T) {
 
 	db, err := gadm.Parse("{{.Url}}").Open(
 		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
+			NamingStrategy: gadm.Namer,
 			Logger:         logger.Default.LogMode(logger.Info)})
 	if err != nil {
 		return
@@ -405,6 +404,7 @@ func Views() []*gadm.ModelView {
 	if err != nil {
 		return nil
 	}
+	_ = db
 
 	return []*gadm.ModelView{
 	{{range .Tables}}

@@ -160,7 +160,7 @@
                     {{- end -}}
 
                     {{ range $c := $g.list_columns }}
-                       {{ $vf := $row.Of $c }}
+                       {{ $vf := $row.FieldOf $c }}
                         <td class="col-{{$c.DBName}}">
                         {{- if $vf.IsStruct }}
                             <a href="{{get_url ( printf "%s%s" $c.Endpoint ".details_view") "id" $vf.GetPkValue }}">{{ $vf.Display }}</a>

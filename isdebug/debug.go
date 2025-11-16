@@ -2,4 +2,4 @@
 
 package isdebug
 
-const Enabled = true
+const On = true

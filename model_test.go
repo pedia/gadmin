@@ -17,7 +17,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 func views(db *gorm.DB) []*ModelView {
@@ -68,13 +67,13 @@ func TestModel(t *testing.T) {
 
 	// field is struct
 	re := newRow(&sqla.Employee{}, NewModel(sqla.Employee{}).Fields)
-	fve := re.Of(re.fields[3])
+	fve := re.FieldOf(re.fields[3])
 	is.True(fve.IsStruct())
 	is.Equal("", fve.Display())
 
 	// field is slice
 	rdog := newRow(&sqla.Dog{}, NewModel(sqla.Dog{}).Fields)
-	fvslice := rdog.Of(rdog.fields[2])
+	fvslice := rdog.FieldOf(rdog.fields[2])
 	is.True(fvslice.IsSlice())
 	is.False(fvslice.IsStruct())
 	is.Equal("dog", fvslice.Endpoint())
@@ -117,9 +116,7 @@ func TestModel(t *testing.T) {
 	// is.Equal("9527", dv1)
 
 	db, _ := gorm.Open(sqlite.Open(":memory:"),
-		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
-		})
+		&gorm.Config{NamingStrategy: Namer})
 	db.AutoMigrate(sqla.AllTyped{})
 
 	tx0 := db.Create(typeds())
@@ -175,7 +172,7 @@ func (ts *ModelTestSuite) SetupTest() {
 
 	db, _ := gorm.Open(sqlite.Open(":memory:"),
 		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
+			NamingStrategy: Namer,
 			Logger:         logger.Default.LogMode(logger.Info),
 		})
 	ts.admin = NewAdmin("Test Site")
@@ -294,8 +291,10 @@ func (ts *ModelTestSuite) TestUrlStatusCode() {
 			{200, fmt.Sprintf("/admin/%s/new", e)},
 			{302, fmt.Sprintf("/admin/%s/edit", e)},
 			{302, fmt.Sprintf("/admin/%s/details", e)},
+			// {302, fmt.Sprintf("/admin/%s/edit?id=1", e)},
+			// {200, fmt.Sprintf("/admin/%s/details?id=1", e)},
 			{200, fmt.Sprintf("/admin/%s/action", e)},
-			{302, fmt.Sprintf("/admin/%s/delete", e)},
+			{302, fmt.Sprintf("/admin/%s/delete?id=0", e)},
 			{200, fmt.Sprintf("/admin/%s/export", e)},
 		}
 	})

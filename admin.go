@@ -38,7 +38,7 @@ func NewAdmin(name string) *Admin {
 		}},
 		views:       []View{},
 		dbs:         map[string]*gorm.DB{},
-		debug:       isdebug.Enabled,
+		debug:       isdebug.On,
 		autoMigrate: true,
 		trace:       true,
 		tracer:      NewTrace(),
