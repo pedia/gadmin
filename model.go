@@ -188,13 +188,24 @@ func (f *Field) Endpoint() string {
 	tn := Namer.TableName(f.Schema.Table)
 	return strings.ReplaceAll(tn, "_", "")
 }
+
 func (f *Field) IsSlice() bool {
 	rv := reflect.ValueOf(f.Value)
 	return rv.Kind() == reflect.Slice
 }
+func (f *Field) Slice() []*wrap {
+	rv := reflect.ValueOf(f.Value)
+
+	ws := make([]*wrap, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		ws[i] = Wrap(rv.Index(0).Interface())
+	}
+	return ws
+}
 func (f *Field) IsStruct() bool {
 	return f.DBName == "" && f.Schema != nil && !f.IsSlice()
 }
+
 func (f *Field) GetPkValue() string {
 	vs := []string{}
 	for _, pkf := range f.Schema.PrimaryFields {
@@ -273,4 +284,26 @@ func (f *Field) displayTime(t time.Time) string {
 	case "HH:mm:ss":
 		return t.Format(time.TimeOnly)
 	}
+}
+
+type wrap struct {
+	Model *Model
+	Row   *Row
+}
+
+func Wrap(v any) *wrap {
+	m := NewModel(v)
+	return &wrap{m, newRow(v, m.Fields)}
+}
+
+func (w *wrap) Endpoint() string {
+	return w.Model.endpoint()
+}
+func (w *wrap) GetPkValue() string {
+	return w.Model.get_pk_value(w.Row)
+}
+
+func indirect(a any) any {
+	rv := reflect.Indirect(reflect.ValueOf(a))
+	return rv.Interface()
 }

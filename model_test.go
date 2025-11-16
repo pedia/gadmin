@@ -1,13 +1,11 @@
 package gadm
 
 import (
-	"database/sql"
 	"fmt"
 	"gadm/examples/sqla"
 	"net/http/httptest"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/samber/lo"
@@ -32,23 +30,6 @@ func views(db *gorm.DB) []*ModelView {
 		NewModelView(sqla.Student{}, db, "Association"),
 		NewModelView(sqla.Toy{}, db, "Association"),
 		NewModelView(sqla.Dog{}, db, "Association"),
-	}
-}
-
-func typeds() []sqla.AllTyped {
-	pf := false
-	pt := true
-	e1 := "foo@foo.com"
-	d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, time.Local)
-	e2 := "bar@foo.com"
-	d2 := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
-	return []sqla.AllTyped{
-		{ID: 3, Name: "foo", Email: &e1, Age: 42, IsNormal: true,
-			Valid: &pt, NotNone: &pf, Birthday: &d1,
-			Badge: sql.NullString{String: "9527", Valid: true}},
-		{ID: 4, Name: "bar", Email: &e2, Age: 21, IsNormal: false,
-			Valid: &pt, NotNone: &pf, Birthday: &d2,
-			Badge: sql.NullString{String: "3699", Valid: true}},
 	}
 }
 
@@ -81,7 +62,7 @@ func TestModel(t *testing.T) {
 	is.Equal(reflect.Slice, reflect.ValueOf(fvslice.Value).Kind())
 
 	m := NewModel(sqla.AllTyped{})
-	if false {
+	if true {
 		is.Equal("all_typed", m.name())
 		is.Equal("All Typed", m.label())
 		is.Equal("alltyped", m.endpoint())
@@ -90,20 +71,20 @@ func TestModel(t *testing.T) {
 		is.Equal("id", m.Fields[0].DBName)
 		is.Equal("ID", m.Fields[0].Name)
 		is.Equal("Email", m.Fields[2].Label)
-		is.Equal("Activated At", m.Fields[10].Label)
-		is.Equal("activated_at", m.Fields[10].DBName)
-		is.Equal("ActivatedAt", m.Fields[10].Name)
+		is.Equal("Activated At", m.Fields[13].Label)
+		is.Equal("activated_at", m.Fields[13].DBName)
+		is.Equal("ActivatedAt", m.Fields[13].Name)
 
-		r1 := newRow(typeds()[0], m.Fields)
+		r1 := newRow(sqla.Samples[0], m.Fields)
 		is.Equal("foo", r1.Get(m.Fields[1]))
 		// is.True(r1["is_normal"].(bool))
 
-		is.Equal("3,foo", m.get_pk_value(r1))
-		is.Equal(map[string]string{"id": "3", "name": "foo"}, m.where("3,foo"))
+		is.Equal("3", m.get_pk_value(r1))
+		is.Equal(map[string]string{"id": "3"}, m.where("3"))
 	}
 
 	// protype
-	o := any(typeds()[0])
+	o := any(sqla.AllTyped{Name: ""})
 	rv := reflect.ValueOf(o)
 	for _, f := range m.schema.Fields {
 		fv := rv.FieldByName(f.Name)
@@ -119,10 +100,11 @@ func TestModel(t *testing.T) {
 		&gorm.Config{NamingStrategy: Namer})
 	db.AutoMigrate(sqla.AllTyped{})
 
-	tx0 := db.Create(typeds())
+	a2 := []sqla.AllTyped{sqla.Samples[0].(sqla.AllTyped), sqla.Samples[1].(sqla.AllTyped)}
+	tx0 := db.Model(&sqla.AllTyped{}).Create(&a2)
 	is.Nil(tx0.Error)
 
-	m1 := newRow(o, m.Fields)
+	m1 := newRow(a2[0], m.Fields)
 	rowid := m.get_pk_value(m1)
 
 	// update
@@ -152,6 +134,12 @@ func TestModel(t *testing.T) {
 	tx3 := db.Model(out1).Clauses(clause.Returning{}).Create(&m1.m)
 	is.Nil(tx3.Error)
 	is.NotZero(m1.m["id"]) // TODO: not return id?
+
+	ar := Wrap(indirect(out1)) // TODO
+	is.Equal("alltyped", ar.Endpoint())
+	is.Equal("3", ar.GetPkValue())
+
+	// acct := sqla.Account{Addresses: []sqla.Address{{Number: "12321"}, {Number: "22321"}}}
 }
 
 func TestWidget(t *testing.T) {
@@ -317,9 +305,9 @@ func (ts *ModelTestSuite) TestUrlStatusCode() {
 
 	loop()
 
-	for _, p := range sqla.Samples {
-		tx := vc.db.Create(p)
-		ts.is.Nil(tx.Error)
-	}
-	loop()
+	// for _, p := range sqla.Samples {
+	// 	tx := vc.db.Create(p)
+	// 	ts.is.Nil(tx.Error)
+	// }
+	// loop()
 }

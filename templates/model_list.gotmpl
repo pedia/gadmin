@@ -165,7 +165,9 @@
                         {{- if $vf.IsStruct }}
                             <a href="{{get_url ( printf "%s%s" $c.Endpoint ".details_view") "id" $vf.GetPkValue }}">{{ $vf.Display }}</a>
                         {{ else if $vf.IsSlice }}
-                            {{range $vf.Value}}{{.Id}},{{end}}
+                            {{- range $vf.Slice}}
+                            <a href="{{get_url ( printf "%s%s" .Endpoint ".details_view") "id" .GetPkValue }}">{{.Endpoint}}</a>
+                            {{- end }}
                         {{ else }}
                             {{- if is_editable $c.DBName }}
                                 {{ list_form $c $row }}

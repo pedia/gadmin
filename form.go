@@ -106,16 +106,6 @@ func ModelForm(fields []*Field, token string, row ...*Row) *modelForm {
 	return form
 }
 
-// new hidden Field, and return it's Html
-func (f *modelForm) Hidden(name, value string) template.HTML {
-	field := &Field{
-		Field:  &schema.Field{DBName: name},
-		Hidden: true,
-		Value:  value,
-	}
-	return field.Html()
-}
-
 func HiddenField(token string) *Field {
 	return &Field{
 		Field:  &schema.Field{DBName: "csrf_token"},

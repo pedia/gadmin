@@ -400,7 +400,7 @@ package {{.Package}}
 import "gadm"
 
 func Views() []*gadm.ModelView {
-	db, err := gadm.Parse("{{.Url}})").OpenDefault()
+	db, err := gadm.Parse("{{.Url}})").Open()
 	if err != nil {
 		return nil
 	}

@@ -50,7 +50,7 @@ func NewAdmin(name string) *Admin {
 		mux: http.NewServeMux(),
 
 		indexTemplateFile: "templates/index.gotmpl",
-		theme:             "cerulean",
+		theme:             "slate",
 	}
 	A.BaseView.admin = A
 

@@ -1,6 +1,3 @@
-/*
-Package reformism provides several utility functions for native text/template
-*/
 package gadm
 
 import (
@@ -12,21 +9,21 @@ import (
 	"text/template"
 )
 
-// Pack represents packed arguments and original dot
-type Pack struct {
+// pack represents packed arguments and original dot
+type pack struct {
 	Origin any
 	Args   map[string]any
 }
 
 // witharg is used in pipe to pack argument with dot
-func witharg(k string, v any, i any) Pack {
-	packT := reflect.TypeOf((*Pack)(nil)).Elem()
+func witharg(k string, v any, i any) pack {
+	packT := reflect.TypeOf((*pack)(nil)).Elem()
 	if reflect.TypeOf(i) == packT {
-		old := i.(Pack)
+		old := i.(pack)
 		old.Args[k] = v
 		return old
 	}
-	return Pack{
+	return pack{
 		Origin: i,
 		Args: map[string]any{
 			k: v,
@@ -36,12 +33,12 @@ func witharg(k string, v any, i any) Pack {
 }
 
 // done eats all pack passed to it and returns nil
-func done(Pack) any {
+func done(pack) any {
 	return nil
 }
 
 // args extracts .args field
-func args(p Pack) map[string]any {
+func args(p pack) map[string]any {
 	return p.Args
 }
 
@@ -68,7 +65,7 @@ func requireArg(k string, trailingArgs ...any) (any, error) {
 	}
 	v := trailingArgs[len(trailingArgs)-1]
 
-	if v, ok := v.(Pack); ok { // check whether last arg is Pack
+	if v, ok := v.(pack); ok { // check whether last arg is Pack
 		if _, ok := v.Args[k]; !ok { // check whether Pack contains arguments with name K
 			return nil, newArgCheckError(fmt.Sprintf("Required argument not found. Expected: %s, actual args: %v",
 				k,
@@ -205,7 +202,7 @@ func only(args ...any) (map[string]any, error) {
 	last := args[len(args)-1]
 	pm, ok := last.(map[string]any)
 	if !ok {
-		pack, ok := last.(Pack)
+		pack, ok := last.(pack)
 		if !ok {
 			return nil, errors.New("filter should be added to pipeline")
 		}
@@ -229,7 +226,7 @@ func deleteItem(k string, args ...any) (map[string]any, error) {
 	last := args[len(args)-1]
 	pm, ok := last.(map[string]any)
 	if !ok {
-		pack, ok := last.(Pack)
+		pack, ok := last.(pack)
 		if !ok {
 			return nil, errors.New("delete should be added to pipeline")
 		}
@@ -248,7 +245,7 @@ func mapSet(k string, v any, args ...any) (map[string]any, error) {
 	last := args[len(args)-1]
 	pm, ok := last.(map[string]any)
 	if !ok {
-		pack, ok := last.(Pack)
+		pack, ok := last.(pack)
 		if !ok {
 			return nil, errors.New("add should be added to pipeline")
 		}
@@ -263,7 +260,7 @@ func mapSet(k string, v any, args ...any) (map[string]any, error) {
 func defaultOf(c any, k string, dv any) (any, error) {
 	m, ok := c.(map[string]any)
 	if !ok {
-		pack, ok := c.(Pack)
+		pack, ok := c.(pack)
 		if !ok {
 			return nil, errors.New("a map of pack descired before pipeline")
 		}

@@ -3,18 +3,10 @@ package main
 import (
 	"gadm"
 	"gadm/examples/sqla"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 func main() {
-	db, _ := gorm.Open(sqlite.Open("examples/sqla/sample.db"),
-		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
-			Logger:         logger.Default.LogMode(logger.Info)})
+	db, _ := gadm.Parse("sqlite:examples/sqla/sample.db").Open()
 
 	a := gadm.NewAdmin("Example: SQLAlchemy")
 	vat := gadm.NewModelView(sqla.AllTyped{}, db)
@@ -65,9 +57,9 @@ func main() {
 
 	// TODO: replace index handler /admin/
 
-	for _, p := range sqla.Samples {
-		db.Create(p)
-	}
+	// for _, p := range sqla.Samples {
+	// 	db.Create(p)
+	// }
 
 	a.Run()
 }

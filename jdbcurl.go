@@ -13,6 +13,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// call gorm.Open
+func Open(jdbcURL string, opts ...gorm.Option) (*gorm.DB, error) {
+	return Parse(jdbcURL).Open(opts...)
+}
+
 // JdbcURL Parsed result
 type databaseURL struct {
 	URL     *url.URL
@@ -22,13 +27,11 @@ type databaseURL struct {
 
 // Open JdbcURL as *gorm.DB
 func (du *databaseURL) Open(opts ...gorm.Option) (*gorm.DB, error) {
-	return gorm.Open(du.Creator(du.DSN), opts...)
-}
-
-func (du *databaseURL) OpenDefault() (*gorm.DB, error) {
-	return gorm.Open(du.Creator(du.DSN), &gorm.Config{
+	nopt := []gorm.Option{&gorm.Config{
 		NamingStrategy: Namer,
-		Logger:         logger.Default.LogMode(logger.Info)})
+		Logger:         logger.Default.LogMode(logger.Info)}}
+	nopt = append(nopt, opts...)
+	return gorm.Open(du.Creator(du.DSN), nopt...)
 }
 
 // JdbcURL like:

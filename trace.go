@@ -15,8 +15,7 @@ import (
 )
 
 // During http request, some gorm SQLs will be excuted.
-// Record as trace.
-
+// Record as trace Entry.
 type Entry struct {
 	URL string
 	Log string
