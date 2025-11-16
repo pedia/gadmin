@@ -48,17 +48,26 @@ func main() {
 
 	a.AddView(gadm.NewModelView(sqla.Address{}, db, "HasMany"))
 	va := gadm.NewModelView(sqla.Account{}, db, "HasMany").
-		Preload("Address")
+		Preloads("Addresses")
 	a.AddView(va)
 
+	a.AddView(gadm.NewModelView(sqla.Toy{}, db, "Polymorphism"))
+	vt := gadm.NewModelView(sqla.Dog{}, db, "Polymorphism").
+		Preloads("Toys")
+	a.AddView(vt)
+
 	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Other", Path: "/other"})
-	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Tree", Path: "/tree"})
-	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Links", Path: "/links", Children: []*gadm.Menu{
+	a.BaseView.Menu.AddMenu(&gadm.Menu{Name: "Tree", Path: "/tree"}, "Other")
+	a.BaseView.Menu.AddMenu(&gadm.Menu{Name: "Links", Path: "/links", Children: []*gadm.Menu{
 		{Name: "Back Home", Path: "/"},
 		{Name: "External Link", Path: "http://www.example.com/"},
-	}})
+	}}, "Other")
 
 	// TODO: replace index handler /admin/
+
+	for _, p := range sqla.Samples {
+		db.Create(p)
+	}
 
 	a.Run()
 }

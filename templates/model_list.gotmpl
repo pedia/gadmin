@@ -160,13 +160,18 @@
                     {{- end -}}
 
                     {{ range $c := $g.list_columns }}
+                       {{ $vf := $row.Of $c }}
                         <td class="col-{{$c.DBName}}">
-                        {{- if is_editable $c.DBName }}
-                            {{ list_form $c $row }}
-                        {{ else if eq $c.DBName "" }}
-                            <a href="{{get_url ( printf "%s%s" $c.Endpoint ".details_view") "id" ($row.GetPkValue $c) }}">{{ $row.GetDisplayValue $c }}</a>
+                        {{- if $vf.IsStruct }}
+                            <a href="{{get_url ( printf "%s%s" $c.Endpoint ".details_view") "id" $vf.GetPkValue }}">{{ $vf.Display }}</a>
+                        {{ else if $vf.IsSlice }}
+                            {{range $vf.Value}}{{.Id}},{{end}}
                         {{ else }}
-                            {{- $row.GetDisplayValue $c -}}
+                            {{- if is_editable $c.DBName }}
+                                {{ list_form $c $row }}
+                            {{ else }}
+                                {{- $vf.Display -}}
+                            {{ end }}
                         {{ end -}}
                         </td>
                     {{ end }}

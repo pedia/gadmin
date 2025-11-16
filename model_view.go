@@ -138,7 +138,7 @@ func (V *ModelView) InnerJoins(query string, args ...any) *ModelView {
 	V.innerJoins = append(V.innerJoins, queryArg{query, args})
 	return V
 }
-func (V *ModelView) Preload(query string, args ...any) *ModelView {
+func (V *ModelView) Preloads(query string, args ...any) *ModelView {
 	V.preloads = append(V.preloads, queryArg{query, args})
 	return V
 }
@@ -402,7 +402,7 @@ func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
 
 	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
 		"query":     V.queryFrom(r),
-		"menu":      V.Menu.dict(),
+		"menu":      V.Menu,
 		"blueprint": V.Blueprint.dict(),
 	})
 }
@@ -535,13 +535,12 @@ func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, urls ...str
 
 func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
+	rowid := q.Get("id")
 
-	if !V.can_edit {
+	if !V.can_edit || rowid == "" {
 		V.redirect(w, r, q.Get("url"))
 		return
 	}
-
-	rowid := q.Get("id")
 
 	one, err := V.getOne(rowid)
 	if err != nil {
@@ -573,13 +572,14 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 
 // Model().Where(pk field = pk value).Delete()
 func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
-	if !V.can_delete {
+	q := V.queryFrom(r)
+	rowid := q.Get("id")
+	if !V.can_delete || rowid == "" {
 		V.redirect(w, r)
 		return
 	}
 
-	q := V.queryFrom(r)
-	err := V.deleteOne(q.Get("id"))
+	err := V.deleteOne(rowid)
 	if err != nil {
 		V.AddFlash(r, Flash(gettext("Failed to delete record. %s", err), "error"))
 	} else {
@@ -592,13 +592,14 @@ func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
 // Model().Where(pk field = pk value).First()
 func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
+	rowid := q.Get("id")
 
-	if !V.can_view_details {
+	if !V.can_view_details || rowid == "" {
 		V.redirect(w, r)
 		return
 	}
 
-	one, err := V.getOne(q.Get("id"))
+	one, err := V.getOne(rowid)
 	if err != nil {
 		V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 
@@ -607,8 +608,8 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
-		"model":           one, // TODO: rename 'model' to 'row'
-		"details_columns": V.genListFields(),
+		"model":           one,
+		"details_columns": V.Fields, // show all fields
 		"request":         rd(r),
 	})
 }

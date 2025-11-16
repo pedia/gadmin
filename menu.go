@@ -9,9 +9,9 @@ import (
 
 // Tree liked structure
 type Menu struct {
-	Category string // parent item Name
-	Name     string // label
-	Path     string // linked to url
+	Category string // tree liked
+	Name     string
+	Path     string
 
 	Icon  string
 	Class string
@@ -23,31 +23,17 @@ type Menu struct {
 	Children []*Menu
 }
 
-func (M *Menu) dict() map[string]any {
-	return map[string]any{
-		"category":      M.Category,
-		"name":          M.Name,
-		"path":          M.Path,
-		"icon":          M.Icon,
-		"class":         M.Class,
-		"is_active":     M.IsActive,
-		"is_visible":    M.IsVisible,
-		"is_accessible": M.IsAccessible,
-		"children": lo.Map(M.Children, func(c *Menu, _ int) map[string]any {
-			return c.dict()
-		}),
-	}
-}
-
 // TODO: AddCategory/AddLink/AddMenuItem
-func (M *Menu) AddMenu(i *Menu) {
-	if i.Path == "" || !strings.HasPrefix(i.Path, "/") {
-		np := "/" + strings.ToLower(i.Name)
-		log.Printf(`menu(%s) path '%s' invalid, fixed to '%s'`, i.Name, i.Path, np)
-		i.Path = np
+func (M *Menu) AddMenu(i *Menu, category ...string) {
+	if i.Category == "" {
+		if i.Path == "" && !strings.HasPrefix(i.Path, "/") {
+			np := "/" + strings.ToLower(i.Name)
+			log.Printf(`menu(%s) path '%s' invalid, fixed to '%s'`, i.Name, i.Path, np)
+			i.Path = np
+		}
 	}
 
-	parent := M.find(i.Category)
+	parent := M.find(firstOr(category, ""))
 	if parent != nil {
 		parent.Children = append(parent.Children, i)
 	} else {

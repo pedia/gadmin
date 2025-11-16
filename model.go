@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -27,20 +28,31 @@ type Row struct {
 func newRow(v any, fields []*Field) *Row {
 	row := &Row{v: v, fields: fields, m: map[string]any{}}
 
-	row.rv = reflect.ValueOf(v)
-	if row.rv.Kind() == reflect.Pointer {
-		row.v = row.rv.Elem().Interface()
-		row.rv = reflect.ValueOf(row.v)
-	}
+	rv := reflect.Indirect(reflect.ValueOf(v))
+
+	row.v = rv.Interface()
+	row.rv = rv
 	return row
 }
 
 func fieldValue(a any, name string) any {
 	rv := reflect.ValueOf(a)
-	if rv.Kind() == reflect.Pointer {
-		rv = reflect.ValueOf(rv.Elem().Interface())
+	for rv.Kind() == reflect.Pointer {
+		v := rv.Elem()
+		if !v.IsValid() {
+			return nil
+		}
+		rv = reflect.ValueOf(v.Interface())
 	}
-	return rv.FieldByName(name).Interface()
+
+	if rv.Kind() == reflect.Struct {
+		if v := rv.FieldByName(name); v.IsValid() {
+			return v.Interface()
+		}
+	} else if rv.Kind() == reflect.Slice {
+		return rv.Interface()
+	}
+	return nil
 }
 
 func (r *Row) Set(field *Field, v any) {
@@ -69,6 +81,10 @@ func (r *Row) GetPkValue(f *Field) string {
 		return nf.GetPkValue()
 	}
 	return ""
+}
+
+func (r *Row) Of(f *Field) *Field {
+	return &Field{Field: f.Field, Value: r.Get(f)}
 }
 
 type Model struct {
@@ -169,8 +185,15 @@ func (f *Field) Endpoint() string {
 		panic("not refer field")
 	}
 	ns := schema.NamingStrategy{SingularTable: true}
-	tn := ns.TableName(f.StructField.Name)
+	tn := ns.TableName(f.Schema.Table)
 	return strings.ReplaceAll(tn, "_", "")
+}
+func (f *Field) IsSlice() bool {
+	rv := reflect.ValueOf(f.Value)
+	return rv.Kind() == reflect.Slice
+}
+func (f *Field) IsStruct() bool {
+	return f.DBName == "" && f.Schema != nil && !f.IsSlice()
 }
 func (f *Field) GetPkValue() string {
 	vs := []string{}
@@ -181,15 +204,29 @@ func (f *Field) GetPkValue() string {
 	return strings.Join(vs, ",")
 }
 
+func isNil(object interface{}) bool {
+	if object == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(object)
+	return slices.Contains(
+		[]reflect.Kind{reflect.Chan, reflect.Func, reflect.Interface,
+			reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer},
+		rv.Kind()) && rv.IsNil()
+}
+
 // Edit or display in HTML
 // Empty string means nil = sql null, null.String.Valid = false
 func (f *Field) Display() string {
 	// refer field
 	if f.DBName == "" && f.DataType == "" {
-		if str, ok := f.Value.(fmt.Stringer); ok {
-			return str.String()
+		if !isNil(f.Value) {
+			if str, ok := f.Value.(fmt.Stringer); ok && str != nil {
+				return str.String()
+			}
 		}
-		return f.Name
+		return ""
 	}
 
 	switch v := f.Value.(type) {

@@ -56,6 +56,31 @@ func typeds() []sqla.AllTyped {
 func TestModel(t *testing.T) {
 	is := assert.New(t)
 
+	// weird nil
+	e := sqla.Employee{}
+	is.Nil(e.Company)
+	is.Nil(any(e.Company))
+	str, ok := any(e.Company).(fmt.Stringer)
+	is.True(ok)
+	is.True(str != nil) // weird
+	is.Nil(str)
+	is.True(isNil(str))
+
+	// field is struct
+	re := newRow(&sqla.Employee{}, NewModel(sqla.Employee{}).Fields)
+	fve := re.Of(re.fields[3])
+	is.True(fve.IsStruct())
+	is.Equal("", fve.Display())
+
+	// field is slice
+	rdog := newRow(&sqla.Dog{}, NewModel(sqla.Dog{}).Fields)
+	fvslice := rdog.Of(rdog.fields[2])
+	is.True(fvslice.IsSlice())
+	is.False(fvslice.IsStruct())
+	is.Equal("dog", fvslice.Endpoint())
+	is.Equal("", fvslice.Display())
+	is.Equal(reflect.Slice, reflect.ValueOf(fvslice.Value).Kind())
+
 	m := NewModel(sqla.AllTyped{})
 	if false {
 		is.Equal("all_typed", m.name())
@@ -154,23 +179,12 @@ func (ts *ModelTestSuite) SetupTest() {
 			Logger:         logger.Default.LogMode(logger.Info),
 		})
 	ts.admin = NewAdmin("Test Site")
+	ts.admin.trace = false
 
 	var c int64
 	tx := db.Model(&sqla.Company{}).Count(&c)
 	if tx.Error != nil || c == 0 {
 		db.AutoMigrate(sqla.Models...)
-
-		// e1 := "foo@foo.com"
-		// d1 := time.Date(2024, 10, 1, 0, 0, 0, 0, time.Local)
-		// e2 := "bar@foo.com"
-		// d2 := time.Date(2024, 3, 1, 0, 0, 0, 0, time.Local)
-		// fs := []Typed{
-		// 	{Name: "foo", Email: &e1, Age: 42, Normal: true, Birthday: &d1,
-		// 		MemberNumber: sql.NullString{String: "9527", Valid: true}},
-		// 	{Name: "bar", Email: &e2, Age: 21, Normal: false, Birthday: &d2,
-		// 		MemberNumber: sql.NullString{String: "3699", Valid: true}},
-		// }
-		// db.Create(&fs)
 
 		samples := []any{
 			&sqla.Company{Name: "talk ltd"},
@@ -270,22 +284,43 @@ func (ts *ModelTestSuite) TestUrlStatusCode() {
 		"language", "student", "toy", "dog",
 	}
 
-	paths := lo.FlatMap(es, func(e string, _ int) []string {
-		return []string{
-			fmt.Sprintf("/admin/%s/", e),
-			fmt.Sprintf("/admin/%s/new", e),
-			// 302 fmt.Sprintf("/admin/%s/edit", e),
-			// fmt.Sprintf("/admin/%s/details", e),
-			// fmt.Sprintf("/admin/%s/action", e),
-			// fmt.Sprintf("/admin/%s/delete", e),
-			fmt.Sprintf("/admin/%s/export", e),
+	type cp struct {
+		code int
+		path string
+	}
+	cases := lo.FlatMap(es, func(e string, _ int) []cp {
+		return []cp{
+			{200, fmt.Sprintf("/admin/%s/", e)},
+			{200, fmt.Sprintf("/admin/%s/new", e)},
+			{302, fmt.Sprintf("/admin/%s/edit", e)},
+			{302, fmt.Sprintf("/admin/%s/details", e)},
+			{200, fmt.Sprintf("/admin/%s/action", e)},
+			{302, fmt.Sprintf("/admin/%s/delete", e)},
+			{200, fmt.Sprintf("/admin/%s/export", e)},
 		}
 	})
 
-	for _, path := range paths {
-		r := httptest.NewRequest("GET", path, nil)
-		w := httptest.NewRecorder()
-		ts.admin.ServeHTTP(w, r)
-		ts.is.Equal(200, w.Code, path)
+	loop := func() {
+		for _, cu := range cases {
+			r := httptest.NewRequest("GET", cu.path, nil)
+			w := httptest.NewRecorder()
+			ts.admin.ServeHTTP(w, r)
+			ts.is.Equal(cu.code, w.Code, cu.path)
+		}
 	}
+	loop()
+
+	vc, _ := ts.admin.FindView("company").(*ModelView)
+	vc.Joins("Company")
+
+	va, _ := ts.admin.FindView("account").(*ModelView)
+	va.Preloads("Addresses")
+
+	loop()
+
+	for _, p := range sqla.Samples {
+		tx := vc.db.Create(p)
+		ts.is.Nil(tx.Error)
+	}
+	loop()
 }

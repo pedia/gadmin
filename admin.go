@@ -50,6 +50,7 @@ func NewAdmin(name string) *Admin {
 		mux: http.NewServeMux(),
 
 		indexTemplateFile: "templates/index.gotmpl",
+		theme:             "cerulean",
 	}
 	A.BaseView.admin = A
 
@@ -65,6 +66,7 @@ func NewAdmin(name string) *Admin {
 			"generate":   {Endpoint: "generate", Path: "/generate", Handler: A.generateHandler},
 			"console":    {Endpoint: "console", Path: "/console", Handler: A.consoleHandler},
 			"trace":      {Endpoint: "trace", Path: "/trace", Handler: A.traceHandler},
+			"theme":      {Endpoint: "theme", Path: "/theme", Handler: A.themeHandler},
 			"ping":       {Endpoint: "ping", Path: "/ping", Handler: A.pingHandler},
 			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static"},
 		}}
@@ -74,7 +76,7 @@ func NewAdmin(name string) *Admin {
 	// TODO: read lang from config
 	gotext.Configure("translations", "en", "admin")
 
-	// AddSecurity(&A)
+	A.security = AddSecurity(A)
 	return A
 }
 
@@ -93,6 +95,8 @@ type Admin struct {
 	CSRF              func(http.Handler) http.Handler
 	mux               *http.ServeMux
 	indexTemplateFile string
+	theme             string
+	security          *Security
 }
 
 func (A *Admin) Session(r *http.Request) *sessions.Session {
@@ -154,7 +158,7 @@ func (A *Admin) addViewToMenu(view View) {
 		if menu.Path == "" {
 			menu.Path, _ = A.Blueprint.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
-		A.BaseView.Menu.AddMenu(menu)
+		A.BaseView.Menu.AddMenu(menu, menu.Category)
 	}
 }
 
@@ -251,27 +255,24 @@ func gettext(format string, a ...any) string {
 	return gotext.Get(format, a...)
 }
 
-func theme() string {
-	var themes = []string{
-		"cyborg", "darkly", "slate", // night
-		"solar", "superhero", // dark
-		"cerulean", "cosmo", "default", "flatly", "journal", "litera",
-		"lumen", "lux", "materia", "minty", "united", "pulse",
-		"sandstone", "simplex", "sketchy", "spacelab", "yeti",
-	}
-	themeIndex := 5
-	return themes[themeIndex]
+var themes = []string{
+	"cyborg", "darkly", "slate", // night
+	"solar", "superhero", // dark
+	"cerulean", "cosmo", "default", "flatly", "journal", "litera",
+	"lumen", "lux", "materia", "minty", "united", "pulse",
+	"sandstone", "simplex", "sketchy", "spacelab", "yeti",
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
-		"debug": A.debug,
-		"db":    len(A.dbs),
-		"name":  A.Blueprint.Name,
-		"url":   A.Blueprint.Path, // "/admin"
+		"debug":    A.debug,
+		"security": A.security,
+		"db":       len(A.dbs),
+		"name":     A.Blueprint.Name,
+		"url":      A.Blueprint.Path, // "/admin"
 		// 'swatch' from flask-admin
-		"swatch": theme(), // "cerulean", "default"
-		"menu":   A.BaseView.Menu.dict(),
+		"swatch": A.theme,
+		"menu":   A.BaseView.Menu,
 		"config": config,
 	}
 
@@ -450,4 +451,11 @@ func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	A.Render(w, r, "templates/trace.gotmpl", nil, m)
+}
+
+func (A *Admin) themeHandler(w http.ResponseWriter, r *http.Request) {
+	nt := r.URL.Query().Get("name")
+	A.theme = nt
+	url := r.Header.Get("referer")
+	http.Redirect(w, r, url, http.StatusFound)
 }

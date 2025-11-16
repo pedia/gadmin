@@ -1,60 +1,46 @@
-{{/*
-    nav-link for normal menu with link
-    dropdown-toggle for dropdown menu
-    TODO: add active, icon
-*/}}
 {{ block "menu" .}}
-        {{/* patch top menu, right? */}}
-        {{ with $m := .admin.menu -}}
-            <li{{ if $m.class }} class="{{ $m.class }}"{{ end }}>
-                <a class="nav-link" href="{{ $m.path }}">{{ $m.name }}</a>
+        {{ with $m := . -}}
+            <li{{ if $m.Class }} class="{{ $m.Class }}"{{ end }}>
+                <a class="nav-link" href="{{ $m.Path }}">{{ $m.Name }}</a>
             </li>
         {{- end -}}
-    {{- range .admin.menu.children -}}
-        {{- if .children -}}
-            <li class="dropdown{{ if .class }} {{ .class }}{{ end }}">
-                <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
+    {{- range .Children -}}
+        {{- if .Children }}
+            <li class="dropdown{{ if .Class }} {{ .Class }}{{ end }}">
+                <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .Name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
                 <ul class="dropdown-menu">
-                    {{- range .children -}}
+                    {{- range .Children -}}
                         {{ template "menu_item" . }}
                     {{- end }}
                 </ul>
             </li>
-
-        {{- else -}}{{/* no children */}}
-
-            <li{{ if .class }} class="{{ .class }}"{{ end }}>
-                <a class="nav-link" href="{{ .path }}">{{ .name }}</a>
+        {{- else }}
+            <li{{ if .Class }} class="{{ .Class }}"{{ end }}>
+                <a class="nav-link" href="{{ .Path }}">{{ .Name }}</a>
             </li>
-        {{- end -}}
+        {{ end -}}
     {{- end -}}
 {{ end }}
 
 
-{{/* 
-    nav-link for normal menu with link
-    dropdown-menu
-*/}}
 {{ define "menu_item" }}
-    {{- if .children }}
-
-        <li class="dropdown {{if .is_active}}active{{end}} dropdown-submenu dropright">
-            <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
-                <span class=" dropdown-submenu dropright"></span>{{ .name }}<i class="glyphicon glyphicon-chevron-right small"></i>
-            </a>
-        <ul class="dropdown-menu">
-            {{- range .children -}}
-                {{- template "menu_item" . -}}
-            {{- end }}
-        </ul>
-        </li>
-
-    {{- else }}
-    
-        <li>
-            <a class="dropdown-item" href="{{ .path }}">{{ .name }}</a>
-        </li>
-
+    {{/* dropleft, dropright */}}
+    {{- if .Children }}
+            <li class="dropdown {{if .IsActive}}active{{end}} dropdown-submenu dropleft">
+                <a class="dropdown-toggle dropdown-item" data-toggle="dropdown" href="javascript:void(0)">
+                    <span class=" dropdown-submenu dropleft"></span>{{ .Name }}
+                    <i class="glyphicon glyphicon-chevron-right small"></i>
+                </a>
+                <ul class="dropdown-menu">
+                    {{- range .Children }}
+                        {{- template "menu_item" . -}}
+                    {{ end }}
+                </ul>
+            </li>
+    {{ else }}
+            <li>
+                <a class="dropdown-item" href="{{ .Path }}">{{ .Name }}</a>
+            </li>
     {{- end }}
 {{ end }}
 
@@ -65,4 +51,15 @@
             {{ .Data }}
         </div>
     {{ end -}}
+{{ end }}
+
+{{ define "security" }}
+    <li class="dropdown{{ if .Class }} {{ .Class }}{{ end }}">
+        <a class="dropdown-toggle nav-link" data-toggle="dropdown" href="javascript:void(0)">{{ .Name }}<i class="glyphicon glyphicon-chevron-down small"></i></a>
+        <ul class="dropdown-menu">
+            {{- range .Children -}}
+                {{ template "menu_item" . }}
+            {{- end }}
+        </ul>
+    </li>
 {{ end }}
