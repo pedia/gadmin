@@ -50,7 +50,7 @@ func NewAdmin(name string) *Admin {
 		mux: http.NewServeMux(),
 
 		indexTemplateFile: "templates/index.gotmpl",
-		theme:             "slate",
+		theme:             "cyborg",
 	}
 	A.BaseView.admin = A
 
@@ -267,8 +267,8 @@ var themes = []string{
 	"cyborg", "darkly", "slate", // night
 	"solar", "superhero", // dark
 	"cerulean", "cosmo", "default", "flatly", "journal", "litera",
-	"lumen", "lux", "materia", "minty", "united", "pulse",
-	"sandstone", "simplex", "sketchy", "spacelab", "yeti",
+	// "lumen", "lux", "materia", "minty", "united", "pulse",
+	// "sandstone", "simplex", "sketchy", "spacelab", "yeti",
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {

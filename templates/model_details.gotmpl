@@ -32,10 +32,10 @@
   {{/* block details_table */}}
     <table class="table table-hover table-bordered searchable">
     {{ $g := . -}}
-    {{- range $col := .details_columns }}
+    {{- range .row.Fields }}
       <tr>
-        <td><b>{{ $col.Label }}</b></td>
-        <td>{{ $g.model.GetDisplayValue $col }}</td>
+        <td><b>{{ .Label }}</b></td>
+        <td>{{ .Display }}</td>
       </tr>
     {{ end }}
     </table>

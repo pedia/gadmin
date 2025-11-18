@@ -104,56 +104,6 @@ type modelForm struct {
 // 	return form
 // }
 
-func NewForm(fs []*Field, a any, csrfToken string) *modelForm {
-	// return &modelForm{Fields: fs, Row: NewRow(fs, a), CsrfToken: csrfToken}
-	return &modelForm{Fields: fs, Row: NewRow(fs, a), CSRFToken: csrfToken}
-}
-
-func HiddenField(token string) *Field {
-	return &Field{
-		Field:  &schema.Field{DBName: "csrf_token"},
-		Hidden: true,
-		Value:  token,
-	}
-}
-
-// this not worked:
-// {{ template .TemplateName }}
-func (f *Field) Html() template.HTML {
-	if f.Hidden {
-		return f.render("field_hidden")
-	}
-
-	if len(f.Choices) > 0 {
-		return f.render("field_select2")
-	}
-
-	if f.PrimaryKey { // TODO: Field.Readonly
-		return f.render("field_readonly")
-	}
-
-	switch f.DataType {
-	case schema.Bool:
-		return f.render("field_checkbox")
-	case schema.Int, schema.Uint, schema.Float:
-		return f.render("field_number")
-	case schema.String:
-		if f.TextAreaRow != 0 {
-			return f.render("field_textarea")
-		}
-		return f.render("field_text")
-	case schema.Time:
-		return f.render("field_time")
-	case schema.Bytes:
-		// TODO:
-	}
-	return ""
-}
-
-func (f *Field) render(tmpl string) template.HTML {
-	w := bytes.Buffer{}
-	if err := formTemplate.ExecuteTemplate(&w, tmpl, f); err != nil {
-		panic(err)
-	}
-	return template.HTML(w.String())
+func NewForm(fs []*Field, row *Row, csrfToken string) *modelForm {
+	return &modelForm{Fields: fs, Row: row, CSRFToken: csrfToken}
 }

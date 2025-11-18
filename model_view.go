@@ -251,7 +251,7 @@ func (V *ModelView) freeze() {
 
 	V.fsList = V.genListFields()
 
-	V.fsNew = clone(lo.Filter(fs, func(f *Field, _ int) bool {
+	V.fsNew = lo.Filter(fs, func(f *Field, _ int) bool {
 		// exclude, return false
 		if slices.Contains(V.form_excluded_columns, f.DBName) {
 			return false
@@ -261,8 +261,9 @@ func (V *ModelView) freeze() {
 			return true
 		}
 		return !f.PrimaryKey
-	}))
+	})
 
+	// need clone: change Readonly
 	V.fsEdit = clone(lo.Filter(fs, func(f *Field, _ int) bool {
 		// exclude, return false
 		if slices.Contains(V.form_excluded_columns, f.DBName) {
@@ -554,14 +555,13 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.getOne(rowid)
+	row, err := V.getOne(rowid)
 	if err != nil {
 		V.AddFlash(r, FlashInfo(gettext("Record does not exist.")))
 		V.redirect(w, r, q.Get("url"))
 		return
 	}
 	if r.Method == http.MethodPost {
-
 		one := V.intoRow(r.PostForm, V.fsEdit)
 		if V.update(rowid, one) != nil {
 			V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
@@ -575,10 +575,9 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
-		"model":           one,
-		"form":            NewForm(V.fsEdit, one, csrf.Token(r)),
-		"details_columns": V.fsEdit,
-		"request":         rd(r),
+		"row":     row,
+		"form":    NewForm(V.fsEdit, row, csrf.Token(r)),
+		"request": rd(r),
 	})
 }
 
@@ -611,7 +610,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	one, err := V.getOne(rowid)
+	row, err := V.getOne(rowid)
 	if err != nil {
 		V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 
@@ -620,7 +619,7 @@ func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
-		"model":           one,
+		"row":             row,
 		"details_columns": V.Fields, // show all fields
 		"request":         rd(r),
 	})

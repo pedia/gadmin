@@ -3,6 +3,7 @@ package gadm
 import (
 	"database/sql/driver"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"sync"
@@ -225,8 +226,10 @@ func (f *Field) Display() string {
 			return f.displayTime(*v)
 		}
 		return ""
+	case nil:
+		return ""
 	default:
-		fmt.Printf("todo: %v %t", v, v)
+		log.Printf("todo: %s %v %t\n", f.Name, v, v)
 	}
 	return ""
 }
@@ -279,6 +282,8 @@ type Row struct {
 }
 
 func NewRow(fs []*Field, a any) *Row {
+	// need clone, change Value
+	fs = clone(fs)
 	lo.ForEach(fs, func(f *Field, _ int) {
 		f.Value = fieldValue(a, f.Name)
 	})
