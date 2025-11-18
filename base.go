@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net"
 	"net/http"
@@ -130,9 +129,6 @@ func isNil(object interface{}) bool {
 		rv.Kind()) && rv.IsNil()
 }
 
-// Some go template actions might change headers(Cookie)
-// [CacheWriter] cache body and output headers before any body
-// Flush in admin.ServeHTTP
 type cachedWriter struct {
 	http.ResponseWriter
 	cache      bytes.Buffer
@@ -140,6 +136,9 @@ type cachedWriter struct {
 	statusCode int
 }
 
+// Some go template actions might change headers(Cookie)
+// [CacheWriter] cache body and output headers before any body
+// Flush in admin.ServeHTTP
 func NewCachedWriter(w http.ResponseWriter) *cachedWriter {
 	return &cachedWriter{ResponseWriter: w,
 		header:     http.Header{},
@@ -153,15 +152,13 @@ func (cw *cachedWriter) WriteHeader(statusCode int)  { cw.statusCode = statusCod
 
 // Hijack implements the http.Hijacker interface by attempting to unwrap the writer.
 func (cw *cachedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	// Attempt to unwrap the underlying ResponseWriter if possible
-	unwrapped := cw.ResponseWriter
-	if u, ok := unwrapped.(interface{ Unwrap() http.ResponseWriter }); ok {
-		unwrapped = u.Unwrap()
+	uw := cw.ResponseWriter
+	// rwUnwrapper.Unwrap in NewResponseController
+	if u, ok := uw.(interface{ Unwrap() http.ResponseWriter }); ok {
+		uw = u.Unwrap()
 	}
 
-	// Try to perform the hijack on the potentially unwrapped writer
-	if hijacker, ok := unwrapped.(http.Hijacker); ok {
-		fmt.Println("Hijacking connection...")
+	if hijacker, ok := uw.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
 
@@ -169,7 +166,6 @@ func (cw *cachedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	// to attempt it in a standard way, or return an error.
 	rc := http.NewResponseController(cw.ResponseWriter)
 	if conn, bufrw, err := rc.Hijack(); err == nil {
-		fmt.Println("Hijacking connection via ResponseController...")
 		return conn, bufrw, nil
 	}
 

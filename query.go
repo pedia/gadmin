@@ -99,9 +99,10 @@ func (q *Query) urlForPage(page int) string {
 // generate pager or json
 type Result struct {
 	*Query
-	Total int64
-	Rows  []*Row
-	Error error
+	Total  int64
+	Rows   []*Row
+	Fields []*Field // for Rows is empty
+	Error  error
 }
 
 func (r *Result) NumPages() int {

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -95,6 +96,28 @@ func TestQuery(t *testing.T) {
 	is.Equal(0, q2.PageSize)
 
 	is.Equal("desc=1&page=2", q2.toValues().Encode())
+}
+func ptr[T any](t T) *T {
+	return &t
+}
+func TestClone(t *testing.T) {
+	is := assert.New(t)
+	list := []int{1, 2}
+	type foo struct {
+		a    int
+		b    *int
+		list []int
+	}
+	fs := []foo{{a: 3, b: ptr(20), list: list}}
+	fs2 := fs[:] // clone not deep
+	fs3 := slices.Clone(fs)
+
+	is.Equal(fs2, fs)
+	is.Equal(fs3, fs)
+	fs[0].list[0] = 2
+	fs[0].b = ptr(23)
+	is.Equal(fs2, fs)
+	is.NotEqual(fs3, fs)
 }
 
 func TestOnce(t *testing.T) {

@@ -281,7 +281,8 @@ func (g *generator) EmitTable(table string, columns []gorm.ColumnType, indexes [
 func (g *generator) applyTag(f *schema.Field) {
 	parts := []string{}
 	// column name
-	parts = append(parts, fmt.Sprintf("column:%s", f.DBName))
+	// parts = append(parts, fmt.Sprintf("column:%s", f.DBName))
+
 	// type (from dialect mapping)
 	// if f.GORMDataType != "" {
 	// 	parts = append(parts, fmt.Sprintf("type:%s", f.GORMDataType))

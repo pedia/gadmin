@@ -47,14 +47,14 @@ func TestModel(t *testing.T) {
 	is.True(isNil(str))
 
 	// field is struct
-	re := newRow(&sqla.Employee{}, NewModel(sqla.Employee{}).Fields)
-	fve := re.FieldOf(re.fields[3])
+	re := NewRow(NewModel(sqla.Employee{}).Fields, &sqla.Employee{})
+	fve := re.Fields[3]
 	is.True(fve.IsStruct())
 	is.Equal("", fve.Display())
 
 	// field is slice
-	rdog := newRow(&sqla.Dog{}, NewModel(sqla.Dog{}).Fields)
-	fvslice := rdog.FieldOf(rdog.fields[2])
+	rdog := NewRow(NewModel(sqla.Dog{}).Fields, &sqla.Dog{})
+	fvslice := rdog.Fields[2]
 	is.True(fvslice.IsSlice())
 	is.False(fvslice.IsStruct())
 	is.Equal("dog", fvslice.Endpoint())
@@ -75,8 +75,8 @@ func TestModel(t *testing.T) {
 		is.Equal("activated_at", m.Fields[13].DBName)
 		is.Equal("ActivatedAt", m.Fields[13].Name)
 
-		r1 := newRow(sqla.Samples[0], m.Fields)
-		is.Equal("foo", r1.Get(m.Fields[1]))
+		r1 := NewRow(m.Fields, sqla.Samples[0])
+		is.Equal("foo", r1.Fields[1].Value)
 		// is.True(r1["is_normal"].(bool))
 
 		is.Equal("3", m.get_pk_value(r1))
@@ -104,12 +104,12 @@ func TestModel(t *testing.T) {
 	tx0 := db.Model(&sqla.AllTyped{}).Create(&a2)
 	is.Nil(tx0.Error)
 
-	m1 := newRow(a2[0], m.Fields)
+	m1 := NewRow(m.Fields, a2[0])
 	rowid := m.get_pk_value(m1)
 
 	// update
-	m1.m["email"] = "reachable@foo.com"
-	tx2 := db.Model(o).Where(m.where(rowid)).Updates(&m1.m)
+	m1.Map["email"] = "reachable@foo.com"
+	tx2 := db.Model(o).Where(m.where(rowid)).Updates(&m1.Map)
 	is.Nil(tx2.Error)
 
 	// getOne
@@ -118,22 +118,22 @@ func TestModel(t *testing.T) {
 	is.Nil(tx1.Error)
 	oa1, ok := out1.(*sqla.AllTyped)
 	is.True(ok)
-	is.Equal(m1.m["email"], *oa1.Email)
+	is.Equal(m1.Map["email"], *oa1.Email)
 	is.Equal("foo", oa1.Name)
 
-	row := newRow(out1, m.Fields)
-	fid := row.Get(m.Fields[0])
+	row := NewRow(m.Fields, out1)
+	fid := row.Fields[0].Value
 	is.NotZero(fid)
 
 	// create
-	m1.m = map[string]any{"long": "long text", "type": "editor", "email": "a@b.com",
+	m1.Map = map[string]any{"long": "long text", "type": "editor", "email": "a@b.com",
 		"age": 3, "is_normal": false, "valid": true, "badge": "doctor", "birthday": "1920-12-01",
 		"activated_at": "2000-12-02", "decimal": 12.3, "bytes": []byte("hexed"), "favorite": "book",
 		"not_none":   1,
 		"last_login": "2000-12-03", "name": "duo"}
-	tx3 := db.Model(out1).Clauses(clause.Returning{}).Create(&m1.m)
+	tx3 := db.Model(out1).Clauses(clause.Returning{}).Create(&m1.Map)
 	is.Nil(tx3.Error)
-	is.NotZero(m1.m["id"]) // TODO: not return id?
+	is.NotZero(m1.Map["id"]) // TODO: not return id?
 
 	ar := Wrap(indirect(out1)) // TODO
 	is.Equal("alltyped", ar.Endpoint())
@@ -145,7 +145,7 @@ func TestModel(t *testing.T) {
 func TestWidget(t *testing.T) {
 	// is := assert.New(t)
 	m := NewModel(sqla.AllTyped{})
-	ModelForm(m.Fields, "xx")
+	NewForm(m.Fields, nil, "xx")
 }
 
 type ModelTestSuite struct {
@@ -286,6 +286,11 @@ func (ts *ModelTestSuite) TestUrlStatusCode() {
 			{200, fmt.Sprintf("/admin/%s/export", e)},
 		}
 	})
+	cases = append(cases, []cp{
+		{200, "/admin/console"},
+		{200, "/admin/generate"},
+		{200, "/admin/trace"},
+	}...)
 
 	loop := func() {
 		for _, cu := range cases {

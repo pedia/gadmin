@@ -110,8 +110,9 @@
                     {{- if .column_display_actions }}
                         <th class="">&nbsp;</th>
                     {{ end }}
-
-                    {{ range $index, $c := .list_columns }}
+                    
+                    {{$cols := .result.Fields }}
+                    {{ range $index, $c := $cols }}
                         <th class="column-header col-{{$c.DBName}}">
                             {{- if is_sortable $c.DBName -}}
                                 {{- if eq $g.sort_column $c.DBName -}}
@@ -139,40 +140,40 @@
                     {{ end }}
                 </tr>
             </thead>
-            {{ range $row := .data }}
+            {{ range $row := .result.Rows }}
             <tr>
-                    {{ if $g.actions }}
+                {{ if $g.actions }}
                     <td>
-                        <input type="checkbox" name="rowid" class="action-checkbox" value="{{ call $g.get_pk_value $row }}" title="{{ gettext "Select record" }}" />
+                        <input type="checkbox" name="rowid" class="action-checkbox" value="{{ $row.GetPkValue }}" title="{{ gettext "Select record" }}" />
                     </td>
-                    {{ end }}
+                {{ end }}
                     {{ if $g.column_display_actions }}
                         <td class="list-buttons-column">
                                 {{ range $action := $g.list_row_actions }}
                                     {{/* use set instead arg */}}
                                     {{ template "render_action" .
                                     | arg "action" $action
-                                    | arg "row_id" (call $g.get_pk_value $row)
+                                    | arg "row_id" $row.GetPkValue
                                     | arg "row" $row
                                     | arg "return_url" $g.return_url | args }}
                                 {{ end }}
                         </td>
                     {{- end -}}
 
-                    {{ range $c := $g.list_columns }}
-                       {{ $vf := $row.FieldOf $c }}
+                    {{ range $c := $cols }}
+                        {{ $f := $row.FieldOf $c }}
                         <td class="col-{{$c.DBName}}">
-                        {{- if $vf.IsStruct }}
-                            <a href="{{get_url ( printf "%s%s" $c.Endpoint ".details_view") "id" $vf.GetPkValue }}">{{ $vf.Display }}</a>
-                        {{ else if $vf.IsSlice }}
-                            {{- range $vf.Slice}}
+                        {{- if $f.IsStruct }}
+                            <a href="{{get_url ( printf "%s%s" $f.Endpoint ".details_view") "id" $row.GetPkValue }}">{{ $f.Display }}</a>
+                        {{ else if $f.IsSlice }}
+                            {{- range $f.Slice}}
                             <a href="{{get_url ( printf "%s%s" .Endpoint ".details_view") "id" .GetPkValue }}">{{.Endpoint}}</a>
                             {{- end }}
                         {{ else }}
                             {{- if is_editable $c.DBName }}
-                                {{ list_form $c $row }}
+                                {{ list_form $f $row }}
                             {{ else }}
-                                {{- $vf.Display -}}
+                                {{- $f.Display -}}
                             {{ end }}
                         {{ end -}}
                         </td>

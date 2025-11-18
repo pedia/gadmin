@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"os"
 
-	"github.com/samber/lo"
 	"github.com/spf13/cast"
 	"gorm.io/gorm/schema"
 )
@@ -28,12 +27,12 @@ import (
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
 func InlineEdit(token string, model *Model, field *Field, row *Row) template.HTML {
-	dv := row.GetDisplayValue(field)
+	dv := field.Display()
 	args := map[template.HTMLAttr]any{
 		"data-value": dv,
 		"data-role":  "x-editable", // x-editable-boolean, x-editable-combodate data-template
 		"data-url":   "ajax/update",
-		"data-pk":    model.get_pk_value(row),
+		"data-pk":    row.GetPkValue(),
 		"data-csrf":  token,
 		"data-type":  "text",
 		"id":         field.DBName,
@@ -92,18 +91,22 @@ func init() {
 type modelForm struct {
 	Fields    []*Field
 	Row       *Row
-	CsrfToken string // csrf token
+	CSRFToken string
 }
 
-func ModelForm(fields []*Field, token string, row ...*Row) *modelForm {
-	form := &modelForm{Fields: fields, Row: firstOr(row), CsrfToken: token}
+// func ModelForm(fields []*Field, token string, row ...*Row) *modelForm {
+// 	form := &modelForm{Fields: fields, Row: firstOr(row), CSRFToken: token}
+// 	if form.Row != nil {
+// 		lo.ForEach(fields, func(field *Field, _ int) {
+// 			field.Value = form.Row.Get(field)
+// 		})
+// 	}
+// 	return form
+// }
 
-	if form.Row != nil {
-		lo.ForEach(fields, func(field *Field, _ int) {
-			field.Value = form.Row.Get(field)
-		})
-	}
-	return form
+func NewForm(fs []*Field, a any, csrfToken string) *modelForm {
+	// return &modelForm{Fields: fs, Row: NewRow(fs, a), CsrfToken: csrfToken}
+	return &modelForm{Fields: fs, Row: NewRow(fs, a), CSRFToken: csrfToken}
 }
 
 func HiddenField(token string) *Field {

@@ -20,7 +20,7 @@
                             <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="Select all records" />
                         </th>
                         {{$row := .result.Rows|first}}
-                        {{range $k, $v := $row}}
+                        {{range $k, $v := $row.Map}}
                         <th class="column-header col-{{$k}}">{{$k}}</th>
                         {{end}}
                 </tr>
@@ -30,7 +30,7 @@
                         <td>
                             <input type="checkbox" name="rowid" class="action-checkbox" value="1" title="Select record" />
                         </td>
-                        {{range $k, $v := .}}
+                        {{range $k, $v := .Map}}
                             <td class="{{$k}}">{{$v}}</td>
                         {{end}}
                     </tr>
@@ -42,7 +42,7 @@
                             <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="Select all records" />
                         </th>
                         {{$row := .result.Rows|first}}
-                        {{range $k, $v := $row}}
+                        {{range $k, $v := $row.Map}}
                         <th class="column-header col-{{$k}}">{{$k}}</th>
                         {{end}}
                 </tr>

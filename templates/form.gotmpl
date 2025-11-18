@@ -46,8 +46,8 @@
 {{define "form_all"}}
 <form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
   <fieldset>
-    {{if .CsrfToken -}}
-    <input name="csrf_token" type="hidden" value="{{.CsrfToken}}">
+    {{if .CSRFToken -}}
+    <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
     {{- end}}
   {{range .Fields}}
     <div class="form-group">

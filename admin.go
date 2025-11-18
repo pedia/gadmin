@@ -45,7 +45,7 @@ func NewAdmin(name string) *Admin {
 		key:         key,
 		sessionKey:  "sess",
 		store:       sessions.NewCookieStore(key),
-		CSRF: csrf.Protect(key,
+		csrf: csrf.Protect(key,
 			csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
 		mux: http.NewServeMux(),
 
@@ -92,7 +92,7 @@ type Admin struct {
 	key               []byte
 	sessionKey        string
 	store             sessions.Store
-	CSRF              func(http.Handler) http.Handler
+	csrf              func(http.Handler) http.Handler
 	mux               *http.ServeMux
 	indexTemplateFile string
 	theme             string
@@ -161,7 +161,13 @@ func (A *Admin) addViewToMenu(view View) {
 		A.BaseView.Menu.AddMenu(menu, menu.Category)
 	}
 }
-
+func (A *Admin) freeze() {
+	for _, v := range A.views {
+		if mv, ok := v.(*ModelView); ok {
+			mv.freeze()
+		}
+	}
+}
 func (A *Admin) staticURL(filename, ver string) string {
 	path, err := A.Blueprint.GetUrl(".static")
 	if err == nil {
@@ -205,12 +211,14 @@ func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// for http
 	r = csrf.PlaintextHTTPRequest(r)
-	sessions.GetRegistry(r) // make sure session put in r.Context
+
+	// make sure session put in r.Context
+	_ = sessions.GetRegistry(r)
 
 	cw := NewCachedWriter(w)
 	// csrf protect
 	handlers.LoggingHandler(os.Stdout,
-		A.CSRF(A.mux)).ServeHTTP(cw, r)
+		A.csrf(A.mux)).ServeHTTP(cw, r)
 
 	// save sesstion before flush
 	if err := sessions.Save(r, cw); err != nil {
@@ -227,11 +235,11 @@ func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (A *Admin) Run() {
 	serv := http.Server{
-		Addr: ":3333",
-		// Handler: (os.Stdout, A)}
+		Addr:    ":3333",
 		Handler: A}
 
 	fmt.Println("\aRunning on http://127.0.0.1:3333/admin/")
+	A.freeze()
 	serv.ListenAndServe()
 }
 
@@ -432,7 +440,7 @@ func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
 			// TODO: How to cast better?
 			result.Rows = make([]*Row, len(rs))
 			for i := 0; i < len(rs); i++ {
-				result.Rows[i].m = rs[i]
+				result.Rows[i] = &Row{Map: rs[i]}
 			}
 		}
 	}

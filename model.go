@@ -14,26 +14,6 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type Row struct {
-	// db -> Row
-	v      any // struct ptr
-	rv     reflect.Value
-	fields []*Field
-	// form -> map -> db
-	// difficult to set struct field, use map instead
-	m map[string]any
-}
-
-func newRow(v any, fields []*Field) *Row {
-	row := &Row{v: v, fields: fields, m: map[string]any{}}
-
-	rv := reflect.Indirect(reflect.ValueOf(v))
-
-	row.v = rv.Interface()
-	row.rv = rv
-	return row
-}
-
 func fieldValue(a any, name string) any {
 	rv := reflect.ValueOf(a)
 	for rv.Kind() == reflect.Pointer {
@@ -56,34 +36,27 @@ func fieldValue(a any, name string) any {
 
 func (r *Row) Set(field *Field, v any) {
 	// How to set struct field?
-	r.m[field.DBName] = v
+	r.Map[field.DBName] = v
 }
 
-func (r *Row) Get(f *Field) any {
-	v := r.rv.FieldByName(f.Name)
-	if v.IsValid() {
-		return v.Interface()
+// in detail/edit url is: id=pk1,pk2
+func (r *Row) GetPkValue() string {
+	vs := []string{}
+	for _, f := range r.Fields {
+		if f.PrimaryKey {
+			vs = append(vs, cast.ToString(f.Value))
+		}
+	}
+	return strings.Join(vs, ",")
+}
+
+func (r *Row) FieldOf(col *Field) *Field {
+	for _, f := range r.Fields {
+		if f.Field == col.Field {
+			return f
+		}
 	}
 	return nil
-}
-
-func (r *Row) GetDisplayValue(f *Field) any {
-	v := r.Get(f)
-
-	vf := &Field{Field: f.Field, Value: v}
-	return vf.Display()
-}
-
-func (r *Row) GetPkValue(f *Field) string {
-	if v := r.Get(f); v != nil {
-		nf := &Field{Field: f.Field, Value: v}
-		return nf.GetPkValue()
-	}
-	return ""
-}
-
-func (r *Row) FieldOf(f *Field) *Field {
-	return &Field{Field: f.Field, Value: r.Get(f)}
 }
 
 type Model struct {
@@ -135,20 +108,10 @@ func (m *Model) find(name string) *Field {
 
 // Return all field can be sorted
 // exclude relationship fields
-func (m *Model) sortableColumns() []string {
-	return m.schema.DBNames
-}
+func (m *Model) sortableColumns() []string { return m.schema.DBNames }
 
-// TODO: null
-// in detail/edit url is: id=pk1,pk2
-func (m *Model) get_pk_value(row *Row) string {
-	vs := []string{}
-	for _, pkf := range m.schema.PrimaryFields {
-		v := row.Get(&Field{Field: pkf})
-		vs = append(vs, cast.ToString(v))
-	}
-	return strings.Join(vs, ",")
-}
+// TODO: remove
+func (m *Model) get_pk_value(row *Row) string { return row.GetPkValue() }
 
 // single primarykey, rowid: id
 // multiple primarykey, rowid like: pk1,pk2
@@ -176,9 +139,10 @@ type Field struct {
 	Description string
 	TextAreaRow int
 	TimeFormat  string
-	Readonly    bool // primary key
-	Hidden      bool // csrf token
+	Readonly    bool // for primary key
+	Hidden      bool // for csrf token, TODO: remove, only in form
 	Value       any
+	Sortable    bool
 }
 
 func (f *Field) Endpoint() string {
@@ -206,6 +170,7 @@ func (f *Field) IsStruct() bool {
 	return f.DBName == "" && f.Schema != nil && !f.IsSlice()
 }
 
+// TODO: remove
 func (f *Field) GetPkValue() string {
 	vs := []string{}
 	for _, pkf := range f.Schema.PrimaryFields {
@@ -293,17 +258,45 @@ type wrap struct {
 
 func Wrap(v any) *wrap {
 	m := NewModel(v)
-	return &wrap{m, newRow(v, m.Fields)}
+	return &wrap{m, NewRow(m.Fields, v)}
 }
 
 func (w *wrap) Endpoint() string {
 	return w.Model.endpoint()
 }
 func (w *wrap) GetPkValue() string {
-	return w.Model.get_pk_value(w.Row)
+	return w.Row.GetPkValue()
 }
 
 func indirect(a any) any {
 	rv := reflect.Indirect(reflect.ValueOf(a))
 	return rv.Interface()
+}
+
+type Row struct {
+	Fields []*Field
+	Map    map[string]any
+}
+
+func NewRow(fs []*Field, a any) *Row {
+	lo.ForEach(fs, func(f *Field, _ int) {
+		f.Value = fieldValue(a, f.Name)
+	})
+	return &Row{fs, map[string]any{}}
+}
+func NewSubRow(a any, fields []*Field) *Row {
+	fs := fields[:]
+	for _, f := range fs {
+		f.Value = fieldValue(a, f.Name)
+	}
+	return &Row{fs, map[string]any{}}
+}
+
+func clone(fs []*Field) []*Field {
+	cs := make([]*Field, len(fs))
+	for i, f := range fs {
+		cs[i] = new(Field)
+		*cs[i] = *f
+	}
+	return cs
 }
