@@ -84,7 +84,7 @@ var formTemplate *template.Template
 
 func init() {
 	if _, err := os.Stat("templates/form.gotmpl"); err == nil {
-		formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
+		// formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
 	}
 }
 
@@ -93,16 +93,6 @@ type modelForm struct {
 	Row       *Row
 	CSRFToken string
 }
-
-// func ModelForm(fields []*Field, token string, row ...*Row) *modelForm {
-// 	form := &modelForm{Fields: fields, Row: firstOr(row), CSRFToken: token}
-// 	if form.Row != nil {
-// 		lo.ForEach(fields, func(field *Field, _ int) {
-// 			field.Value = form.Row.Get(field)
-// 		})
-// 	}
-// 	return form
-// }
 
 func NewForm(fs []*Field, row *Row, csrfToken string) *modelForm {
 	return &modelForm{Fields: fs, Row: row, CSRFToken: csrfToken}

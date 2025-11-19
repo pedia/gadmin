@@ -113,6 +113,7 @@
                     
                     {{$cols := .result.Fields }}
                     {{ range $index, $c := $cols }}
+                    {{ if $c.Hidden }} {{ continue }} {{ end }}
                         <th class="column-header col-{{$c.DBName}}">
                             {{- if is_sortable $c.DBName -}}
                                 {{- if eq $g.sort_column $c.DBName -}}
@@ -161,6 +162,7 @@
                     {{- end -}}
 
                     {{ range $c := $cols }}
+                        {{ if $c.Hidden }} {{ continue }} {{ end }}
                         {{ $f := $row.FieldOf $c }}
                         <td class="col-{{$c.DBName}}">
                         {{- if $f.IsStruct }}

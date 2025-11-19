@@ -202,3 +202,19 @@ func ExampleTemplate() {
 	//
 	// 4b2
 }
+
+func TestGroupTmpl(t *testing.T) {
+	is := assert.New(t)
+
+	gt := NewGroupTempl("templates/base.html")
+	w := httptest.NewRecorder()
+	err := gt.Render(w, "templates/d1.html", nil, nil)
+	is.Nil(err)
+	err = gt.Render(w, "templates/d1.html", nil, nil)
+	is.Nil(err)
+	err = gt.Render(w, "templates/d2.html", nil, nil)
+	is.Nil(err)
+	is.Equal("d1\nd1\nd2\n", w.Body.String())
+
+	is.Equal(template.HTML("base"), gt.Execute("body", nil))
+}

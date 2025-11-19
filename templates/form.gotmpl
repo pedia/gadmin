@@ -27,7 +27,7 @@
 {{end}}
 
 
-{{define "field_select2"}}    
+{{define "field_select2"}}
     <select class="form-control" data-allow-blank="0" data-role="select2" id="{{.DBName}}" name="{{.DBName}}">
       {{- $field := .}}
       {{- if eq $field.Value nil}}<option selected value="__None"></option>{{end}}
@@ -40,6 +40,13 @@
 
 {{define "field_readonly"}}
     <input class="form-control" type="text" id="{{.DBName}}" name="{{.DBName}}" readonly value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+{{end}}
+
+
+{{define "field_select2_ajax"}}
+      <input class="form-control" data-allow-blank="1" data-minimum-input-length="1" data-placeholder="Please select model" 
+        data-role="select2-ajax" data-separator=","
+        data-url="{{get_url (printf "%s%s" .Schema.Table ".ajax_lookup") "name" .Endpoint }}" id="{{.Endpoint}}" name="{{.Endpoint}}" type="hidden">
 {{end}}
 
 
@@ -64,6 +71,8 @@
   {{ template "field_time" . }}
 {{else if eq .DataType "bytes" }}
   {{ "TODO: upload bytes?" }}
+{{else if .IsStruct }}
+  {{ template "field_select2_ajax" . }}
 {{end}}
 {{end}}
 

@@ -32,10 +32,10 @@ func key(secret string) []byte {
 func NewAdmin(name string) *Admin {
 	key := key("hello") // TODO: read from config
 	A := &Admin{
-		BaseView: &BaseView{Menu: Menu{
+		BaseView: NewView(Menu{
 			Path: "/admin/",
 			Name: gettext("Home"),
-		}},
+		}),
 		views:       []View{},
 		dbs:         map[string]*gorm.DB{},
 		debug:       isdebug.On,

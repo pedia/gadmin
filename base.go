@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"html/template"
 	"maps"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"reflect"
 	"slices"
+	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -181,4 +184,58 @@ func (cw *cachedWriter) Flush() {
 	}
 	cw.ResponseWriter.WriteHeader(cw.statusCode)
 	cw.ResponseWriter.Write(cw.cache.Bytes())
+}
+
+type groupTempl struct {
+	basefn []string
+	cache  sync.Map
+}
+
+func NewGroupTempl(fns ...string) *groupTempl {
+	return &groupTempl{basefn: fns}
+}
+func (gt *groupTempl) base(funcs template.FuncMap) *template.Template {
+	name := "_base"
+	t, ok := gt.cache.Load(name)
+	if !ok {
+		t0 := must(template.New(name).
+			Option("missingkey=error").
+			Funcs(funcs).
+			ParseFiles(gt.basefn...))
+		gt.cache.Store(name, t0)
+		t = t0
+	}
+	tpl := t.(*template.Template)
+	return must(tpl.Clone())
+}
+func (gt *groupTempl) getOrParse(fns []string, funcs template.FuncMap) *template.Template {
+	name := fns[0]
+	t, ok := gt.cache.Load(name)
+	if !ok {
+		t0 := must(gt.base(funcs).
+			Option("missingkey=error").
+			Funcs(funcs).
+			ParseFiles(fns...))
+		gt.cache.Store(name, t0)
+		t = t0
+	}
+	return t.(*template.Template)
+}
+
+func (gt *groupTempl) Render(w http.ResponseWriter, fn string, funcs template.FuncMap, data map[string]any) error {
+	tpl := gt.getOrParse([]string{fn}, funcs)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
+	bn := path.Base(fn)
+	return tpl.ExecuteTemplate(w, bn, data)
+}
+
+// call ExcuteTemplate, [name] should be valid in gt.basefn
+func (gt *groupTempl) Execute(name string, data map[string]any) template.HTML {
+	// assume the _base alread done
+	bt := gt.base(nil)
+	w := &bytes.Buffer{}
+	if err := bt.ExecuteTemplate(w, name, data); err != nil {
+		panic(err)
+	}
+	return template.HTML(w.String())
 }

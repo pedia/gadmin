@@ -53,6 +53,8 @@ type ModelView struct {
 	column_display_pk      bool
 	column_display_actions bool
 
+	lookupRefers map[string]*refer
+
 	// form
 	form_choices          map[string][]Choice
 	form_columns          []string
@@ -70,6 +72,8 @@ type ModelView struct {
 	fsList []*Field
 	fsNew  []*Field
 	fsEdit []*Field
+
+	gt *groupTempl
 }
 
 // for db.Joins(query string, args... any)
@@ -125,6 +129,16 @@ func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 
 	mv.column_sortable_list = mv.sortableColumns()
 
+	mv.gt = NewGroupTempl(
+		"templates/actions.gotmpl",
+		"templates/base.gotmpl",
+		"templates/layout.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/master.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/form.gotmpl",
+		"templates/model_row_actions.gotmpl",
+	)
 	return &mv
 }
 
@@ -208,28 +222,80 @@ func (V *ModelView) SetFormExcludedColumns(columns ...string) *ModelView {
 	return V
 }
 
-func (V *ModelView) genListFields() []*Field {
-	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
-		// exclude return false
-		if slices.Contains(V.column_exclude_list, field.DBName) {
-			return false
-		}
+type refer struct {
+	fields []string
+	model  *Model
+}
 
-		// include, return true
-		if slices.Contains(V.column_list, field.DBName) {
+func Refer(a any, fields ...string) *refer {
+	return &refer{
+		model:  NewModel(a),
+		fields: fields,
+	}
+}
+
+func like(query string) string {
+	return "%" + query + "%"
+}
+func astoss(as []any) string {
+	return strings.Join(lo.Map(as, func(a any, _ int) string { return cast.ToString(a) }), ",")
+}
+
+// Return slice of [id, "f1, f2"]
+func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
+	nd := db.Limit(limit).Offset(offset)
+
+	pks := []string{}
+	ns := lo.Map(lo.Filter(rf.model.Fields, func(f *Field, _ int) bool {
+		if f.PrimaryKey {
+			pks = append(pks, f.DBName)
 			return true
 		}
-
-		if len(V.column_list) > 0 {
-			return false
-		} else {
-			if field.PrimaryKey {
-				return V.column_display_pk
-			}
+		if slices.Contains(rf.fields, f.DBName) {
 			return true
 		}
+		return false
+	}), func(f *Field, _ int) string {
+		return f.DBName
 	})
-	return V.transform(list)
+
+	nd = nd.Select(ns).Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
+	for _, f := range rf.fields[1:] {
+		nd = nd.Or(fmt.Sprintf("%s like ?", f), like(query))
+	}
+	var ms []map[string]any
+	if tx := nd.Find(ms); tx.Error == nil {
+		return lo.Map(ms, func(m map[string]any, _ int) []any {
+			var id any
+			ids := []any{}
+			for _, pk := range pks {
+				ids = append(ids, m[pk])
+			}
+			if len(ids) > 1 {
+				id = astoss(ids)
+			} else {
+				id = ids[0]
+			}
+
+			vs := []any{}
+			for _, f := range rf.fields {
+				vs = append(vs, m[f])
+			}
+			return []any{id, astoss(vs)}
+		})
+	}
+	return [][]any{}
+}
+
+// user: [first_name, last_name]
+// lookup table user's first_name, last_name
+func (V *ModelView) AddLooupRefer(a any, fields ...string) *ModelView {
+	if V.lookupRefers == nil {
+		V.lookupRefers = map[string]*refer{}
+	}
+	rf := Refer(a, fields...)
+	V.lookupRefers[rf.model.name()] = rf
+	return V
 }
 
 func (V *ModelView) transform(fs []*schema.Field) []*Field {
@@ -249,7 +315,31 @@ func (V *ModelView) transform(fs []*schema.Field) []*Field {
 func (V *ModelView) freeze() {
 	fs := V.transform(V.schema.Fields)
 
-	V.fsList = V.genListFields()
+	V.fsList = lo.Filter(fs, func(field *Field, _ int) bool {
+		// exclude return false
+		if slices.Contains(V.column_exclude_list, field.DBName) {
+			return false
+		}
+
+		// include, return true
+		if slices.Contains(V.column_list, field.DBName) {
+			return true
+		}
+
+		// keep, but hidden
+		if field.PrimaryKey {
+			return true
+		}
+		return len(V.column_list) == 0
+	})
+	if !V.column_display_pk {
+		V.fsList = clone(V.fsList)
+		for _, f := range V.fsList {
+			if f.PrimaryKey {
+				f.Hidden = true
+			}
+		}
+	}
 
 	V.fsNew = lo.Filter(fs, func(f *Field, _ int) bool {
 		// exclude, return false
@@ -656,7 +746,17 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(V.admin.gettext("Record was successfully saved.")))
 }
 
-func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request)    {}
+// /admin/employee/ajax/lookup?name=employee&query=l&offset=0&limit=10&_=1763527783488
+func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request) {
+	name := r.FormValue("name")
+	if rf, ok := V.lookupRefers[name]; ok {
+		query := r.FormValue("query")
+		offset := cast.ToInt(r.FormValue("offset"))
+		limit := cast.ToInt(r.FormValue("limit"))
+		rs := rf.Lookup(V.db, query, offset, limit)
+		ReplyJson(w, 200, rs)
+	}
+}
 func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
 func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
@@ -708,18 +808,6 @@ func (V *ModelView) delete_form() *modelForm {
 }
 
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
-	fs := []string{
-		"templates/actions.gotmpl",
-		"templates/base.gotmpl",
-		"templates/layout.gotmpl",
-		"templates/lib.gotmpl",
-		"templates/master.gotmpl",
-		"templates/model_layout.gotmpl",
-		"templates/form.gotmpl",
-		"templates/model_row_actions.gotmpl",
-	}
-
 	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
 			return V.Blueprint.GetUrl(".index_view")
@@ -745,9 +833,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		},
 	}, funcs)
 
-	fs = append(fs, "templates/"+name)
-	if err := parseTemplate("view", V.admin.funcs(fm), fs...).
-		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
+	if err := V.gt.Render(w, "templates/"+name, V.admin.funcs(fm), V.dict(r, data)); err != nil {
 		panic(err)
 	}
 }
@@ -880,7 +966,7 @@ func (V *ModelView) list(q *Query) *Result {
 	res.Rows = make([]*Row, len)
 	for i := 0; i < len; i++ {
 		o := ptr.Elem().Index(i).Interface()
-		res.Rows[i] = NewRow(V.Fields, o)
+		res.Rows[i] = NewRow(V.fsList, o)
 	}
 	return &res
 }
@@ -891,7 +977,7 @@ func (V *ModelView) getOne(rowid string) (*Row, error) {
 	if err := db.Where(V.where(rowid)).First(ptr).Error; err != nil {
 		return nil, err
 	}
-	return NewRow(V.Fields, ptr), nil
+	return NewRow(V.fsList, ptr), nil
 }
 
 func (V *ModelView) update(rowid string, row *Row) error {
