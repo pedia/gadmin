@@ -3,7 +3,7 @@
 {{- end}}
 
 {{define "field_checkbox"}}
-    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}0{{end}}">
+    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if .NotNull}}required {{end}}value="{{.Value}}">
 {{end}}
 
 

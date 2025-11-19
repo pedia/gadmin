@@ -775,12 +775,13 @@ func (V *ModelView) intoRow(uv url.Values, fields []*Field) *Row {
 		switch f.DataType {
 		case schema.Bool:
 			switch v {
-			case "0":
+			case "false":
 				v = false
-			case "1":
+			case "true":
 				v = true
 			default:
 				log.Printf("not expected bool %v\n", v)
+				v = nil
 			}
 		case schema.Int:
 			v = cast.ToInt(v)

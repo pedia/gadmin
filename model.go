@@ -236,9 +236,9 @@ func (f *Field) Display() string {
 
 func (f *Field) displayBool(b bool) string {
 	if b {
-		return "1"
+		return "true"
 	}
-	return "0"
+	return "false"
 }
 
 func (f *Field) displayTime(t time.Time) string {

@@ -59,7 +59,7 @@ func InlineEdit(token string, model *Model, field *Field, row *Row) template.HTM
 	case schema.Bool:
 		args["data-type"] = "select2"
 		args["data-role"] = "x-editable-boolean"
-		args["data-source"] = `[{"text": "No", "value": ""},{"text": "Yes", "value": "1"}]` // TODO: gettext
+		args["data-source"] = `[{"text": "False", "value": "false"},{"text": "True", "value": "true"}]`
 	}
 
 	w := bytes.Buffer{}
