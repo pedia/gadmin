@@ -1,7 +1,6 @@
 package gadm
 
 import (
-	"bytes"
 	"encoding/json"
 	"html/template"
 	"os"
@@ -26,7 +25,7 @@ import (
 // <a data-csrf="" data-pk="" data-role="x-editable" data-source="[{&#34;text&#34;: &#34;&#34;, &#34;value&#34;: &#34;__None&#34;}, {&#34;text&#34;: &#34;Admin&#34;, &#34;value&#34;: &#34;admin&#34;}, {&#34;text&#34;: &#34;Content writer&#34;, &#34;value&#34;: &#34;content-writer&#34;}, {&#34;text&#34;: &#34;Editor&#34;, &#34;value&#34;: &#34;editor&#34;}, {&#34;text&#34;: &#34;Regular user&#34;, &#34;value&#34;: &#34;regular-user&#34;}]" data-type="select2" data-url="./ajax/update/" data-value="editor" href="#" id="type" name="type">editor</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="text" data-url="./ajax/update/" data-value="EUR" href="#" id="currency" name="currency">EUR</a>
 // <a data-csrf="" data-pk="" data-role="x-editable" data-type="number" data-url="./ajax/update/" data-value="49" href="#" id="dialling_code" name="dialling_code">49</a>
-func InlineEdit(token string, model *Model, field *Field, row *Row) template.HTML {
+func InlineEdit(gt *groupTempl, token string, model *Model, field *Field, row *Row) template.HTML {
 	dv := field.Display()
 	args := map[template.HTMLAttr]any{
 		"data-value": dv,
@@ -62,15 +61,11 @@ func InlineEdit(token string, model *Model, field *Field, row *Row) template.HTM
 		args["data-source"] = `[{"text": "False", "value": "false"},{"text": "True", "value": "true"}]`
 	}
 
-	w := bytes.Buffer{}
-	if err := formTemplate.ExecuteTemplate(&w, "inline_field", map[string]any{
+	return gt.Execute("inline_field", map[string]any{
 		"args":          args,
 		"display_value": dv,
 		"field":         field,
-	}); err != nil {
-		panic(err)
-	}
-	return template.HTML(w.String())
+	})
 }
 
 func jsonify(a any) string {

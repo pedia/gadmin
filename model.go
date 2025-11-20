@@ -150,7 +150,7 @@ func (f *Field) Endpoint() string {
 	if f.Schema == nil {
 		panic("not refer field")
 	}
-	tn := Namer.TableName(f.Schema.Table)
+	tn := Namer.TableName(f.StructField.Name) // f.Schema.Table) // f.StructField.Name)
 	return strings.ReplaceAll(tn, "_", "")
 }
 
@@ -192,7 +192,7 @@ func (f *Field) Display() string {
 				return str.String()
 			}
 		}
-		return ""
+		return f.Label
 	}
 
 	switch v := f.Value.(type) {

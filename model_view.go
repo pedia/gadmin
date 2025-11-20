@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -241,12 +242,13 @@ func astoss(as []any) string {
 	return strings.Join(lo.Map(as, func(a any, _ int) string { return cast.ToString(a) }), ",")
 }
 
+// refer.fields like query
 // Return slice of [id, "f1, f2"]
 func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
 	nd := db.Limit(limit).Offset(offset)
 
 	pks := []string{}
-	ns := lo.Map(lo.Filter(rf.model.Fields, func(f *Field, _ int) bool {
+	fns := lo.Map(lo.Filter(rf.model.Fields, func(f *Field, _ int) bool {
 		if f.PrimaryKey {
 			pks = append(pks, f.DBName)
 			return true
@@ -259,12 +261,14 @@ func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
 		return f.DBName
 	})
 
-	nd = nd.Select(ns).Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
+	nd = nd.Table(rf.model.schema.Table).
+		Select(fns).
+		Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
 	for _, f := range rf.fields[1:] {
 		nd = nd.Or(fmt.Sprintf("%s like ?", f), like(query))
 	}
 	var ms []map[string]any
-	if tx := nd.Find(ms); tx.Error == nil {
+	if tx := nd.Find(&ms); tx.Error == nil {
 		return lo.Map(ms, func(m map[string]any, _ int) []any {
 			var id any
 			ids := []any{}
@@ -290,6 +294,10 @@ func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
 // user: [first_name, last_name]
 // lookup table user's first_name, last_name
 func (V *ModelView) AddLooupRefer(a any, fields ...string) *ModelView {
+	if reflect.ValueOf(a).Kind() != reflect.Struct {
+		log.Println("wrong refer type, 'a' should be Struct")
+	}
+
 	if V.lookupRefers == nil {
 		V.lookupRefers = map[string]*refer{}
 	}
@@ -657,10 +665,15 @@ func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 			V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 		}
 
-		if r.PostFormValue("_continue_editing") != "" {
-			V.redirect(w, r, q.Get("url"))
-		} else if r.PostFormValue("_add_another") != "" {
+		if r.PostFormValue("_add_another") != "" {
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view")))
+			return
+		} else if r.PostFormValue("_continue_editing") != "" {
+			// do nothing next Render
+		} else {
+			// Save only, redirect to url
 			V.redirect(w, r)
+			return
 		}
 	}
 
@@ -755,6 +768,8 @@ func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request) {
 		limit := cast.ToInt(r.FormValue("limit"))
 		rs := rf.Lookup(V.db, query, offset, limit)
 		ReplyJson(w, 200, rs)
+	} else {
+		ReplyJson(w, 200, []any{})
 	}
 }
 func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
@@ -800,7 +815,7 @@ func rd(r *http.Request) map[string]any {
 // Generate inline edit form in list view
 func (V *ModelView) inline_form(token string) func(field *Field, row *Row) template.HTML {
 	return func(field *Field, row *Row) template.HTML {
-		return InlineEdit(token, V.Model, field, row)
+		return InlineEdit(V.gt, token, V.Model, field, row)
 	}
 }
 func (V *ModelView) delete_form() *modelForm {
@@ -834,7 +849,7 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 	}, funcs)
 
 	if err := V.gt.Render(w, "templates/"+name, V.admin.funcs(fm), V.dict(r, data)); err != nil {
-		panic(err)
+		log.Printf("render failed: %s", err)
 	}
 }
 

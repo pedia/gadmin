@@ -197,12 +197,12 @@ func TestModelTestSuite(t *testing.T) {
 }
 
 func (ts *ModelTestSuite) TestRelations() {
-	// ve := NewModelView(Employee{}, db, "Association").Joins("Company")
-	// S.admin.AddView(ve)
-	// r := ve.list(DefaultQuery())
-	// S.assert.Nil(r.Error)
-	// S.assert.Len(r.Rows, 2)
-	// S.assert.Equal(int64(2), r.Total)
+	av := ts.admin.FindView("account").(*ModelView)
+	fa := av.Model.Fields[2]
+	ts.is.Equal("", fa.DBName)
+	ts.is.Equal("account", fa.Schema.Table)
+	ts.is.Equal("Addresses", fa.Label)
+	ts.is.Equal("Addresses", fa.StructField.Name)
 }
 
 func (ts *ModelTestSuite) TestAdmin() {

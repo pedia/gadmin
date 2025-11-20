@@ -23,14 +23,14 @@ func main() {
 		}).
 		SetCanSetPageSize().
 		SetFormColumns("name").
-		SetColumnSearchableList("name", "email", "bdge").
+		SetColumnSearchableList("name", "email", "badge").
 		SetColumnEditableList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
 			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login")
 	a.AddView(vat)
 
 	a.AddView(gadm.NewModelView(sqla.Company{}, db, "BelongsTo"))
 	ve := gadm.NewModelView(sqla.Employee{}, db, "BelongsTo").
-		Joins("Company")
+		Joins("Company").AddLooupRefer(sqla.Company{}, "name")
 	a.AddView(ve)
 
 	a.AddView(gadm.NewModelView(sqla.CreditCard{}, db, "HasOne"))

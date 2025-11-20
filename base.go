@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"gadm/isdebug"
 	"html/template"
 	"maps"
 	"net"
@@ -120,6 +121,7 @@ func ReplyJson(w http.ResponseWriter, status int, o any) {
 	}
 }
 
+// typed nil check
 func isNil(object interface{}) bool {
 	if object == nil {
 		return true
@@ -197,7 +199,7 @@ func NewGroupTempl(fns ...string) *groupTempl {
 func (gt *groupTempl) base(funcs template.FuncMap) *template.Template {
 	name := "_base"
 	t, ok := gt.cache.Load(name)
-	if !ok {
+	if !ok || isdebug.On {
 		t0 := must(template.New(name).
 			Option("missingkey=error").
 			Funcs(funcs).
@@ -211,7 +213,7 @@ func (gt *groupTempl) base(funcs template.FuncMap) *template.Template {
 func (gt *groupTempl) getOrParse(fns []string, funcs template.FuncMap) *template.Template {
 	name := fns[0]
 	t, ok := gt.cache.Load(name)
-	if !ok {
+	if !ok || isdebug.On {
 		t0 := must(gt.base(funcs).
 			Option("missingkey=error").
 			Funcs(funcs).
