@@ -16,9 +16,11 @@
     <script src="{{ admin_static_url "admin/js/bs4_modal.js" "1.0.0" }}"></script>
     <script src="{{ admin_static_url "admin/js/bs4_filters.js" "1.0.0" }}"></script>
 
+    {{ if .actions }}
     {{ template "actionlib_script" .| arg "message" (gettext "Please select at least one record.") 
                         | arg "actions" .actions
                         | arg "actions_confirmation" .actions_confirmation | args  }}
+    {{ end }}
 {{ end }}
 
 
@@ -76,7 +78,7 @@
 
         {{ if .actions }}
             <li class="nav-item dropdown">
-                {{/* template "actionlib_dropdown" .actions */}}
+                {{ template "actionlib_dropdown" .actions|first }}
             </li>
         {{ end }}
 
@@ -198,7 +200,7 @@
 
         {{ block "actions" . }}
             {{/* actions ( .get_url ".action_view" ) */}}
-            {{/* template "actionlib_form" . */}}
+            {{ template "actionlib_form" .actions|first }}
         {{ end }}
 
         {{- if or .edit_modal  (or .create_modal .details_modal) -}}

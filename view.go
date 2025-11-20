@@ -143,3 +143,13 @@ func FlashSuccess(data string) flash    { return flash{data, "success"} }
 func FlashInfo(data string) flash       { return flash{data, "info"} }
 func FlashError(err error) flash        { return flash{err.Error(), "danger"} }
 func FlashDanger(data string) flash     { return flash{data, "danger"} }
+
+type Action struct {
+	Name         string
+	Title        string
+	Desc         string
+	Confirmation string
+	URL          string
+	ReturnURL    string
+	CSRFToken    string
+}

@@ -406,10 +406,9 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 			"widget_args": nil,
 			"form_rules":  []any{},
 		},
-		"filters":              []string{},
-		"filter_groups":        []string{},
-		"actions_confirmation": V.list_row_actions_confirmation(),
-		"return_url":           must(V.Blueprint.GetUrl(".index_view")),
+		"filters":       []string{},
+		"filter_groups": []string{},
+		"return_url":    must(V.Blueprint.GetUrl(".index_view")),
 	})
 
 	if len(others) > 0 {
@@ -462,42 +461,29 @@ func (V *ModelView) is_editable(name string) bool {
 	return ok
 }
 
-type Action map[string]any
-
 func (V *ModelView) list_row_actions(r *http.Request) []Action {
 	actions := []Action{}
 	if V.can_view_details {
 		actions = append(actions, Action{
-			"name":  "view",
-			"title": gettext("View Record"),
+			Name:  "view",
+			Title: gettext("View Record"),
 		})
 	}
 	if V.can_edit {
 		actions = append(actions, Action{
-			"name":  "edit",
-			"title": gettext("Edit Record"),
+			Name:  "edit",
+			Title: gettext("Edit Record"),
 		})
 	}
 	if V.can_delete {
 		actions = append(actions, Action{
-			"name":         "delete",
-			"title":        gettext("Delete Record"),
-			"confirmation": gettext("Are you sure you want to delete selected records?"),
-			"csrf_token":   csrf.Token(r),
+			Name:         "delete",
+			Title:        gettext("Delete Record"),
+			Confirmation: gettext("Are you sure you want to delete selected records?"),
+			CSRFToken:    csrf.Token(r),
 		})
 	}
 	return actions
-}
-
-func (V *ModelView) list_row_actions_confirmation() map[string]string {
-	// res := map[string]string{}
-	// for _, a := range V.list_row_actions() {
-	// 	if c, ok := a["confirmation"]; ok {
-	// 		res[a["name"].(string)] = c.(string)
-	// 	}
-	// }
-	// return res
-	return nil
 }
 
 func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
@@ -557,9 +543,13 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"column_display_actions":   V.column_display_actions,
 		"column_extra_row_actions": nil,
 		"list_row_actions":         V.list_row_actions(r),
-		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-		"list_columns":             V.fsList,
-		"sort":                     q.Sort,
+		"actions": []Action{{Name: "delete", Title: "Delete",
+			CSRFToken: csrf.Token(r),
+			URL:       must(V.Blueprint.GetUrl(".action_view")),
+			ReturnURL: must(V.Blueprint.GetUrl(".index_view"))}},
+		"actions_confirmation": map[string]string{"delete": "Are you sure you want to delete selected records?"},
+		"list_columns":         V.fsList,
+		"sort":                 q.Sort,
 		// not func, return current sort field name
 		// in template, `sort url` is: ?sort={index}
 		// transform `index` to `column name`
@@ -772,7 +762,25 @@ func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request) {
 		ReplyJson(w, 200, []any{})
 	}
 }
-func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
+
+// action=delete, rowid=[], url
+func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {
+	action := r.FormValue("action")
+	rowid := r.Form["rowid"]
+	if len(rowid) == 0 {
+		return
+	}
+	if action == "delete" {
+		log.Printf("action:%s: %v\n", action, rowid)
+		tx := V.deleteBatch(rowid)
+		if tx.Error == nil {
+			V.AddFlash(r, FlashSuccess(fmt.Sprintf("delete %d success", tx.RowsAffected)))
+		} else {
+			V.AddFlash(r, FlashError(tx.Error))
+		}
+	}
+	V.redirect(w, r)
+}
 func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 	result := V.list(q)
@@ -1009,6 +1017,14 @@ func (V *ModelView) deleteOne(rowid string) error {
 	ptr := V.Model.new()
 	rc := V.db.Delete(ptr, V.where(rowid))
 	return rc.Error
+}
+func (V *ModelView) deleteBatch(rowid []string) *gorm.DB {
+	ptr := V.Model.new()
+	ndb := V.db.Model(ptr).Where(V.where(rowid[0]))
+	for _, id := range rowid[1:] {
+		ndb = ndb.Or(V.where(id))
+	}
+	return ndb.Delete(ptr)
 }
 
 // row -> Model().Create() RETURNING *

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"gadm/isdebug"
 	"html/template"
+	"log"
 	"maps"
 	"net"
 	"net/http"
@@ -237,7 +238,7 @@ func (gt *groupTempl) Execute(name string, data map[string]any) template.HTML {
 	bt := gt.base(nil)
 	w := &bytes.Buffer{}
 	if err := bt.ExecuteTemplate(w, name, data); err != nil {
-		panic(err)
+		log.Printf("execute %s failed: %s", name, err)
 	}
 	return template.HTML(w.String())
 }
