@@ -1,14 +1,16 @@
-package gadmin
+package gadm
 
 import (
+	"encoding/gob"
 	"html/template"
 	"net/http"
-	"path"
 	"strings"
+
+	"github.com/gorilla/csrf"
 )
 
 type View interface {
-	// Add custom handler, eg: /admin/{model}/path
+	// Add custom handler, eg: /admin/{endpoint}/{path}
 	Expose(path string, h http.HandlerFunc)
 
 	GetBlueprint() *Blueprint
@@ -30,11 +32,18 @@ type BaseView struct {
 	Blueprint *Blueprint
 	Menu      Menu
 	admin     *Admin
+
+	gt *groupTempl
 }
 
 func NewView(menu Menu) *BaseView {
 	return &BaseView{Blueprint: &Blueprint{Path: menu.Path},
 		Menu: menu,
+		gt: NewGroupTempl("templates/actions.gotmpl",
+			"templates/base.gotmpl",
+			"templates/layout.gotmpl",
+			"templates/lib.gotmpl", // move to ModelView
+			"templates/master.gotmpl"),
 	}
 }
 
@@ -74,31 +83,24 @@ func (V *BaseView) IsAccessible() bool       { return true }
 
 func (V *BaseView) Render(w http.ResponseWriter, r *http.Request, fn string, funcs template.FuncMap, data map[string]any) {
 	fm := V.admin.funcs(funcs)
-	fm["get_flashed_messages"] = func() []map[string]any {
-		return GetFlashedMessages(r)
+	fm["get_flashed_messages"] = func() []any {
+		return V.admin.Session(r).Flashes()
 	}
 	fm["pager_url"] = func() string { return "TODO" }
-	fm["csrf_token"] = func() string { return "TODO" }
+	fm["csrf_token"] = func() string { return csrf.Token(r) }
 
-	t := template.Must(template.New("views").
-		Option("missingkey=error").
-		Funcs(fm).
-		ParseFiles("templates/actions.gotmpl",
-			"templates/base.gotmpl",
-			"templates/layout.gotmpl",
-			"templates/lib.gotmpl", // move to ModelView
-			"templates/master.gotmpl",
-			// "templates/index.gotmpl",
-			fn))
-	basefn := path.Base(fn)
-
-	w.Header().Add("content-type", ContentTypeUtf8Html)
-	if err := t.ExecuteTemplate(w, basefn, V.dict(r, data)); err != nil {
+	if err := V.gt.Render(w, fn, fm, V.dict(r, data)); err != nil {
 		panic(err)
 	}
 }
 
 func (V *BaseView) setAdmin(admin *Admin) { V.admin = admin }
+
+// category: success, danger, error, info
+func (V *BaseView) AddFlash(r *http.Request, flash flash) {
+	sess := V.admin.Session(r)
+	sess.AddFlash(flash)
+}
 
 func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]any {
 	// TODO: remove r
@@ -110,7 +112,7 @@ func (V *BaseView) dict(r *http.Request, others ...map[string]any) map[string]an
 		"extra_js":           []string{}, // "a.js", "b.js"}
 		"admin":              V.admin.dict(),
 		"admin_fluid_layout": true,
-		"csrf_token":         NewCSRF(CurrentSession(r)).GenerateToken,
+		"csrf_token":         func() string { return csrf.Token(r) },
 	}
 
 	if len(others) > 0 {
@@ -125,3 +127,19 @@ func parseTemplate(name string, funcs template.FuncMap, fn ...string) *template.
 		Funcs(funcs).
 		ParseFiles(fn...))
 }
+
+func init() {
+	gob.Register(flash{})
+}
+
+type flash struct {
+	Data     string
+	Category string
+}
+
+// flash category: success(green), info(blue), danger(red)
+func Flash(data, category string) flash { return flash{data, category} }
+func FlashSuccess(data string) flash    { return flash{data, "success"} }
+func FlashInfo(data string) flash       { return flash{data, "info"} }
+func FlashError(err error) flash        { return flash{err.Error(), "danger"} }
+func FlashDanger(data string) flash     { return flash{data, "danger"} }

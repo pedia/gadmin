@@ -1,9 +1,9 @@
 {{define "field_hidden" -}}
-    <input id="{{.DBName}}" name="{{.DBName}}" type="hidden" value="{{.Value}}">
+    <input name="{{.DBName}}" type="hidden" value="{{.Value}}">
 {{- end}}
 
 {{define "field_checkbox"}}
-    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+    <input class="" type="checkbox" id="{{.DBName}}" name="{{.DBName}}" {{if .NotNull}}required {{end}}value="{{.Value}}">
 {{end}}
 
 
@@ -13,21 +13,21 @@
 
 
 {{define "field_text"}}
-    <input class="form-control" type="text" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+    <input class="form-control" type="text" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{.Display}}">
 {{end}}
 
 
 {{define "field_number"}}
-    <input class="form-control" type="number" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+    <input class="form-control" type="number" id="{{.DBName}}" name="{{.DBName}}" {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
 {{end}}
 
 
 {{define "field_time"}}
-    <input class="form-control" type="text" data-date-format="YYYY-MM-DD" data-role="datepicker" id="{{.DBName}}" name="{{.DBName}}" {{if gt .Size 0}}maxlength="{{.Size}}"{{end}} {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Value}}{{else}}{{.DefaultValue}}{{end}}">
+    <input class="form-control" type="text" data-date-format="YYYY-MM-DD" data-role="datepicker" id="{{.DBName}}" name="{{.DBName}}" {{if .NotNull}}required {{end}}value="{{if .Value}}{{.Display}}{{else}}{{.DefaultValue}}{{end}}">
 {{end}}
 
 
-{{define "field_select2"}}    
+{{define "field_select2"}}
     <select class="form-control" data-allow-blank="0" data-role="select2" id="{{.DBName}}" name="{{.DBName}}">
       {{- $field := .}}
       {{- if eq $field.Value nil}}<option selected value="__None"></option>{{end}}
@@ -43,19 +43,58 @@
 {{end}}
 
 
+{{define "field_select2_ajax"}}
+      <input class="form-control" data-allow-blank="1" data-minimum-input-length="1" data-placeholder="Please select model" 
+        data-role="select2-ajax" data-separator=","
+        data-url="{{get_url (printf "%s%s" .Schema.Table ".ajax_lookup") "name" .Endpoint }}" id="{{.Endpoint}}" name="{{.Endpoint}}" type="hidden">
+{{end}}
+
+
+{{define "field_switch"}}
+{{if .Hidden}}
+  {{ template "field_hidden" . }}
+{{else if .Choices }}
+  {{ template "field_select2" . }}
+{{else if .Readonly }}
+  {{ template "field_readonly" . }}
+{{else if eq .DataType "bool" }}
+  {{ template "field_checkbox" . }}
+{{else if or (eq .DataType "float") (eq .DataType "uint") (eq .DataType "int") }}
+  {{ template "field_number" . }}
+{{else if eq .DataType "string" }}
+  {{if .TextAreaRow }}
+    {{ template "field_textarea" . }}
+  {{else}}
+    {{ template "field_text" . }}
+  {{end}}
+{{else if eq .DataType "time" }}
+  {{ template "field_time" . }}
+{{else if eq .DataType "bytes" }}
+  {{ "TODO: upload bytes?" }}
+{{else if .IsStruct }}
+  {{ template "field_select2_ajax" . }}
+{{end}}
+{{end}}
+
+
 {{define "form_all"}}
 <form action="" method="POST" role="form" class="admin-form" enctype="multipart/form-data">
   <fieldset>
-  {{range .}}
-    {{if .Hidden}}
-    <input id="csrf_token" name="csrf_token" type="hidden" value="20251107150559##93177da48739fb04a23193debca45352b0235f1a">
-    {{else}}
+    {{if .CSRFToken -}}
+    <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+    {{- end}}
+  {{$row := .Row}}
+  {{range .Fields}}
     <div class="form-group">
-      <label for="{{.DBName}}" class="control-label">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;&#42;</strong>{{end}}</label>
-      {{- .Html -}}
+      <label for="{{.DBName}}" class="control-label">{{.Label}}{{if .NotNull}}<strong style="color: red">&nbsp;*</strong>{{end}}</label>
+      {{if $row}}
+        {{ $f := $row.FieldOf . }}
+        {{- template "field_switch" $f -}}
+      {{else}}
+        {{- template "field_switch" . -}}
+      {{end}}
       {{- if .Description}}<small class="form-text text-muted">{{.Description}}</small>{{end}} {{/* if gt .Size 0}}{{.Size}}{{end */}}
     </div>
-    {{end}}
   {{end}}
 
   <hr>

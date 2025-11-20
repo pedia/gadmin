@@ -1,9 +1,9 @@
-package gadmin
+package gadm
 
 import (
 	"errors"
 	"fmt"
-	"gadmin/isdebug"
+	"gadm/isdebug"
 	"io"
 	"log"
 	"os"
@@ -46,7 +46,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	g.logger.Println("generate start")
 
 	db, err := Parse(g.Url).Open(&gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true},
+		NamingStrategy: Namer,
 		Logger: logger.New(g.logger, logger.Config{
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  logger.Warn,
@@ -73,6 +73,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	}
 	g.logger.Printf("database closed")
 
+	_ = os.Mkdir("dao", 0766)
 	//
 	g.logger.Printf("write dao/models.gen.go")
 	f, err := os.OpenFile("dao/models.gen.go", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
@@ -80,7 +81,7 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 		return err
 	}
 
-	f.WriteString("// generate by gadmin.generator\n")
+	f.WriteString("// generate by gadm.generator\n")
 	f.WriteString(fmt.Sprintf("package %s\n\n", g.Package))
 	f.WriteString("import \"time\"\n\n")
 	g.WriteModels(f)
@@ -101,10 +102,10 @@ func (g *generator) Run(admin *Admin, w io.Writer) error {
 	g.exec("go", "fmt", "./dao")
 	g.exec("go", "test", "./dao")
 
-	if isdebug.Enabled {
+	if isdebug.On {
 		g.exec("go", "build", "-buildmode=plugin",
 			`-gcflags`, `all=-N -l`, // debug
-			"-tags", "debug",
+			"-tags", "debug", // for isdebug.On
 			"-o", "libdao.so", "./dao")
 	} else {
 		g.exec("go", "build", "-buildmode=plugin",
@@ -151,11 +152,13 @@ func namify(name string) string {
 func dialectTypeToDataType(n string) schema.DataType {
 	n = strings.ToUpper(n)
 	table := map[string]schema.DataType{
+		"":         schema.String, // CREATE TABLE sqlite_sequence(name,seq);
 		"BOOLEAN":  schema.Bool,
 		"CHAR":     schema.String,
 		"DATE":     schema.Time,
 		"DATETIME": schema.Time,
 		"INTEGER":  schema.Int,
+		"NUMERIC":  schema.Int,
 		"DOUBLE":   schema.Float,
 		"REAL":     schema.Float,
 		"TEXT":     schema.String,
@@ -216,13 +219,18 @@ func (g *generator) EmitTable(table string, columns []gorm.ColumnType, indexes [
 
 		if dt := dialectTypeToDataType(col.DatabaseTypeName()); dt != "" {
 			f.DataType = dt
+			f.GORMDataType = dt
 
-			if dt == schema.Time {
+			// special
+			if dt == schema.Int {
+				// SQLite does not have a separate Boolean storage class
+				if dv, ok := col.DefaultValue(); ok && dv == "true" || dv == "false" {
+					f.GORMDataType = schema.Bool
+				}
+			} else if dt == schema.Time {
 				f.GORMDataType = schema.DataType("*time.Time")
 			} else if dt == schema.Bytes {
 				f.GORMDataType = schema.DataType("[]byte")
-			} else {
-				f.GORMDataType = dt
 			}
 		}
 
@@ -273,7 +281,8 @@ func (g *generator) EmitTable(table string, columns []gorm.ColumnType, indexes [
 func (g *generator) applyTag(f *schema.Field) {
 	parts := []string{}
 	// column name
-	parts = append(parts, fmt.Sprintf("column:%s", f.DBName))
+	// parts = append(parts, fmt.Sprintf("column:%s", f.DBName))
+
 	// type (from dialect mapping)
 	// if f.GORMDataType != "" {
 	// 	parts = append(parts, fmt.Sprintf("type:%s", f.GORMDataType))
@@ -350,14 +359,13 @@ var testcode = template.Must(template.New("testcode").Parse(`
 package {{.Package}}
 
 import (
-	"gadmin"
+	"gadm"
 	"os"
 	"strings"
 	"testing"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 func TestDaoModels(t *testing.T) {
@@ -366,9 +374,9 @@ func TestDaoModels(t *testing.T) {
 		_ = os.Chdir("..")
 	}
 
-	db, err := gadmin.Parse("{{.Url}}").Open(
+	db, err := gadm.Parse("{{.Url}}").Open(
 		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
+			NamingStrategy: gadm.Namer,
 			Logger:         logger.Default.LogMode(logger.Info)})
 	if err != nil {
 		return
@@ -381,7 +389,7 @@ func TestDaoModels(t *testing.T) {
 	for _, m := range models {
 		tx := db.First(m)
 		if tx.Error != nil {
-			t.Fatal(tx.Error)
+			t.Error(tx.Error)
 		}
 	}
 }
@@ -390,17 +398,21 @@ func TestDaoModels(t *testing.T) {
 var viewscode = template.Must(template.New("viewscode").Parse(`
 package {{.Package}}
 
-import "gadmin"
+import "gadm"
 
-func Views() []*gadmin.ModelView {
-	return []*gadmin.ModelView{
+func Views() []*gadm.ModelView {
+	db, err := gadm.Parse("{{.Url}})").Open()
+	if err != nil {
+		return nil
+	}
+	_ = db
+
+	return []*gadm.ModelView{
 	{{range .Tables}}
-		gadmin.NewModelView({{.Name}}{}),
-	{{end}}
+		gadm.NewModelView({{.Name}}{}, db),
+	{{- end}}
 	}
 }
-
-func Url() string { return "{{.Url}}" }
 `))
 
 func LoadPlugin(admin *Admin, fn string) error {
@@ -411,16 +423,6 @@ func LoadPlugin(admin *Admin, fn string) error {
 	p, err := plugin.Open(fn)
 	if err != nil {
 		return err
-	}
-
-	// Open db
-	if f, err := p.Lookup("Url"); err == nil {
-		if ft, ok := f.(func() string); ok {
-			url := ft()
-			if db, err := Parse(url).OpenDefault(); err == nil {
-				admin.DB = db
-			}
-		}
 	}
 
 	// Add Views

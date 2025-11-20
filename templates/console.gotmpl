@@ -11,6 +11,7 @@
 
   {{ template "admin_nav" . }}
 
+    {{if .result.Rows}}
     <div class="table-responsive">
         <table class="table table-striped table-bordered table-hover model-list">
             <thead>
@@ -19,7 +20,7 @@
                             <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="Select all records" />
                         </th>
                         {{$row := .result.Rows|first}}
-                        {{range $k, $v := $row}}
+                        {{range $k, $v := $row.Map}}
                         <th class="column-header col-{{$k}}">{{$k}}</th>
                         {{end}}
                 </tr>
@@ -29,7 +30,7 @@
                         <td>
                             <input type="checkbox" name="rowid" class="action-checkbox" value="1" title="Select record" />
                         </td>
-                        {{range $k, $v := .}}
+                        {{range $k, $v := .Map}}
                             <td class="{{$k}}">{{$v}}</td>
                         {{end}}
                     </tr>
@@ -41,7 +42,7 @@
                             <input type="checkbox" name="rowtoggle" class="action-rowtoggle" title="Select all records" />
                         </th>
                         {{$row := .result.Rows|first}}
-                        {{range $k, $v := $row}}
+                        {{range $k, $v := $row.Map}}
                         <th class="column-header col-{{$k}}">{{$k}}</th>
                         {{end}}
                 </tr>
@@ -49,6 +50,7 @@
                 {{end}}
         </table>
     </div>
+    {{end}}
 
     {{if .sql}}
     Total {{.result.Total}} rows affected.
@@ -57,12 +59,24 @@
     <hr>
     <form action method="post" role="form" class="admin-form">
 <fieldset>
+    {{.csrf_field}}
 
-<div class="form-group">
-<label for="sql" class="control-label">SQL<strong style="color: red">&nbsp;&#42;</strong></label>
-<input class="form-control" type="text" name="sql" value="{{if .sql}}{{.sql}}{{else}}select * from tag{{end}}">
+    <div class="form-group">
+    <label for="name" class="control-label">Database Name<strong style="color: red">&nbsp;&#42;</strong></label>
+    <select class="form-control" data-allow-blank="0" data-role="select2" id="name" name="name">
+        {{$name := .name}}
+        {{range .dbs -}}
+        <option {{if eq $name .}}selected {{end}}value="{{.}}">{{.}}</option>
+        {{end -}}
+    </select>
+    <small class="form-text text-muted"></small>
 
-<small class="form-text text-muted">no checking, even Drop-Table could run</small>
+    <div class="form-group">
+    <label for="sql" class="control-label">SQL<strong style="color: red">&nbsp;*</strong></label>
+    <input class="form-control" type="text" name="sql" value="{{if .sql}}{{.sql}}{{else}}select * from company{{end}}">
+    <small class="form-text text-muted">no checking, even Drop-Table could run</small>
+    </div>
+
 </div>
 
 

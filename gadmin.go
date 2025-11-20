@@ -1,1 +1,1 @@
-package gadmin
+package gadm

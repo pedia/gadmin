@@ -1,16 +1,20 @@
-package gadmin
+package gadm
 
 import (
 	"encoding/csv"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/fatih/camelcase"
 	"github.com/go-playground/form/v4"
+	"github.com/gorilla/csrf"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
@@ -21,6 +25,7 @@ import (
 type ModelView struct {
 	*BaseView
 	*Model
+	db *gorm.DB
 
 	// Permissions
 	can_create       bool
@@ -49,6 +54,8 @@ type ModelView struct {
 	column_display_pk      bool
 	column_display_actions bool
 
+	lookupRefers map[string]*refer
+
 	// form
 	form_choices          map[string][]Choice
 	form_columns          []string
@@ -58,16 +65,16 @@ type ModelView struct {
 	textareaRow map[string]int
 	// TODO: date-format="YYYY-MM-DD"
 
-	// runtime: cache generate from
-	createFormFields []*Field
-	editFormFields   []*Field
-
-	list_fields []*Field
-
 	// db relation settings
 	joins      []queryArg
 	innerJoins []queryArg
 	preloads   []queryArg
+
+	fsList []*Field
+	fsNew  []*Field
+	fsEdit []*Field
+
+	gt *groupTempl
 }
 
 // for db.Joins(query string, args... any)
@@ -77,13 +84,14 @@ type queryArg struct {
 }
 
 // TODO: ensure m not ptr
-func NewModelView(m any, category ...string) *ModelView {
+func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 	model := NewModel(m)
 
-	cate := firstOr(category, model.label())
+	cate := firstOr(category, "")
 
 	mv := ModelView{
 		BaseView:               NewView(Menu{Name: model.label(), Category: cate}),
+		db:                     db,
 		Model:                  model,
 		can_create:             true,
 		can_edit:               true,
@@ -99,8 +107,8 @@ func NewModelView(m any, category ...string) *ModelView {
 
 	mv.Blueprint = &Blueprint{
 		Name:     model.label(),
-		Endpoint: model.path(),
-		Path:     "/" + model.path(),
+		Endpoint: model.endpoint(),
+		Path:     "/" + model.endpoint(),
 		Children: map[string]*Blueprint{
 			// In flask-admin use `view.index`. Should use `view.index_view` in `gadmin`
 			"index":        {Endpoint: "index", Path: "/", Handler: mv.indexHandler},
@@ -120,9 +128,18 @@ func NewModelView(m any, category ...string) *ModelView {
 		},
 	}
 
-	// mv.column_list = mv.schema.DBNames
 	mv.column_sortable_list = mv.sortableColumns()
 
+	mv.gt = NewGroupTempl(
+		"templates/actions.gotmpl",
+		"templates/base.gotmpl",
+		"templates/layout.gotmpl",
+		"templates/lib.gotmpl",
+		"templates/master.gotmpl",
+		"templates/model_layout.gotmpl",
+		"templates/form.gotmpl",
+		"templates/model_row_actions.gotmpl",
+	)
 	return &mv
 }
 
@@ -134,7 +151,7 @@ func (V *ModelView) InnerJoins(query string, args ...any) *ModelView {
 	V.innerJoins = append(V.innerJoins, queryArg{query, args})
 	return V
 }
-func (V *ModelView) Preload(query string, args ...any) *ModelView {
+func (V *ModelView) Preloads(query string, args ...any) *ModelView {
 	V.preloads = append(V.preloads, queryArg{query, args})
 	return V
 }
@@ -206,46 +223,107 @@ func (V *ModelView) SetFormExcludedColumns(columns ...string) *ModelView {
 	return V
 }
 
-func (V *ModelView) genFormFields(create bool) []*Field {
-	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
-		// exclude, return false
-		if slices.Contains(V.form_excluded_columns, field.DBName) {
-			return false
-		}
+type refer struct {
+	fields []string
+	model  *Model
+}
 
-		// include, return true
-		if slices.Contains(V.form_columns, field.DBName) {
+func Refer(a any, fields ...string) *refer {
+	return &refer{
+		model:  NewModel(a),
+		fields: fields,
+	}
+}
+
+func like(query string) string {
+	return "%" + query + "%"
+}
+func astoss(as []any) string {
+	return strings.Join(lo.Map(as, func(a any, _ int) string { return cast.ToString(a) }), ",")
+}
+
+// refer.fields like query
+// Return slice of [id, "f1, f2"]
+func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
+	nd := db.Limit(limit).Offset(offset)
+
+	pks := []string{}
+	fns := lo.Map(lo.Filter(rf.model.Fields, func(f *Field, _ int) bool {
+		if f.PrimaryKey {
+			pks = append(pks, f.DBName)
 			return true
 		}
-
-		// default not primaryKey
-		if create {
-			// create form, do not need primaryKey
-			return !field.PrimaryKey
-		} else {
-			// edit form, need primaryKey
+		if slices.Contains(rf.fields, f.DBName) {
 			return true
 		}
+		return false
+	}), func(f *Field, _ int) string {
+		return f.DBName
 	})
 
-	return lo.Map(list, func(field *schema.Field, _ int) *Field {
+	nd = nd.Table(rf.model.schema.Table).
+		Select(fns).
+		Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
+	for _, f := range rf.fields[1:] {
+		nd = nd.Or(fmt.Sprintf("%s like ?", f), like(query))
+	}
+	var ms []map[string]any
+	if tx := nd.Find(&ms); tx.Error == nil {
+		return lo.Map(ms, func(m map[string]any, _ int) []any {
+			var id any
+			ids := []any{}
+			for _, pk := range pks {
+				ids = append(ids, m[pk])
+			}
+			if len(ids) > 1 {
+				id = astoss(ids)
+			} else {
+				id = ids[0]
+			}
+
+			vs := []any{}
+			for _, f := range rf.fields {
+				vs = append(vs, m[f])
+			}
+			return []any{id, astoss(vs)}
+		})
+	}
+	return [][]any{}
+}
+
+// user: [first_name, last_name]
+// lookup table user's first_name, last_name
+func (V *ModelView) AddLooupRefer(a any, fields ...string) *ModelView {
+	if reflect.ValueOf(a).Kind() != reflect.Struct {
+		log.Println("wrong refer type, 'a' should be Struct")
+	}
+
+	if V.lookupRefers == nil {
+		V.lookupRefers = map[string]*refer{}
+	}
+	rf := Refer(a, fields...)
+	V.lookupRefers[rf.model.name()] = rf
+	return V
+}
+
+func (V *ModelView) transform(fs []*schema.Field) []*Field {
+	return lo.Map(fs, func(f *schema.Field, _ int) *Field {
 		return &Field{
-			Field:       field,
-			Label:       strings.Join(camelcase.Split(field.Name), " "),
-			Choices:     V.form_choices[field.DBName],
-			Description: emptyOr(V.column_descriptions[field.DBName], field.Comment),
-			TextAreaRow: V.textareaRow[field.DBName],
-			Hidden:      false,
+			Field:       f,
+			Label:       strings.Join(camelcase.Split(f.Name), " "),
+			Choices:     V.form_choices[f.DBName],
+			Description: emptyOr(V.column_descriptions[f.DBName], f.Comment),
+			TextAreaRow: V.textareaRow[f.DBName],
+			Readonly:    !V.can_edit,
+			Sortable:    slices.Contains(V.column_sortable_list, f.DBName),
 		}
 	})
 }
 
-func (V *ModelView) genListFields() []*Field {
-	if V.list_fields != nil {
-		return V.list_fields
-	}
+func (V *ModelView) freeze() {
+	fs := V.transform(V.schema.Fields)
 
-	list := lo.Filter(V.schema.Fields, func(field *schema.Field, _ int) bool {
+	V.fsList = lo.Filter(fs, func(field *Field, _ int) bool {
 		// exclude return false
 		if slices.Contains(V.column_exclude_list, field.DBName) {
 			return false
@@ -256,23 +334,57 @@ func (V *ModelView) genListFields() []*Field {
 			return true
 		}
 
+		// keep, but hidden
 		if field.PrimaryKey {
-			return V.column_display_pk
+			return true
 		}
+		return len(V.column_list) == 0
+	})
+	if !V.column_display_pk {
+		V.fsList = clone(V.fsList)
+		for _, f := range V.fsList {
+			if f.PrimaryKey {
+				f.Hidden = true
+			}
+		}
+	}
 
+	V.fsNew = lo.Filter(fs, func(f *Field, _ int) bool {
+		// exclude, return false
+		if slices.Contains(V.form_excluded_columns, f.DBName) {
+			return false
+		}
+		// include, return true
+		if slices.Contains(V.form_columns, f.DBName) {
+			return true
+		}
+		return !f.PrimaryKey
+	})
+
+	// need clone: change Readonly
+	V.fsEdit = clone(lo.Filter(fs, func(f *Field, _ int) bool {
+		// exclude, return false
+		if slices.Contains(V.form_excluded_columns, f.DBName) {
+			return false
+		}
+		// include, return true
+		if slices.Contains(V.form_columns, f.DBName) {
+			return true
+		}
+		// inline editable should ajax editable
+		if slices.Contains(V.column_editable_list, f.DBName) {
+			return true
+		}
+		if len(V.form_columns) > 0 {
+			return f.PrimaryKey
+		}
 		return true
-	})
-
-	V.list_fields = lo.Map(list, func(field *schema.Field, _ int) *Field {
-		return &Field{
-			Field:       field,
-			Label:       strings.Join(camelcase.Split(field.Name), " "),
-			Choices:     V.form_choices[field.DBName],
-			Description: emptyOr(V.column_descriptions[field.DBName], field.Comment),
-			TextAreaRow: V.textareaRow[field.DBName],
+	}))
+	for _, f := range V.fsEdit {
+		if f.PrimaryKey {
+			f.Readonly = true
 		}
-	})
-	return V.list_fields
+	}
 }
 
 func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
@@ -297,7 +409,7 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 		"filters":              []string{},
 		"filter_groups":        []string{},
 		"actions_confirmation": V.list_row_actions_confirmation(),
-		"return_url":           must(V.Blueprint.GetUrl(".index_view", nil)),
+		"return_url":           must(V.Blueprint.GetUrl(".index_view")),
 	})
 
 	if len(others) > 0 {
@@ -306,9 +418,100 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 	return o
 }
 
+// Because `default_page_size`, should place here, not query.go
+func (V *ModelView) queryFrom(r *http.Request) *Query {
+	base, _ := V.GetBlueprint().GetUrl(".index")
+	q := Query{default_page_size: V.page_size, PageSize: V.page_size,
+		base: base}
+	r.ParseForm()
+	uv := r.Form
+
+	form.NewDecoder().Decode(&q, uv)
+	for k, v := range uv {
+		if lo.IndexOf([]string{"page", "page_size", "sort", "desc", "search"}, k) != -1 {
+			continue
+		}
+		q.args = append(q.args, k, v[0])
+	}
+	return &q
+}
+
+func (V *ModelView) get_column_index(name string) int {
+	if _, i, ok := lo.FindIndexOf(V.fsList, func(f *Field) bool {
+		return f.DBName == name
+	}); ok {
+		return i
+	}
+	return -1
+}
+
+func (V *ModelView) column_name(i int) string {
+	if i < len(V.fsList) {
+		return V.fsList[i].DBName
+	}
+	return ""
+}
+
+func (V *ModelView) is_editable(name string) bool {
+	if !V.can_edit {
+		return false
+	}
+	_, ok := lo.Find(V.column_editable_list, func(i string) bool {
+		return i == name
+	})
+	return ok
+}
+
+type Action map[string]any
+
+func (V *ModelView) list_row_actions(r *http.Request) []Action {
+	actions := []Action{}
+	if V.can_view_details {
+		actions = append(actions, Action{
+			"name":  "view",
+			"title": gettext("View Record"),
+		})
+	}
+	if V.can_edit {
+		actions = append(actions, Action{
+			"name":  "edit",
+			"title": gettext("Edit Record"),
+		})
+	}
+	if V.can_delete {
+		actions = append(actions, Action{
+			"name":         "delete",
+			"title":        gettext("Delete Record"),
+			"confirmation": gettext("Are you sure you want to delete selected records?"),
+			"csrf_token":   csrf.Token(r),
+		})
+	}
+	return actions
+}
+
+func (V *ModelView) list_row_actions_confirmation() map[string]string {
+	// res := map[string]string{}
+	// for _, a := range V.list_row_actions() {
+	// 	if c, ok := a["confirmation"]; ok {
+	// 		res[a["name"].(string)] = c.(string)
+	// 	}
+	// }
+	// return res
+	return nil
+}
+
 func (V *ModelView) debugHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("a") == "1" {
+		V.AddFlash(r, FlashSuccess(`Record was successfully deleted.
+1 records were successfully deleted.`))
+		V.redirect(w, r, "/admin/company")
+		return
+	}
+	w.Header().Set("foo", "bar")
+
 	V.Render(w, r, "debug.gotmpl", nil, map[string]any{
-		"menu":      V.Menu.dict(),
+		"query":     V.queryFrom(r),
+		"menu":      V.Menu,
 		"blueprint": V.Blueprint.dict(),
 	})
 }
@@ -316,6 +519,7 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 
 	result := V.list(q)
+	result.Fields = V.fsList
 
 	V.Render(w, r, "model_list.gotmpl", template.FuncMap{
 		"is_sortable": func(name string) bool {
@@ -352,9 +556,9 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"column_display_pk":        V.column_display_pk,
 		"column_display_actions":   V.column_display_actions,
 		"column_extra_row_actions": nil,
-		"list_row_actions":         V.list_row_actions(),
+		"list_row_actions":         V.list_row_actions(r),
 		"actions":                  []string{"delete", "Delete"}, // [('delete', 'Delete')]
-		"list_columns":             V.genListFields(),
+		"list_columns":             V.fsList,
 		"sort":                     q.Sort,
 		// not func, return current sort field name
 		// in template, `sort url` is: ?sort={index}
@@ -376,80 +580,12 @@ func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
 
 	res := V.list(q)
+	res.Fields = V.fsList
 	if res.Error != nil {
 		ReplyJson(w, 200, map[string]any{"error": res.Error})
 		return
 	}
 	ReplyJson(w, 200, map[string]any{"total": res.Total, "data": res.Rows})
-}
-
-// Because `default_page_size`, should place here, not query.go
-func (V *ModelView) queryFrom(r *http.Request) *Query {
-	base, _ := V.GetBlueprint().GetUrl(".index")
-	q := Query{default_page_size: V.page_size, PageSize: V.page_size,
-		base: base}
-	r.ParseForm()
-	uv := r.Form
-
-	form.NewDecoder().Decode(&q, uv)
-	for k, v := range uv {
-		if lo.IndexOf([]string{"page", "page_size", "sort", "desc", "search"}, k) != -1 {
-			continue
-		}
-		q.args = append(q.args, k, v[0])
-	}
-	return &q
-}
-
-func (V *ModelView) get_column_index(name string) int {
-	if _, i, ok := lo.FindIndexOf(V.genListFields(), func(f *Field) bool {
-		return f.DBName == name
-	}); ok {
-		return i
-	}
-	return -1
-}
-
-func (V *ModelView) column_name(i int) string {
-	list := V.genListFields()
-	if i < len(list) {
-		return list[i].DBName
-	}
-	return ""
-}
-
-func (V *ModelView) is_editable(name string) bool {
-	if !V.can_edit {
-		return false
-	}
-	_, ok := lo.Find(V.column_editable_list, func(i string) bool {
-		return i == name
-	})
-	return ok
-}
-
-func (V *ModelView) list_row_actions() []Action {
-	actions := []Action{}
-	if V.can_view_details {
-		actions = append(actions, view_row_action)
-	}
-	if V.can_edit {
-		actions = append(actions, edit_row_action)
-	}
-	if V.can_delete {
-		actions = append(actions, delete_row_action)
-	}
-	return actions
-}
-
-func (V *ModelView) list_row_actions_confirmation() map[string]string {
-	res := map[string]string{}
-	for _, a := range V.list_row_actions() {
-		if c, ok := a["confirmation"]; ok {
-			res[a["name"].(string)] = c.(string)
-		}
-	}
-	return res
 }
 
 func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
@@ -463,32 +599,33 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 		// trigger ParseMultipartForm
 		continue_editing := r.PostFormValue("_continue_editing")
 
-		one := V.parseForm(r.PostForm)
-		if err := V.create(one); err == nil {
-			Flash(r, gettext("Record was successfully created."), "success")
+		one := V.intoRow(r.PostForm, V.fsNew)
+		err := V.create(one)
+		if err != nil {
+			V.AddFlash(r, FlashError(err))
+		} else {
+			V.AddFlash(r, FlashInfo(gettext("Record was successfully created.")))
+		}
 
-			// "_add_another"
-			// "_continue_editing"
-			if continue_editing != "" {
-				V.redirect(w, r, must(V.Blueprint.GetUrl(".edit_view", nil, "id", one["id"])))
-				return
-			}
-
-			if r.PostFormValue("_add_another") != "" {
-				V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view", nil)))
-				return
-			}
-
-			V.redirect(w, r, q.Get("url"))
+		if continue_editing != "" {
+			rowid := one.GetPkValue()
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".edit_view", "id", rowid)))
+			return
+		}
+		if r.PostFormValue("_add_another") != "" {
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view")))
 			return
 		}
 
+		V.redirect(w, r, q.Get("url"))
+		return
 	}
 
+	// GET
 	V.Render(w, r, "model_create.gotmpl", nil, map[string]any{
 		"request":    rd(r),
-		"form":       V.form(nil),
-		"cancel_url": "TODO:cancel_url",
+		"form":       NewForm(V.fsNew, nil, csrf.Token(r)),
+		"cancel_url": must(V.Blueprint.GetUrl(".index_view")),
 		"form_opts": map[string]any{
 			"widget_args": nil, "form_rules": nil,
 		},
@@ -496,92 +633,97 @@ func (V *ModelView) newHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, url string) {
-	if url == "" {
-		url = must(V.Blueprint.GetUrl(".index_view", nil))
+func (V *ModelView) redirect(w http.ResponseWriter, r *http.Request, urls ...string) {
+	path := firstOr(urls)
+	if path == "" {
+		path = r.URL.Query().Get("url")
 	}
-	http.Redirect(w, r, url, http.StatusFound)
+	if path == "" {
+		path = must(V.Blueprint.GetUrl(".index_view"))
+	}
+	http.Redirect(w, r, path, http.StatusFound)
 }
 
 func (V *ModelView) editHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
+	rowid := q.Get("id")
 
-	if !V.can_edit {
+	if !V.can_edit || rowid == "" {
 		V.redirect(w, r, q.Get("url"))
 		return
 	}
 
-	one, err := V.getOne(q.Get("id")) // force "id"
+	row, err := V.getOne(rowid)
 	if err != nil {
-		// TODO: make this work
-		Flash(r, V.admin.gettext("Record does not exist."), "danger")
-
+		V.AddFlash(r, FlashInfo(gettext("Record does not exist.")))
 		V.redirect(w, r, q.Get("url"))
 		return
+	}
+	if r.Method == http.MethodPost {
+		one := V.intoRow(r.PostForm, V.fsEdit)
+		if V.update(rowid, one) != nil {
+			V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
+		}
+
+		if r.PostFormValue("_add_another") != "" {
+			V.redirect(w, r, must(V.Blueprint.GetUrl(".create_view")))
+			return
+		} else if r.PostFormValue("_continue_editing") != "" {
+			// do nothing next Render
+		} else {
+			// Save only, redirect to url
+			V.redirect(w, r)
+			return
+		}
 	}
 
 	V.Render(w, r, "model_edit.gotmpl", nil, map[string]any{
-		"model":           one,
-		"form":            V.form(one),
-		"details_columns": V.genListFields(),
-		"request":         rd(r),
+		"row":     row,
+		"form":    NewForm(V.fsEdit, row, csrf.Token(r)),
+		"request": rd(r),
 	})
 }
 
 // Model().Where(pk field = pk value).Delete()
 func (V *ModelView) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
-	redirect := func() {
-		url := q.Get("url")
-		if url == "" {
-			url = must(V.Blueprint.GetUrl(".index_view", nil))
-		}
-		http.Redirect(w, r, url, http.StatusFound)
-	}
-
-	if !V.can_delete {
-		redirect()
+	rowid := q.Get("id")
+	if !V.can_delete || rowid == "" {
+		V.redirect(w, r)
 		return
 	}
 
-	err := V.deleteOne(q.Get("id"))
+	err := V.deleteOne(rowid)
 	if err != nil {
-		// flash_errors(form, message='Failed to delete record. %(error)s')
+		V.AddFlash(r, Flash(gettext("Failed to delete record. %s", err), "error"))
 	} else {
-		// flash(ngettext('Record was successfully deleted.',
-		//                      '%(count)s records were successfully deleted.',
-		//                      count, count=count), 'success')
+		V.AddFlash(r, FlashSuccess(gettext(`Record was successfully deleted.
+1 records were successfully deleted.`)))
 	}
-	redirect()
+	V.redirect(w, r)
 }
 
 // Model().Where(pk field = pk value).First()
 func (V *ModelView) detailHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
-	redirect := func() {
-		url := q.Get("url")
-		if url == "" {
-			url = must(V.Blueprint.GetUrl(".index_view", nil))
-		}
-		http.Redirect(w, r, url, http.StatusFound)
-	}
+	rowid := q.Get("id")
 
-	if !V.can_view_details {
-		redirect()
+	if !V.can_view_details || rowid == "" {
+		V.redirect(w, r)
 		return
 	}
 
-	one, err := V.getOne(q.Get("id"))
+	row, err := V.getOne(rowid)
 	if err != nil {
-		Flash(r, V.admin.gettext("Record does not exist."), "danger")
+		V.AddFlash(r, FlashDanger(gettext("Record does not exist.")))
 
-		redirect()
+		V.redirect(w, r)
 		return
 	}
 
 	V.Render(w, r, "model_details.gotmpl", nil, map[string]any{
-		"model":           one, // TODO: rename 'model' to 'row'
-		"details_columns": V.genListFields(),
+		"row":             row,
+		"details_columns": V.Fields, // show all fields
 		"request":         rd(r),
 	})
 }
@@ -604,13 +746,7 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	rowid := r.Form.Get("list_form_pk")
 
-	row := Row{}
-	for k, v := range r.Form {
-		if k == "list_form_pk" {
-			continue
-		}
-		row[k] = v[0]
-	}
+	row := V.intoRow(r.Form, V.fsEdit)
 
 	// TODO: validate
 
@@ -623,7 +759,19 @@ func (V *ModelView) ajaxUpdate(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(V.admin.gettext("Record was successfully saved.")))
 }
 
-func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request)    {}
+// /admin/employee/ajax/lookup?name=employee&query=l&offset=0&limit=10&_=1763527783488
+func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request) {
+	name := r.FormValue("name")
+	if rf, ok := V.lookupRefers[name]; ok {
+		query := r.FormValue("query")
+		offset := cast.ToInt(r.FormValue("offset"))
+		limit := cast.ToInt(r.FormValue("limit"))
+		rs := rf.Lookup(V.db, query, offset, limit)
+		ReplyJson(w, 200, rs)
+	} else {
+		ReplyJson(w, 200, []any{})
+	}
+}
 func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {}
 func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
 	q := V.queryFrom(r)
@@ -640,17 +788,18 @@ func (V *ModelView) exportHandler(w http.ResponseWriter, r *http.Request) {
 	cw := csv.NewWriter(w)
 
 	// header
-	header := lo.Map(V.genListFields(), func(f *Field, _ int) string {
+	header := lo.Map(result.Fields, func(f *Field, _ int) string {
 		return f.DBName
 	})
 	cw.Write(header)
 
 	for _, row := range result.Rows {
-		line := lo.Map(V.form(row).Fields, func(f *Field, _ int) string {
-			return cast.ToString(row.GetDisplayValue(f))
+		line := lo.Map(row.Fields, func(f *Field, _ int) string {
+			return f.Display()
 		})
 		cw.Write(line)
 	}
+
 	cw.Flush()
 }
 
@@ -663,60 +812,33 @@ func rd(r *http.Request) map[string]any {
 	}
 }
 
-// create form: no primarykey
-// edit form: hidden primarykey
-func (V *ModelView) form(one Row) *modelForm {
-	var list []*Field
-	if one == nil {
-		// create
-		if V.createFormFields == nil {
-			V.createFormFields = V.genFormFields(true)
-		}
-		list = V.createFormFields
-	} else {
-		if V.editFormFields == nil {
-			V.editFormFields = V.genFormFields(false)
-		}
-		list = V.editFormFields
-	}
-	return ModelForm(list, one)
-}
-
 // Generate inline edit form in list view
-func (V *ModelView) list_form(field *Field, row Row) template.HTML {
-	return InlineEdit(V.Model, field, row)
+func (V *ModelView) inline_form(token string) func(field *Field, row *Row) template.HTML {
+	return func(field *Field, row *Row) template.HTML {
+		return InlineEdit(V.gt, token, V.Model, field, row)
+	}
 }
 func (V *ModelView) delete_form() *modelForm {
 	return &modelForm{Fields: []*Field{}}
 }
 
 func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, funcs template.FuncMap, data map[string]any) {
-	w.Header().Add("content-type", ContentTypeUtf8Html)
-	fs := []string{
-		"templates/actions.gotmpl",
-		"templates/base.gotmpl",
-		"templates/layout.gotmpl",
-		"templates/lib.gotmpl",
-		"templates/master.gotmpl",
-		"templates/model_layout.gotmpl",
-		"templates/model_row_actions.gotmpl",
-	}
-
 	fm := merge(template.FuncMap{
 		"return_url": func() (string, error) {
-			return V.Blueprint.GetUrl(V.Blueprint.Endpoint+".index_view", nil)
+			return V.Blueprint.GetUrl(".index_view")
 		},
-		"get_flashed_messages": func() []map[string]any {
-			return GetFlashedMessages(r)
+		// TODO: move into BaseView
+		"get_flashed_messages": func() []any {
+			return V.admin.Session(r).Flashes()
 		},
 		"get_url": func(endpoint string, args ...any) string {
 			return must(V.Blueprint.GetUrl(endpoint, args...))
 		},
 		"pager_url": func(page int) string {
-			return must(V.Blueprint.GetUrl(".index_view", nil, "page", page))
+			return must(V.Blueprint.GetUrl(".index_view", "page", page))
 		},
-		"csrf_token":  NewCSRF(CurrentSession(r)).GenerateToken,
-		"list_form":   V.list_form,
+		"csrf_token":  func() string { return csrf.Token(r) },
+		"list_form":   V.inline_form(csrf.Token(r)),
 		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,
 		"clear_search_url": func() string {
@@ -726,11 +848,61 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		},
 	}, funcs)
 
-	fs = append(fs, "templates/"+name)
-	if err := parseTemplate("view", V.admin.funcs(fm), fs...).
-		ExecuteTemplate(w, name, V.dict(r, data)); err != nil {
-		panic(err)
+	if err := V.gt.Render(w, "templates/"+name, V.admin.funcs(fm), V.dict(r, data)); err != nil {
+		log.Printf("render failed: %s", err)
 	}
+}
+
+// Parse form into map[string]any, only fields in current model
+func (V *ModelView) intoRow(uv url.Values, fields []*Field) *Row {
+	row := NewRow(fields, V.new())
+
+	for _, f := range fields {
+		if !uv.Has(f.DBName) {
+			continue
+		}
+
+		var v any
+		v = uv.Get(f.DBName)
+
+		if len(f.Choices) > 0 {
+			// fix field_select2 formerly None(in python) to null
+			// TODO: fix in form.gotmpl
+			if v == "__None" {
+				continue // ignore
+			}
+		}
+
+		switch f.DataType {
+		case schema.Bool:
+			switch v {
+			case "false":
+				v = false
+			case "true":
+				v = true
+			default:
+				log.Printf("not expected bool %v\n", v)
+				v = nil
+			}
+		case schema.Int:
+			v = cast.ToInt(v)
+		case schema.Uint:
+			v = cast.ToUint(v)
+		case schema.Float:
+			v = cast.ToFloat64(v)
+		case schema.Time:
+			if v == "" {
+				continue // ignore
+			}
+		case schema.String:
+			if !f.NotNull && v == "" {
+				continue
+			}
+		}
+
+		row.Set(f, v)
+	}
+	return row
 }
 
 func (V *ModelView) applyJoins(db *gorm.DB) *gorm.DB {
@@ -788,7 +960,7 @@ func (V *ModelView) list(q *Query) *Result {
 	res := Result{Query: q}
 
 	var total int64
-	if err := V.applyQuery(V.admin.DB, q, true).
+	if err := V.applyQuery(V.db, q, true).
 		Model(V.Model.new()).
 		Count(&total).Error; err != nil {
 		res.Error = err
@@ -797,7 +969,7 @@ func (V *ModelView) list(q *Query) *Result {
 	res.Total = total
 
 	ptr := V.newSlice()
-	db := V.applyQuery(V.admin.DB, q, false)
+	db := V.applyQuery(V.db, q, false)
 	if err := V.applyJoins(db).
 		Find(ptr.Interface()).Error; err != nil {
 		res.Error = err
@@ -806,30 +978,28 @@ func (V *ModelView) list(q *Query) *Result {
 
 	len := ptr.Elem().Len()
 
-	res.Rows = make([]Row, len)
+	res.Rows = make([]*Row, len)
 	for i := 0; i < len; i++ {
 		o := ptr.Elem().Index(i).Interface()
-		res.Rows[i] = V.intoRow(o)
+		res.Rows[i] = NewRow(V.fsList, o)
 	}
 	return &res
 }
 
-func (V *ModelView) getOne(rowid string) (Row, error) {
+func (V *ModelView) getOne(rowid string) (*Row, error) {
 	ptr := V.Model.new()
-
-	db := V.applyJoins(V.admin.DB)
+	db := V.applyJoins(V.db)
 	if err := db.Where(V.where(rowid)).First(ptr).Error; err != nil {
 		return nil, err
 	}
-	return V.intoRow(ptr), nil
+	return NewRow(V.fsList, ptr), nil
 }
 
-func (V *ModelView) update(rowid string, row map[string]any) error {
+func (V *ModelView) update(rowid string, row *Row) error {
 	ptr := V.Model.new()
-
-	if rc := V.admin.DB.Model(ptr).
+	if rc := V.db.Model(ptr).
 		Where(V.where(rowid)).
-		Updates(row); rc.Error != nil || rc.RowsAffected != 1 {
+		Updates(row.Map); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil
@@ -837,19 +1007,17 @@ func (V *ModelView) update(rowid string, row map[string]any) error {
 
 func (V *ModelView) deleteOne(rowid string) error {
 	ptr := V.Model.new()
-
-	rc := V.admin.DB.Delete(ptr, V.where(rowid))
+	rc := V.db.Delete(ptr, V.where(rowid))
 	return rc.Error
 }
 
 // row -> Model().Create() RETURNING *
-// TOOD: select2 value with __None
-func (V *ModelView) create(row map[string]any) error {
+func (V *ModelView) create(row *Row) error {
 	ptr := V.Model.new()
 
-	if rc := V.admin.DB.Model(ptr).
+	if rc := V.db.Model(ptr).
 		Clauses(clause.Returning{}). // RETURNING *
-		Create(row); rc.Error != nil || rc.RowsAffected != 1 {
+		Create(row.Map); rc.Error != nil || rc.RowsAffected != 1 {
 		return rc.Error
 	}
 	return nil

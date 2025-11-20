@@ -1,12 +1,19 @@
-package gadmin
+package gadm
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"gadm/isdebug"
+	"html/template"
 	"maps"
+	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"reflect"
+	"slices"
+	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -114,40 +121,123 @@ func ReplyJson(w http.ResponseWriter, status int, o any) {
 	}
 }
 
-// Cache http.ResponseWriter, Output Cookie after template rendering
-func NewBufferWriter(w http.ResponseWriter, f func(http.ResponseWriter)) http.ResponseWriter {
-	return &bufferWriter{
-		buf:         bytes.NewBuffer([]byte{}),
-		w:           w,
-		beforeFlush: f}
-}
-
-type bufferWriter struct {
-	buf *bytes.Buffer
-
-	// origin `ResponseWriter`
-	w http.ResponseWriter
-
-	// excute before flush, eg. Set-Cookie
-	beforeFlush func(http.ResponseWriter)
-}
-
-func (B *bufferWriter) Write(p []byte) (n int, err error) {
-	return B.buf.Write(p)
-}
-
-func (B *bufferWriter) Header() http.Header {
-	return B.w.Header()
-}
-
-func (B *bufferWriter) WriteHeader(statusCode int) {
-	B.w.WriteHeader(statusCode)
-}
-
-func (B *bufferWriter) Flush() {
-	if B.beforeFlush != nil {
-		B.beforeFlush(B.w)
+// typed nil check
+func isNil(object interface{}) bool {
+	if object == nil {
+		return true
 	}
-	B.w.Write(B.buf.Bytes())
-	B.w.(http.Flusher).Flush()
+
+	rv := reflect.ValueOf(object)
+	return slices.Contains(
+		[]reflect.Kind{reflect.Chan, reflect.Func, reflect.Interface,
+			reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer},
+		rv.Kind()) && rv.IsNil()
+}
+
+type cachedWriter struct {
+	http.ResponseWriter
+	cache      bytes.Buffer
+	header     http.Header
+	statusCode int
+}
+
+// Some go template actions might change headers(Cookie)
+// [CacheWriter] cache body and output headers before any body
+// Flush in admin.ServeHTTP
+func NewCachedWriter(w http.ResponseWriter) *cachedWriter {
+	return &cachedWriter{ResponseWriter: w,
+		header:     http.Header{},
+		statusCode: http.StatusOK,
+	}
+}
+
+func (cw *cachedWriter) Header() http.Header         { return cw.header }
+func (cw *cachedWriter) Write(b []byte) (int, error) { return cw.cache.Write(b) }
+func (cw *cachedWriter) WriteHeader(statusCode int)  { cw.statusCode = statusCode }
+
+// Hijack implements the http.Hijacker interface by attempting to unwrap the writer.
+func (cw *cachedWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	uw := cw.ResponseWriter
+	// rwUnwrapper.Unwrap in NewResponseController
+	if u, ok := uw.(interface{ Unwrap() http.ResponseWriter }); ok {
+		uw = u.Unwrap()
+	}
+
+	if hijacker, ok := uw.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+
+	// If the underlying writer doesn't support hijacking, use ResponseController (Go 1.20+)
+	// to attempt it in a standard way, or return an error.
+	rc := http.NewResponseController(cw.ResponseWriter)
+	if conn, bufrw, err := rc.Hijack(); err == nil {
+		return conn, bufrw, nil
+	}
+
+	// Return error if not supported
+	return nil, nil, http.ErrNotSupported
+}
+
+func (cw *cachedWriter) Flush() {
+	for k, vs := range cw.header {
+		for _, v := range vs {
+			cw.ResponseWriter.Header().Add(k, v)
+		}
+	}
+	cw.ResponseWriter.WriteHeader(cw.statusCode)
+	cw.ResponseWriter.Write(cw.cache.Bytes())
+}
+
+type groupTempl struct {
+	basefn []string
+	cache  sync.Map
+}
+
+func NewGroupTempl(fns ...string) *groupTempl {
+	return &groupTempl{basefn: fns}
+}
+func (gt *groupTempl) base(funcs template.FuncMap) *template.Template {
+	name := "_base"
+	t, ok := gt.cache.Load(name)
+	if !ok || isdebug.On {
+		t0 := must(template.New(name).
+			Option("missingkey=error").
+			Funcs(funcs).
+			ParseFiles(gt.basefn...))
+		gt.cache.Store(name, t0)
+		t = t0
+	}
+	tpl := t.(*template.Template)
+	return must(tpl.Clone())
+}
+func (gt *groupTempl) getOrParse(fns []string, funcs template.FuncMap) *template.Template {
+	name := fns[0]
+	t, ok := gt.cache.Load(name)
+	if !ok || isdebug.On {
+		t0 := must(gt.base(funcs).
+			Option("missingkey=error").
+			Funcs(funcs).
+			ParseFiles(fns...))
+		gt.cache.Store(name, t0)
+		t = t0
+	}
+	return t.(*template.Template)
+}
+
+func (gt *groupTempl) Render(w http.ResponseWriter, fn string, funcs template.FuncMap, data map[string]any) error {
+	tpl := gt.getOrParse([]string{fn}, funcs)
+	w.Header().Add("content-type", ContentTypeUtf8Html)
+	bn := path.Base(fn)
+	return tpl.ExecuteTemplate(w, bn, data)
+}
+
+// call ExcuteTemplate, [name] should be valid in gt.basefn
+func (gt *groupTempl) Execute(name string, data map[string]any) template.HTML {
+	// assume the _base alread done
+	bt := gt.base(nil)
+	w := &bytes.Buffer{}
+	if err := bt.ExecuteTemplate(w, name, data); err != nil {
+		panic(err)
+	}
+	return template.HTML(w.String())
 }

@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -96,6 +97,28 @@ func TestQuery(t *testing.T) {
 
 	is.Equal("desc=1&page=2", q2.toValues().Encode())
 }
+func ptr[T any](t T) *T {
+	return &t
+}
+func TestClone(t *testing.T) {
+	is := assert.New(t)
+	list := []int{1, 2}
+	type foo struct {
+		a    int
+		b    *int
+		list []int
+	}
+	fs := []foo{{a: 3, b: ptr(20), list: list}}
+	fs2 := fs[:] // clone not deep
+	fs3 := slices.Clone(fs)
+
+	is.Equal(fs2, fs)
+	is.Equal(fs3, fs)
+	fs[0].list[0] = 2
+	fs[0].b = ptr(23)
+	is.Equal(fs2, fs)
+	is.NotEqual(fs3, fs)
+}
 
 func TestOnce(t *testing.T) {
 	is := assert.New(t)
@@ -120,26 +143,27 @@ func TestOnce(t *testing.T) {
 	is.Equal(1, oc)
 }
 
-func TestBufferWriter(t *testing.T) {
+func TestCachedWriter(t *testing.T) {
 	is := assert.New(t)
 
-	called := false
-	bf := func(w http.ResponseWriter) {
-		w.Header().Add("Hello", "World")
-		called = true
-	}
+	r := httptest.NewRequest("GET", "/foo", nil)
 	w0 := httptest.NewRecorder()
 
-	w := NewBufferWriter(w0, bf)
+	w := NewCachedWriter(w0)
 	w.Write([]byte("body"))
+	http.Redirect(w, r, "/bar", http.StatusFound)
+	w.Header().Add("set-cookie", "session=xx")
+	w.Flush()
 
-	is.False(called)
-
-	w.(http.Flusher).Flush()
-
-	is.Equal("World", w.Header().Get("Hello"))
-	is.Equal("body", w0.Body.String())
-	is.True(called)
+	_, ok1 := any(w).(http.ResponseWriter)
+	is.True(ok1)
+	_, ok := any(w).(http.Hijacker)
+	is.True(ok)
+	is.Len(w0.Header(), 3)
+	is.Equal("session=xx", w0.Header().Get("set-cookie"))
+	is.Equal("/bar", w0.Header().Get("location"))
+	is.Equal(302, w0.Result().StatusCode)
+	is.Equal("body<a href=\"/bar\">Found</a>.\n\n", w0.Body.String())
 }
 
 type base struct{}
@@ -158,18 +182,17 @@ func TestBasePtr(t *testing.T) {
 }
 
 func ExampleTemplate() {
-	// mkdir t
-	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > t/base.html
-	// echo 'd1{{define "body" }}b1{{end}}' > t/d1.html
-	// echo 'd2{{define "body" }}b2{{end}}' > t/d2.html
-	base := must(template.New("base.html").ParseFiles("t/base.html"))
+	// echo '{{.}}{{block "body" .}}base{{end}}{{println}}' > templates/base.html
+	// echo 'd1{{define "body" }}b1{{end}}' > templates/d1.html
+	// echo 'd2{{define "body" }}b2{{end}}' > templates/d2.html
+	base := must(template.New("base.html").ParseFiles("templates/base.html"))
 
-	d1 := must(must(base.Clone()).ParseFiles("t/d1.html"))
+	d1 := must(must(base.Clone()).ParseFiles("templates/d1.html"))
 	if err := d1.Execute(os.Stdout, 3); err != nil {
 		panic(err)
 	}
 
-	d2 := must(must(base.Clone()).ParseFiles("t/d2.html"))
+	d2 := must(must(base.Clone()).ParseFiles("templates/d2.html"))
 	if err := d2.Execute(os.Stdout, 4); err != nil {
 		panic(err)
 	}
@@ -178,4 +201,20 @@ func ExampleTemplate() {
 	// 3b1
 	//
 	// 4b2
+}
+
+func TestGroupTmpl(t *testing.T) {
+	is := assert.New(t)
+
+	gt := NewGroupTempl("templates/base.html")
+	w := httptest.NewRecorder()
+	err := gt.Render(w, "templates/d1.html", nil, nil)
+	is.Nil(err)
+	err = gt.Render(w, "templates/d1.html", nil, nil)
+	is.Nil(err)
+	err = gt.Render(w, "templates/d2.html", nil, nil)
+	is.Nil(err)
+	is.Equal("d1\nd1\nd2\n", w.Body.String())
+
+	is.Equal(template.HTML("base"), gt.Execute("body", nil))
 }

@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"github.com/spf13/cast"

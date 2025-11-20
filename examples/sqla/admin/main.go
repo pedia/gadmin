@@ -1,98 +1,65 @@
 package main
 
 import (
-	"time"
-
-	"gadmin"
-
-	"github.com/google/uuid"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
+	"gadm"
+	"gadm/examples/sqla"
 )
 
-type User struct {
-	Id                       string `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()"`
-	Type                     string `gorm:"size:100"`
-	EnumChoiceField          string `gorm:"size:6"`
-	SqlaUtilsChoiceField     string `gorm:"size:255"`
-	SqlaUtilsEnumChoiceField int
-	FirstName                string `gorm:"size:100"`
-	LastName                 string `gorm:"size:100"`
-	Email                    string `gorm:"size:255;not null"`
-	Valid                    bool   `gorm:"not null"`
-	BornDate                 *time.Time
-	Website                  string `gorm:"default:a.io"`
-	Bio                      string
-	Currency                 string `gorm:"size:3"`
-	Timezone                 string `gorm:"size:50"`
-	DiallingCode             int
-	LocalPhoneNumber         string `gorm:"size:10"`
-	FeaturedPostId           int
-	FeaturedPost             *Post `gorm:"foreignKey:FeaturedPostId"`
-}
-
-type Post struct {
-	Id              int    `gorm:"primaryKey"`
-	Title           string `gorm:"size:120"`
-	Text            string
-	Date            time.Time
-	BackgroundColor string
-	CreatedAt       time.Time `gorm:"default:CURRENT_TIMESTAMP"`
-	UserId          uuid.UUID
-	User            *User `gorm:"foreignKey:UserId"`
-}
-
-type Tag struct {
-	Id   int    `gorm:"primaryKey"`
-	Name string `gorm:"uniqueIndex;size:64"`
-}
-
-type PostTags struct {
-	PostId int `gorm:"column:post_id"`
-	TagId  int `gorm:"column:tag_id"`
-}
-
 func main() {
-	db, _ := gorm.Open(sqlite.Open("examples/sqla/admin/sample_db.sqlite"),
-		&gorm.Config{
-			NamingStrategy: schema.NamingStrategy{SingularTable: true},
-			Logger:         logger.Default.LogMode(logger.Info)})
+	db, _ := gadm.Parse("sqlite:examples/sqla/sample.db").Open()
 
-	a := gadmin.NewAdmin("Example: SQLAlchemy", db)
-	vu := gadmin.NewModelView(User{})
-	vu.SetColumnDescriptions(map[string]string{"valid": "user passed verified"}).
-		SetTextareaRow(map[string]int{"bio": 3}).
-		SetFormChoices(map[string][]gadmin.Choice{"type": {
+	a := gadm.NewAdmin("Example: SQLAlchemy")
+	vat := gadm.NewModelView(sqla.AllTyped{}, db)
+	vat.SetColumnDescriptions(map[string]string{
+		"is_normal": "nobody is normal",
+		"type":      "3 career",
+	}).
+		SetTextareaRow(map[string]int{"long": 3}).
+		SetFormChoices(map[string][]gadm.Choice{"type": {
 			{Value: "admin", Label: "Admin"},
 			{Value: "content-writer", Label: "Content writer"},
 			{Value: "editor", Label: "Editor"},
 			{Value: "regular-user", Label: "Regular user"}},
 		}).
 		SetCanSetPageSize().
-		SetColumnSearchableList("first_name", "last_name").
-		SetColumnEditableList("first_name", "type", "currency", "dialling_code", "valid", "born_date")
+		SetFormColumns("name").
+		SetColumnSearchableList("name", "email", "badge").
+		SetColumnEditableList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
+			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login")
+	a.AddView(vat)
+
+	a.AddView(gadm.NewModelView(sqla.Company{}, db, "BelongsTo"))
+	ve := gadm.NewModelView(sqla.Employee{}, db, "BelongsTo").
+		Joins("Company").AddLooupRefer(sqla.Company{}, "name")
+	a.AddView(ve)
+
+	a.AddView(gadm.NewModelView(sqla.CreditCard{}, db, "HasOne"))
+	vu := gadm.NewModelView(sqla.User{}, db, "HasOne").
+		Joins("CreditCard")
 	a.AddView(vu)
 
-	a.AddView(gadmin.NewModelView(Tag{})).(*gadmin.ModelView).
-		SetTablePrefixHtml(`<h5>dismissible prefix, Tag is important</h5>`).
-		SetColumnEditableList("name")
+	a.AddView(gadm.NewModelView(sqla.Address{}, db, "HasMany"))
+	va := gadm.NewModelView(sqla.Account{}, db, "HasMany").
+		Preloads("Addresses")
+	a.AddView(va)
 
-	vp := gadmin.NewModelView(Post{})
-	vp.SetTextareaRow(map[string]int{"text": 5})
-	a.AddView(vp)
+	a.AddView(gadm.NewModelView(sqla.Toy{}, db, "Polymorphism"))
+	vt := gadm.NewModelView(sqla.Dog{}, db, "Polymorphism").
+		Preloads("Toys")
+	a.AddView(vt)
 
-	a.AddView(gadmin.NewModelView(PostTags{}))
-
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Other", Path: "/other"})
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Tree", Path: "/tree"})
-	a.BaseView.Menu.AddMenu(&gadmin.Menu{Category: "Other", Name: "Links", Path: "/links", Children: []*gadmin.Menu{
+	a.BaseView.Menu.AddMenu(&gadm.Menu{Category: "Other", Name: "Other", Path: "/other"})
+	a.BaseView.Menu.AddMenu(&gadm.Menu{Name: "Tree", Path: "/tree"}, "Other")
+	a.BaseView.Menu.AddMenu(&gadm.Menu{Name: "Links", Path: "/links", Children: []*gadm.Menu{
 		{Name: "Back Home", Path: "/"},
 		{Name: "External Link", Path: "http://www.example.com/"},
-	}})
+	}}, "Other")
 
 	// TODO: replace index handler /admin/
+
+	// for _, p := range sqla.Samples {
+	// 	db.Create(p)
+	// }
 
 	a.Run()
 }

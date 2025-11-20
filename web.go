@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"log"
@@ -6,7 +6,9 @@ import (
 	"runtime/debug"
 	"time"
 
+	_ "github.com/gorilla/csrf"
 	_ "github.com/gorilla/handlers"
+	_ "github.com/gorilla/securecookie"
 	_ "github.com/gorilla/sessions"
 
 	"github.com/tdewolff/minify/v2"

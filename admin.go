@@ -1,40 +1,58 @@
-package gadmin
+package gadm
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"gadmin/isdebug"
+	"gadm/isdebug"
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"slices"
+	"strings"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/gorilla/csrf"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
+	"github.com/samber/lo"
 	"gopkg.in/leonelquinteros/gotext.v1"
 
 	"gorm.io/gorm"
 )
 
-func NewAdmin(name string, db *gorm.DB) *Admin {
+func key(secret string) []byte {
+	h := sha256.New()
+	h.Write([]byte(secret))
+	return h.Sum(nil)
+}
+
+func NewAdmin(name string) *Admin {
+	key := key("hello") // TODO: read from config
 	A := &Admin{
-		DB: db,
-		BaseView: &BaseView{Menu: Menu{
+		BaseView: NewView(Menu{
 			Path: "/admin/",
 			Name: gettext("Home"),
-		}},
+		}),
 		views:       []View{},
-		debug:       isdebug.Enabled,
+		dbs:         map[string]*gorm.DB{},
+		debug:       isdebug.On,
 		autoMigrate: true,
-		secret:      NewSecret("hello"), // TODO: read from config
-		mux:         http.NewServeMux(),
+		trace:       true,
+		tracer:      NewTrace(),
+		key:         key,
+		sessionKey:  "sess",
+		store:       sessions.NewCookieStore(key),
+		csrf: csrf.Protect(key,
+			csrf.CookieName("csrf"), csrf.FieldName("csrf_token")),
+		mux: http.NewServeMux(),
 
 		indexTemplateFile: "templates/index.gotmpl",
+		theme:             "default", // "cyborg",
 	}
 	A.BaseView.admin = A
-
-	if A.DB != nil {
-		A.trace = NewTrace(A.DB)
-	}
 
 	A.Blueprint = &Blueprint{
 		Name:     name,
@@ -48,7 +66,8 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 			"generate":   {Endpoint: "generate", Path: "/generate", Handler: A.generateHandler},
 			"console":    {Endpoint: "console", Path: "/console", Handler: A.consoleHandler},
 			"trace":      {Endpoint: "trace", Path: "/trace", Handler: A.traceHandler},
-			"test":       {Endpoint: "test", Path: "/test", Handler: A.testHandler},
+			"theme":      {Endpoint: "theme", Path: "/theme", Handler: A.themeHandler},
+			"ping":       {Endpoint: "ping", Path: "/ping", Handler: A.pingHandler},
 			"static":     {Endpoint: "static", Path: "/static/", StaticFolder: "static"},
 		}}
 
@@ -57,26 +76,41 @@ func NewAdmin(name string, db *gorm.DB) *Admin {
 	// TODO: read lang from config
 	gotext.Configure("translations", "en", "admin")
 
-	// AddSecurity(&A)
+	A.security = AddSecurity(A)
 	return A
 }
 
 type Admin struct {
 	*BaseView
-	DB    *gorm.DB
-	trace *Trace
+	views []View
+	dbs   map[string]*gorm.DB
 
-	views             []View
 	debug             bool
 	autoMigrate       bool
-	secret            *Secret
+	trace             bool
+	tracer            *Trace
+	key               []byte
+	sessionKey        string
+	store             sessions.Store
+	csrf              func(http.Handler) http.Handler
 	mux               *http.ServeMux
 	indexTemplateFile string
+	theme             string
+	security          *Security
+}
+
+func (A *Admin) Session(r *http.Request) *sessions.Session {
+	// store.Options.SameSite = http.SameSiteStrictMode // TODO:
+	sess, err := sessions.GetRegistry(r).Get(A.store, A.sessionKey)
+	if err != nil {
+		panic(err)
+	}
+	return sess
 }
 
 func (A *Admin) Register(b *Blueprint) {
 	if err := A.Blueprint.AddChild(b); err != nil {
-		fmt.Println(err)
+		log.Print(err)
 		return
 	}
 
@@ -92,7 +126,30 @@ func (A *Admin) AddView(view View) View {
 
 		A.addViewToMenu(view)
 	}
+
+	if mv, ok := view.(*ModelView); ok {
+		if A.autoMigrate {
+			if err := mv.db.Migrator().AutoMigrate(mv.Model.new()); err != nil {
+				log.Printf("auto migrate failed: %s", err)
+			}
+		}
+
+		if !slices.Contains(lo.Values(A.dbs), mv.db) {
+			A.dbs[mv.Blueprint.Name] = mv.db
+		}
+
+		if A.trace {
+			A.tracer.Trace(mv.db)
+		}
+	}
 	return view
+}
+
+func (A *Admin) FindView(endpoint string) View {
+	v, _ := lo.Find(A.views, func(v View) bool {
+		return v.GetBlueprint().Endpoint == endpoint
+	})
+	return v
 }
 
 func (A *Admin) addViewToMenu(view View) {
@@ -101,10 +158,16 @@ func (A *Admin) addViewToMenu(view View) {
 		if menu.Path == "" {
 			menu.Path, _ = A.Blueprint.GetUrl(view.GetBlueprint().Endpoint + ".index")
 		}
-		A.BaseView.Menu.AddMenu(menu)
+		A.BaseView.Menu.AddMenu(menu, menu.Category)
 	}
 }
-
+func (A *Admin) freeze() {
+	for _, v := range A.views {
+		if mv, ok := v.(*ModelView); ok {
+			mv.freeze()
+		}
+	}
+}
 func (A *Admin) staticURL(filename, ver string) string {
 	path, err := A.Blueprint.GetUrl(".static")
 	if err == nil {
@@ -140,30 +203,43 @@ func (A *Admin) UrlFor(model, endpoint string, args ...any) (string, error) {
 }
 
 func (A *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO: NewBufferWriter not implement hijack
-	// r2 := PatchSession(r, A)
-	// w2 := NewBufferWriter(w, func(w http.ResponseWriter) {
-	// 	sess := CurrentSession(r2)
-	// 	// log.Printf("session %s save %d", r.URL, len(sess.Values))
-	// 	err := sess.Save(w)
-	// 	if err != nil {
-	// 		// log.Printf("session save failed %s", err)
-	// 	}
-	// })
-	// A.mux.ServeHTTP(w2, r2)
-	// w2.(http.Flusher).Flush()
+	if strings.HasPrefix(r.URL.Path, "/admin/static/") ||
+		strings.HasPrefix(r.URL.Path, "/.well-known/") {
+		A.mux.ServeHTTP(w, r)
+		return
+	}
 
-	A.mux.ServeHTTP(w, r)
+	// for http
+	r = csrf.PlaintextHTTPRequest(r)
 
-	defer A.trace.CheckTrace(r)
+	// make sure session put in r.Context
+	_ = sessions.GetRegistry(r)
+
+	cw := NewCachedWriter(w)
+	// csrf protect
+	handlers.LoggingHandler(os.Stdout,
+		A.csrf(A.mux)).ServeHTTP(cw, r)
+
+	// save sesstion before flush
+	if err := sessions.Save(r, cw); err != nil {
+		panic(err)
+	}
+
+	cw.Flush()
+
+	// trace
+	if A.tracer != nil {
+		defer A.tracer.CheckTrace(r)
+	}
 }
 
 func (A *Admin) Run() {
 	serv := http.Server{
-		Addr: ":3333",
-		// Handler: handlers.LoggingHandler(os.Stdout, A)}
+		Addr:    ":3333",
 		Handler: A}
 
+	fmt.Println("\aRunning on http://127.0.0.1:3333/admin/")
+	A.freeze()
 	serv.ListenAndServe()
 }
 
@@ -187,28 +263,24 @@ func gettext(format string, a ...any) string {
 	return gotext.Get(format, a...)
 }
 
-func theme() string {
-	var themes = []string{
-		"cyborg", "darkly", "slate", // night
-		"solar", "superhero", // dark
-		"cerulean", "cosmo", "default", "flatly", "journal", "litera",
-		"lumen", "lux", "materia", "minty", "united", "pulse",
-		"sandstone", "simplex", "sketchy", "spacelab", "yeti",
-	}
-	themeIndex := 5
-	return themes[themeIndex]
+var themes = []string{
+	"cyborg", "darkly", "slate", // night
+	"solar", "superhero", // dark
+	"cerulean", "cosmo", "default", "flatly", "journal", "litera",
+	// "lumen", "lux", "materia", "minty", "united", "pulse",
+	// "sandstone", "simplex", "sketchy", "spacelab", "yeti",
 }
 
 func (A *Admin) dict(others ...map[string]any) map[string]any {
 	o := map[string]any{
-		"debug": A.debug,
-		"db":    A.DB != nil,
-		"name":  A.Blueprint.Name,
-		"url":   A.Blueprint.Path, // "/admin"
-		// "admin_base_template": "base.html",
+		"debug":    A.debug,
+		"security": A.security,
+		"db":       len(A.dbs),
+		"name":     A.Blueprint.Name,
+		"url":      A.Blueprint.Path, // "/admin"
 		// 'swatch' from flask-admin
-		"swatch": theme(), // "cerulean", "default"
-		"menu":   A.BaseView.Menu.dict(),
+		"swatch": A.theme,
+		"menu":   A.BaseView.Menu,
 		"config": config,
 	}
 
@@ -221,26 +293,26 @@ func (A *Admin) dict(others ...map[string]any) map[string]any {
 func (A *Admin) indexHandler(w http.ResponseWriter, r *http.Request) {
 	A.Render(w, r, A.indexTemplateFile, nil, A.dict())
 }
-func (A *Admin) testHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("test"))
+func (A *Admin) pingHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("ping"))
 }
 func (A *Admin) debugHandler(w http.ResponseWriter, r *http.Request) {
-	s := CurrentSession(r)
-	c := s.Get("C")
-	if c == nil {
-		c = 0
+	cv := r.Context().Value(csrf.PlaintextHTTPContextKey)
+	if cv == nil {
+		panic("not found PlaintextHTTPContextKey")
 	}
-	s.Set("C", c.(int)+1)
+
 	ReplyJson(w, 200, A.dict(map[string]any{
 		"blueprint": A.Blueprint.dict(),
-		"session":   s.Values,
 	}))
 }
 func (A *Admin) debugHtmlHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("content-type", ContentTypeUtf8Html)
 	tx, err := template.New("debug").
 		Option("missingkey=error").
-		Funcs(A.funcs(nil)).
+		Funcs(A.funcs(template.FuncMap{
+			"get_flashed_messages": func() []any { return A.Session(r).Flashes() },
+		})).
 		ParseFiles("templates/debug.gotmpl")
 	if err != nil {
 		panic(err)
@@ -330,45 +402,68 @@ func (A *Admin) generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// normal GET/POST
 	if r.Method == http.MethodGet {
-		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": nil})
+		// GET
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
+			"gen":        nil,
+			"csrf_field": csrf.TemplateField(r),
+		})
 	} else {
-		r.ParseForm()
+		// POST
 		g = NewGenerator(r.FormValue("url"))
 		g.Package = r.FormValue("package")
-		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{"gen": g})
+		A.Render(w, r, "templates/generate.gotmpl", nil, map[string]any{
+			"gen":        g,
+			"csrf_field": csrf.TemplateField(r),
+		})
 	}
 }
 func (A *Admin) consoleHandler(w http.ResponseWriter, r *http.Request) {
-	result := &Result{Query: DefaultQuery(), Rows: []Row{}}
+	result := &Result{Query: DefaultQuery(), Rows: []*Row{}}
+	var name string
 	var sql string
-	if r.Method == http.MethodPost && A.DB != nil {
-		r.ParseForm()
+	if r.Method == http.MethodPost {
 		sql = r.FormValue("sql")
-		// CAUTION: non-checked sql, even drop table
-		var rs []map[string]any
-		tx := A.DB.Raw(sql).Scan(&rs)
-		// Raw/Scan not support offset/limit
+		name = r.FormValue("name")
+		db, ok := A.dbs[name]
+		if !ok {
+			result.Error = fmt.Errorf("db %s not exists", name)
+		} else {
+			// CAUTION: non-checked sql, even drop table
+			var rs []map[string]any
+			tx := db.Raw(sql).Scan(&rs)
+			// Raw/Scan not support offset/limit
+			// TODO: only scan 20 records?
 
-		result.Error = tx.Error
-		result.Total = tx.RowsAffected
-		// TODO: How to cast better?
-		result.Rows = make([]Row, len(rs))
-		for i := 0; i < len(rs); i++ {
-			result.Rows[i] = Row(rs[i])
+			result.Error = tx.Error
+			result.Total = tx.RowsAffected
+			// TODO: How to cast better?
+			result.Rows = make([]*Row, len(rs))
+			for i := 0; i < len(rs); i++ {
+				result.Rows[i] = &Row{Map: rs[i]}
+			}
 		}
 	}
 	A.Render(w, r, "templates/console.gotmpl", nil, map[string]any{
-		"sql":    sql,
-		"result": result,
+		"sql":        sql,
+		"result":     result,
+		"dbs":        lo.Keys(A.dbs),
+		"name":       name,
+		"csrf_field": csrf.TemplateField(r),
 	})
 }
 func (A *Admin) traceHandler(w http.ResponseWriter, r *http.Request) {
 	m := map[string]any{"entries": nil}
-	if A.trace != nil {
-		m["entries"] = A.trace.Entries()
+	if A.tracer != nil {
+		m["entries"] = A.tracer.Entries()
 	}
 
 	A.Render(w, r, "templates/trace.gotmpl", nil, m)
+}
+
+func (A *Admin) themeHandler(w http.ResponseWriter, r *http.Request) {
+	nt := r.URL.Query().Get("name")
+	A.theme = nt
+	url := r.Header.Get("referer")
+	http.Redirect(w, r, url, http.StatusFound)
 }

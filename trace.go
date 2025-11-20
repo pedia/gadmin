@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"bytes"
@@ -14,44 +14,46 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// During one http request, some gorm SQLs will be excuted.
-// Record as trace.
-
+// During http request, some gorm SQLs will be excuted.
+// Record as trace Entry.
 type Entry struct {
 	URL string
 	Log string
 }
 
 type Trace struct {
-	m       sync.RWMutex
-	entries *list.List
-	buf     *bytes.Buffer
-
-	db       *gorm.DB
-	prevLog  logger.Interface
+	m        sync.RWMutex
+	entries  *list.List
+	buf      *bytes.Buffer
+	logger   logger.Interface
 	MaxCount int
 }
 
 // Trace gorm sqls during a http.Request
-func NewTrace(db *gorm.DB) *Trace {
+func NewTrace() *Trace {
 	t := &Trace{
 		buf:      bytes.NewBuffer(make([]byte, 0, 1000)),
-		db:       db,
-		prevLog:  db.Logger,
 		entries:  list.New(),
 		MaxCount: 100,
 	}
-	// set the config
-	db.Config.Logger = logger.Default.LogMode(logger.Info)
 
-	// replace logger to mine
-	db.Logger = logger.New(t, logger.Config{
+	t.logger = logger.New(t, logger.Config{
 		LogLevel:                  logger.Info,
 		Colorful:                  false,
 		IgnoreRecordNotFoundError: false,
 		ParameterizedQueries:      false,
 	})
 	return t
+}
+
+func (t *Trace) Trace(db *gorm.DB) {
+	if db.Logger != t.logger {
+		// set logger level
+		db.Config.Logger = logger.Default.LogMode(logger.Info)
+
+		// replace logger to mine
+		db.Logger = t.logger
+	}
 }
 
 // collect once, should call in ServeHTTP
@@ -95,6 +97,8 @@ func (t *Trace) Printf(format string, args ...interface{}) {
 func (t *Trace) Entries() iter.Seq[Entry] {
 	t.m.RLock()
 	defer t.m.RUnlock()
+
+	// TODO: copy entries
 
 	return func(yield func(Entry) bool) {
 		for e := t.entries.Back(); e != nil; e = e.Prev() {

@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"fmt"
@@ -11,8 +11,12 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
+
+// call gorm.Open
+func Open(jdbcURL string, opts ...gorm.Option) (*gorm.DB, error) {
+	return Parse(jdbcURL).Open(opts...)
+}
 
 // JdbcURL Parsed result
 type databaseURL struct {
@@ -23,13 +27,11 @@ type databaseURL struct {
 
 // Open JdbcURL as *gorm.DB
 func (du *databaseURL) Open(opts ...gorm.Option) (*gorm.DB, error) {
-	return gorm.Open(du.Creator(du.DSN), opts...)
-}
-
-func (du *databaseURL) OpenDefault() (*gorm.DB, error) {
-	return gorm.Open(du.Creator(du.DSN), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true},
-		Logger:         logger.Default.LogMode(logger.Info)})
+	nopt := []gorm.Option{&gorm.Config{
+		NamingStrategy: Namer,
+		Logger:         logger.Default.LogMode(logger.Info)}}
+	nopt = append(nopt, opts...)
+	return gorm.Open(du.Creator(du.DSN), nopt...)
 }
 
 // JdbcURL like:

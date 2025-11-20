@@ -1,9 +1,17 @@
-# gadmin
-`gadmin` solves some boring and trivial tasks. Write a short piece of code to generate a standard, user-friendly admin interface for controlling your database.
+<span style="font-size:48pt;color:red">gadm</span>
 
-Write some code like:
+gadm generates a friendly admin UI for your database with minimal code. It is inspired by Flask-Admin but written for Go and integrates with GORM.
+
+Key goals:
+- Fast admin pages for CRUD and basic relations
+- Auto-generate models and views from a live database
+- Easy to extend and style
+
+![Demo](screenshot.png)
+
+Quick example
 ```go
-mv := gadmin.NewModelView(User{}).
+mv := gadm.NewModelView(User{}).
     SetColumnList("type", "first_name", "last_name", "email", "timezone", "phone_number").
     SetColumnEditableList("first_name", "type", "timezone").
     SetColumnDescriptions(map[string]string{"type": "editor will cause ..."}).
@@ -13,38 +21,48 @@ mv := gadmin.NewModelView(User{}).
 admin.AddView(mv)
 ```
 
-![Demo](screenshot.png)
+Table generation (UI)
+1. Run the generator web UI:
 
-Generate code for all tables
-git clone ....
-cd 
+```bash
 go run ./cmd
-Open http://127.0.0.1:3333/admin/generate input database url like:
-- sqlite:path/to/sqlite.db
-- postgresql://user:password@localhost:5432/database
-- mysql://user:password@localhost:3366/database?charset=utf8mb4&parseTime=True&loc=Local
+# open http://127.0.0.1:3333/admin/generate
+```
 
-Then click 'Generate'
+2. Enter a database URL such as:
 
+- `sqlite:/absolute/path/to/db.sqlite`
+- `postgresql://user:password@localhost:5432/dbname`
+- `mysql://user:password@localhost:3306/dbname?charset=utf8mb4&parseTime=True&loc=Local`
 
+3. Click "Generate" — gadm will inspect the schema and produce model/view code you can copy into your project.
 
-## How does it work?
-The basic concept behind `gadmin`, is that it lets you build complicated interfaces by grouping individual views together in classes: Each web page you see on the frontend, represents a method on a class that has explicitly been added to the interface.
+How it works (brief)
+- gadm maps database tables to ModelViews. Each view exposes routes and templates for list, edit, details, delete, and export.
+- The generator inspects the DB via GORM's migrator and builds a simple Go struct representation plus GORM tags.
+- Frontend templates are adapted from Flask-Admin (Bootstrap 4) and are included in `static/` and `templates/`.
 
-Inspired by `Flask-Admin`. Copy the template/javascript files from flask-admin(bootstrap4 only).
+Features
+- Auto-generate Go structs and GORM tags from an existing database
+- Configurable column lists, editable fields and descriptions
+- Relation support (foreign keys shown as related views)
+- Server-side pagination, search, sorting and basic filters
+- Extensible actions and custom views
+- SQL console and trace GORM SQL Trace per url
 
-We do more then flask-admin, with `gadmin` we can auto generate models and add them as plugin
+When to auto-generate vs write code manually
+- Auto-generate when you want a quick admin surface and iterative exploration.
+- Prefer handwritten models and views for long-lived, production-critical code — generated code becomes your responsibility to maintain.
 
-## Features
+Contributing
+- File issues or PRs against this repo.
+- Keep changes small and focused. Add tests for new features where possible.
 
-## Why not generate code?
-Less code means less work.
-It's easy to generate, but the code will be your responsibility forever.
+Notes and TODO
+- Improve type mapping from SQL -> Go types
+- Better escaping for default values and comments in generated tags
+- Add more examples in `examples/`
+- Security and account control
 
-All table relations and field types are standard.
-Why don't you use `gadmin`?
-
-
-TODO:
-https://github.com/xo/usql
-https://github.com/smallnest/gen
+License
+This project is licensed under the terms in `LICENSE`.

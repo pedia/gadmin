@@ -7,7 +7,7 @@
   {{ template "form_css" . }}
 {{ end }}
 
-  {{ define "navlinks" }}
+{{ define "navlinks" }}
   <ul class="nav nav-tabs">
     <li class="nav-item">
         <a href="{{ .return_url }}" class="nav-link">{{ gettext "List" }}</a>
@@ -16,7 +16,7 @@
         <a href="javascript:void(0)" class="nav-link active">{{ gettext "Create" }}</a>
     </li>
   </ul>
-  {{ end }}
+{{ end }}
 
   {{ define "create_form" }}
     {{ template "render_form" .form }}
@@ -24,7 +24,7 @@
 
 {{ define "body" }}
   {{ template "navlinks" .}}
-  {{ .form.Html }}
+  {{ template "form_all" .form }}
 {{ end }}
 
 {{ define "tail" }}

@@ -1,4 +1,4 @@
-package gadmin
+package gadm
 
 import (
 	"fmt"
@@ -40,21 +40,22 @@ type Blueprint struct {
 }
 
 // like flask `Blueprint.Register`
-func (b *Blueprint) AddChild(child *Blueprint) error {
+func (b *Blueprint) AddChild(child *Blueprint) (err error) {
 	if b.Children == nil {
 		b.Children = map[string]*Blueprint{}
 	}
 	if _, ok := b.Children[child.Endpoint]; ok {
 		// allow replace?
-		log.Printf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
+		err = fmt.Errorf("parent %s duplicated child %s", b.Endpoint, child.Endpoint)
+	} else {
+		b.Children[child.Endpoint] = child
+
+		child.Parent = b
+
+		// fix all children's Parent
+		fixPointer(b)
 	}
-	b.Children[child.Endpoint] = child
-
-	child.Parent = b
-
-	// fix all children's Parent
-	fixPointer(b)
-	return nil
+	return err
 }
 
 func fixPointer(b *Blueprint) {
@@ -152,6 +153,9 @@ func (b *Blueprint) GetUrl(endpoint string, qs ...any) (string, error) {
 			}
 			return res, nil
 		}
+	}
+	if b.Parent != nil && !strings.HasPrefix(endpoint, ".") {
+		return b.Parent.GetUrl(endpoint, qs...)
 	}
 	return "", fmt.Errorf(`endpoint miss for '%s'`, endpoint)
 }

@@ -38,23 +38,24 @@
                     aria-controls="admin-navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <!-- navbar content -->
             <div class="collapse navbar-collapse" id="admin-navbar-collapse">
             {{- block "brand" .}}
                 <a class="navbar-brand" href="{{ .admin.url }}">{{ .admin.name }}</a>
             {{- end -}}
             {{ block "main_menu" .}}
                 <ul class="nav navbar-nav mr-auto">
-                    {{ template "menu" . }}
+                    {{ template "menu" .admin.menu }}
                 </ul>
             {{ end }}
 
-                {{ block "menu_links" .}}
-                <ul class="nav navbar-nav navbar-right">
-                    {{/* layout.menu_links() */}}
-                </ul>
-                {{ end -}}
-            {{ block "access_control" . -}}
+            {{ block "menu_links" .}}
+            <ul class="nav navbar-nav navbar-right">
+                {{/* layout.menu_links() */}}
+            </ul>
+            {{ end -}}
+
+            {{ block "access_control" .admin -}}
+                {{ template "security" .security.Menu }}
             {{ end -}}
             </div>
         </nav>
@@ -88,10 +89,13 @@
     {{ block "tail" .}}{{ end -}}
 
     {{ if .admin.debug }}
-    <pre>
-        {{range $k, $v := .}}{{$k}}: {{$v|typeOf}} {{if eq (typeOf $v) "string"}}{{$v}}{{end}}
+    <hr>
+    <div class="container{{ if .admin_fluid_layout }}-fluid{{ end }}">
+        
+
+        {{range $k, $v := .}}<li>{{$k}}: {{$v|typeOf}} {{if eq (typeOf $v) "string"}}"{{$v}}"{{end}}
         {{end}}
-    </pre>
+    </div>
     {{ end }}
   </body>
 </html>
