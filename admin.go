@@ -264,9 +264,9 @@ func gettext(format string, a ...any) string {
 }
 
 var themes = []string{
-	"cyborg", "darkly", "slate", // night
-	"solar", "superhero", // dark
-	"cerulean", "cosmo", "default", "flatly", "journal", "litera",
+	"cyborg", "cerulean", "default",
+	// "solar", "superhero", "darkly", "slate", // night
+	// "cosmo", "flatly", "journal", "litera",
 	// "lumen", "lux", "materia", "minty", "united", "pulse",
 	// "sandstone", "simplex", "sketchy", "spacelab", "yeti",
 }
