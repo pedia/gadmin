@@ -50,15 +50,15 @@ func TestModel(t *testing.T) {
 	re := NewRow(NewModel(sqla.Employee{}).Fields, &sqla.Employee{})
 	fve := re.Fields[3]
 	is.True(fve.IsStruct())
-	is.Equal("", fve.Display())
+	is.Equal("Company", fve.Display())
 
 	// field is slice
 	rdog := NewRow(NewModel(sqla.Dog{}).Fields, &sqla.Dog{})
 	fvslice := rdog.Fields[2]
 	is.True(fvslice.IsSlice())
 	is.False(fvslice.IsStruct())
-	is.Equal("dog", fvslice.Endpoint())
-	is.Equal("", fvslice.Display())
+	is.Equal("toys", fvslice.Endpoint())
+	is.Equal("Toys", fvslice.Display())
 	is.Equal(reflect.Slice, reflect.ValueOf(fvslice.Value).Kind())
 
 	m := NewModel(sqla.AllTyped{})
