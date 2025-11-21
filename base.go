@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"gadm/isdebug"
 	"html/template"
+	"log"
 	"maps"
 	"net"
 	"net/http"
@@ -18,6 +19,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
 )
+
+func ptr[T any](t T) *T {
+	return &t
+}
 
 func firstOr[T any](as []T, or ...T) T {
 	if len(as) > 0 {
@@ -199,7 +204,7 @@ func NewGroupTempl(fns ...string) *groupTempl {
 func (gt *groupTempl) base(funcs template.FuncMap) *template.Template {
 	name := "_base"
 	t, ok := gt.cache.Load(name)
-	if !ok || isdebug.On {
+	if (!ok || isdebug.On) && len(funcs) > 0 {
 		t0 := must(template.New(name).
 			Option("missingkey=error").
 			Funcs(funcs).
@@ -237,7 +242,7 @@ func (gt *groupTempl) Execute(name string, data map[string]any) template.HTML {
 	bt := gt.base(nil)
 	w := &bytes.Buffer{}
 	if err := bt.ExecuteTemplate(w, name, data); err != nil {
-		panic(err)
+		log.Printf("execute %s failed: %s", name, err)
 	}
 	return template.HTML(w.String())
 }

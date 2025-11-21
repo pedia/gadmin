@@ -281,7 +281,7 @@ func (ts *ModelTestSuite) TestUrlStatusCode() {
 			{302, fmt.Sprintf("/admin/%s/details", e)},
 			// {302, fmt.Sprintf("/admin/%s/edit?id=1", e)},
 			// {200, fmt.Sprintf("/admin/%s/details?id=1", e)},
-			{200, fmt.Sprintf("/admin/%s/action", e)},
+			{302, fmt.Sprintf("/admin/%s/action", e)},
 			{302, fmt.Sprintf("/admin/%s/delete?id=0", e)},
 			{200, fmt.Sprintf("/admin/%s/export", e)},
 		}

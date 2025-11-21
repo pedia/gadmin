@@ -2,7 +2,6 @@ package gadm
 
 import (
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -97,9 +96,7 @@ func TestQuery(t *testing.T) {
 
 	is.Equal("desc=1&page=2", q2.toValues().Encode())
 }
-func ptr[T any](t T) *T {
-	return &t
-}
+
 func TestClone(t *testing.T) {
 	is := assert.New(t)
 	list := []int{1, 2}
@@ -128,7 +125,6 @@ func TestOnce(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			sum += i
 		}
-		fmt.Println("Computed once:", sum)
 		oc += 1
 		return sum
 	})
@@ -208,7 +204,7 @@ func TestGroupTmpl(t *testing.T) {
 
 	gt := NewGroupTempl("templates/base.html")
 	w := httptest.NewRecorder()
-	err := gt.Render(w, "templates/d1.html", nil, nil)
+	err := gt.Render(w, "templates/d1.html", template.FuncMap{"f": func() int { return 42 }}, nil)
 	is.Nil(err)
 	err = gt.Render(w, "templates/d1.html", nil, nil)
 	is.Nil(err)

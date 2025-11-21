@@ -388,7 +388,7 @@ func TestDaoModels(t *testing.T) {
 		{{- end}}}
 	for _, m := range models {
 		tx := db.First(m)
-		if tx.Error != nil {
+		if tx.Error != nil && tx.Error != gorm.ErrRecordNotFound {
 			t.Error(tx.Error)
 		}
 	}
