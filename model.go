@@ -195,8 +195,24 @@ func (f *Field) Display() string {
 		return f.Label
 	}
 
+	// bool type field
+	if f.DataType == schema.Bool {
+		switch v := f.Value.(type) {
+		case nil:
+			return "false"
+		case bool:
+			return f.displayBool(v)
+		case *bool:
+			return f.displayBool(*v)
+		}
+	}
+
 	switch v := f.Value.(type) {
 	case driver.Valuer:
+		if isNil(v) {
+			return ""
+		}
+
 		dv, _ := v.Value()
 		if dv == nil {
 			return ""
@@ -212,13 +228,6 @@ func (f *Field) Display() string {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
 		float32, float64, []byte:
 		return cast.ToString(v)
-	case bool:
-		return f.displayBool(v)
-	case *bool:
-		if v != nil {
-			return f.displayBool(*v)
-		}
-		return ""
 	case time.Time:
 		return f.displayTime(v)
 	case *time.Time:
@@ -304,4 +313,8 @@ func clone(fs []*Field) []*Field {
 		*cs[i] = *f
 	}
 	return cs
+}
+
+func like(query string) string {
+	return "%" + query + "%"
 }

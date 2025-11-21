@@ -61,6 +61,8 @@ type ModelView struct {
 	form_columns          []string
 	form_excluded_columns []string
 
+	filters []Filter
+
 	// <textarea row=5>
 	textareaRow map[string]int
 	// TODO: date-format="YYYY-MM-DD"
@@ -131,8 +133,8 @@ func NewModelView(m any, db *gorm.DB, category ...string) *ModelView {
 	mv.column_sortable_list = mv.sortableColumns()
 
 	mv.gt = NewGroupTempl(
-		"templates/actions.gotmpl",
 		"templates/base.gotmpl",
+		"templates/actions.gotmpl",
 		"templates/layout.gotmpl",
 		"templates/lib.gotmpl",
 		"templates/master.gotmpl",
@@ -208,6 +210,10 @@ func (V *ModelView) SetTextareaRow(rows map[string]int) *ModelView {
 	V.textareaRow = rows
 	return V
 }
+func (V *ModelView) SetColumnFilters(fs ...string) *ModelView {
+	V.column_filters = fs
+	return V
+}
 
 // form
 func (V *ModelView) SetFormChoices(choices map[string][]Choice) *ModelView {
@@ -235,9 +241,6 @@ func Refer(a any, fields ...string) *refer {
 	}
 }
 
-func like(query string) string {
-	return "%" + query + "%"
-}
 func astoss(as []any) string {
 	return strings.Join(lo.Map(as, func(a any, _ int) string { return cast.ToString(a) }), ",")
 }
@@ -245,7 +248,7 @@ func astoss(as []any) string {
 // refer.fields like query
 // Return slice of [id, "f1, f2"]
 func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
-	nd := db.Limit(limit).Offset(offset)
+	ndb := db.Limit(limit).Offset(offset)
 
 	pks := []string{}
 	fns := lo.Map(lo.Filter(rf.model.Fields, func(f *Field, _ int) bool {
@@ -261,14 +264,18 @@ func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
 		return f.DBName
 	})
 
-	nd = nd.Table(rf.model.schema.Table).
-		Select(fns).
-		Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
-	for _, f := range rf.fields[1:] {
-		nd = nd.Or(fmt.Sprintf("%s like ?", f), like(query))
+	ndb = ndb.Table(rf.model.schema.Table).
+		Select(fns)
+
+	for i, f := range rf.fields {
+		if i == 0 {
+			ndb = ndb.Where(fmt.Sprintf("%s like ?", rf.fields[0]), like(query))
+		} else {
+			ndb = ndb.Or(fmt.Sprintf("%s like ?", f), like(query))
+		}
 	}
 	var ms []map[string]any
-	if tx := nd.Find(&ms); tx.Error == nil {
+	if tx := ndb.Find(&ms); tx.Error == nil {
 		return lo.Map(ms, func(m map[string]any, _ int) []any {
 			var id any
 			ids := []any{}
@@ -293,7 +300,7 @@ func (rf *refer) Lookup(db *gorm.DB, query string, offset, limit int) [][]any {
 
 // user: [first_name, last_name]
 // lookup table user's first_name, last_name
-func (V *ModelView) AddLooupRefer(a any, fields ...string) *ModelView {
+func (V *ModelView) AddLookupRefer(a any, fields ...string) *ModelView {
 	if reflect.ValueOf(a).Kind() != reflect.Struct {
 		log.Println("wrong refer type, 'a' should be Struct")
 	}
@@ -385,6 +392,67 @@ func (V *ModelView) freeze() {
 			f.Readonly = true
 		}
 	}
+
+	V.filters = []Filter{}
+	for _, name := range V.column_filters {
+		if f, ok := lo.Find(fs, func(f *Field) bool {
+			return f.DBName == name
+		}); ok {
+			V.filters = append(V.filters, V.filtersOf(f)...)
+		}
+	}
+	for i := 0; i < len(V.filters); i++ {
+		V.filters[i].Index = i
+		V.filters[i].Arg = cast.ToString(i)
+	}
+}
+func (V *ModelView) filtersOf(f *Field) []Filter {
+	switch f.DataType {
+	case schema.Bool:
+		return []Filter{
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "equal", Options: [][]string{{"1", "Yes"}, {"0", "No"}}},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not equal", Options: [][]string{{"1", "Yes"}, {"0", "No"}}},
+		}
+	case schema.Int:
+		return []Filter{
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "equal"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not equal"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "greater"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "smaller"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "empty", Options: [][]string{{"1", "Yes"}, {"0", "No"}}},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "in list", WidgetType: ptr("select2-tags")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not in list", WidgetType: ptr("select2-tags")},
+		}
+	case schema.String:
+		return []Filter{
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "like"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not like"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "equal"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not equal"},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "empty", Options: [][]string{{"1", "Yes"}, {"0", "No"}}},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "in list", WidgetType: ptr("select2-tags")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not in list", WidgetType: ptr("select2-tags")},
+		}
+	case schema.Time:
+		return []Filter{
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "equal", WidgetType: ptr("datetimepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not equal", WidgetType: ptr("datetimepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "greater", WidgetType: ptr("datetimepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "smaller", WidgetType: ptr("datetimepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "between", WidgetType: ptr("datetimerangepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "not between", WidgetType: ptr("datetimerangepicker")},
+			{Field: f, Label: f.Label, DBName: f.DBName, Operation: "empty", Options: [][]string{{"1", "Yes"}, {"0", "No"}}},
+		}
+	}
+	return nil
+}
+
+func toGroup(fs []Filter) map[string][]Filter {
+	g := map[string][]Filter{}
+	for _, f := range fs {
+		g[f.Label] = append(g[f.Label], f)
+	}
+	return g
 }
 
 func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]any {
@@ -406,9 +474,7 @@ func (V *ModelView) dict(r *http.Request, others ...map[string]any) map[string]a
 			"widget_args": nil,
 			"form_rules":  []any{},
 		},
-		"filters":       []string{},
-		"filter_groups": []string{},
-		"return_url":    must(V.Blueprint.GetUrl(".index_view")),
+		"return_url": must(V.Blueprint.GetUrl(".index_view")),
 	})
 
 	if len(others) > 0 {
@@ -430,9 +496,28 @@ func (V *ModelView) queryFrom(r *http.Request) *Query {
 		if lo.IndexOf([]string{"page", "page_size", "sort", "desc", "search"}, k) != -1 {
 			continue
 		}
-		q.args = append(q.args, k, v[0])
+		if strings.HasPrefix(k, "flt") {
+			f := V.inputFilter(k, v[0])
+			if f != nil {
+				q.filters = append(q.filters, f)
+			}
+		} else {
+			q.args = append(q.args, k, v[0])
+		}
 	}
 	return &q
+}
+
+// flt0_35=2024-10-28&flt2_27=Harry&flt3_0=1
+func (V *ModelView) inputFilter(k, v string) *InputFilter {
+	arr := lo.Map(strings.Split(k[2:], "_"), func(s string, _ int) int {
+		return cast.ToInt(s)
+	})
+	if arr[1] < len(V.filters) {
+		f := V.filters[arr[1]]
+		return &InputFilter{Label: f.Label, Index: arr[1], Query: v}
+	}
+	return nil
 }
 
 func (V *ModelView) get_column_index(name string) int {
@@ -564,6 +649,15 @@ func (V *ModelView) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"search":                 q.Search,
 		"column_searchable_list": V.column_searchable_list,
 		"search_placeholder":     strings.Join(V.column_searchable_list, ","),
+
+		"filters":        len(V.column_filters) > 0,
+		"filter_groups":  toGroup(V.filters),
+		"active_filters": activeFilter(q.filters), // [[27, "Title", "part"]]
+		"clear_search_url": func() string {
+			qc := *q
+			qc.Search = ""
+			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(qc.toValues())...))
+		}(),
 	})
 }
 func (V *ModelView) listJson(w http.ResponseWriter, r *http.Request) {
@@ -767,11 +861,12 @@ func (V *ModelView) ajaxLookup(w http.ResponseWriter, r *http.Request) {
 func (V *ModelView) actionHandler(w http.ResponseWriter, r *http.Request) {
 	action := r.FormValue("action")
 	rowid := r.Form["rowid"]
-	if len(rowid) == 0 {
+	if !V.can_delete || len(rowid) == 0 {
+		V.redirect(w, r)
 		return
 	}
+
 	if action == "delete" {
-		log.Printf("action:%s: %v\n", action, rowid)
 		tx := V.deleteBatch(rowid)
 		if tx.Error == nil {
 			V.AddFlash(r, FlashSuccess(fmt.Sprintf("delete %d success", tx.RowsAffected)))
@@ -849,11 +944,6 @@ func (V *ModelView) Render(w http.ResponseWriter, r *http.Request, name string, 
 		"list_form":   V.inline_form(csrf.Token(r)),
 		"delete_form": V.delete_form,
 		"is_editable": V.is_editable,
-		"clear_search_url": func() string {
-			q := V.queryFrom(r)
-			q.Search = ""
-			return must(V.Blueprint.GetUrl(".index_view", queryToPairs(q.toValues())...))
-		},
 	}, funcs)
 
 	if err := V.gt.Render(w, "templates/"+name, V.admin.funcs(fm), V.dict(r, data)); err != nil {
@@ -947,17 +1037,18 @@ func (V *ModelView) applyQuery(db *gorm.DB, q *Query, count_only bool) *gorm.DB 
 		})
 	}
 
-	// filter or search
+	// filter
+	for _, inf := range q.filters {
+		filter := V.filters[inf.Index]
+		ndb = filter.Apply(ndb, inf.Query)
+	}
+	// search
 	if q.Search != "" && len(V.column_searchable_list) > 0 {
 		for i, c := range V.column_searchable_list {
 			if i == 0 {
-				ndb = ndb.Where(
-					fmt.Sprintf("%s like ?", c),
-					"%"+q.Search+"%")
+				ndb = ndb.Where(c+" like ?", like(q.Search))
 			} else {
-				ndb = ndb.Or(
-					fmt.Sprintf("%s like ?", c),
-					"%"+q.Search+"%")
+				ndb = ndb.Or(c+" like ?", like(q.Search))
 			}
 		}
 	}
@@ -1020,9 +1111,13 @@ func (V *ModelView) deleteOne(rowid string) error {
 }
 func (V *ModelView) deleteBatch(rowid []string) *gorm.DB {
 	ptr := V.Model.new()
-	ndb := V.db.Model(ptr).Where(V.where(rowid[0]))
-	for _, id := range rowid[1:] {
-		ndb = ndb.Or(V.where(id))
+	ndb := V.db.Model(ptr)
+	for i, id := range rowid {
+		if i == 0 {
+			ndb = ndb.Where(V.where(id))
+		} else {
+			ndb = ndb.Or(V.where(id))
+		}
 	}
 	return ndb.Delete(ptr)
 }

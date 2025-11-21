@@ -245,7 +245,7 @@ func (A *Admin) Run() {
 
 // template function
 func (*Admin) marshal(v any) string {
-	bs, err := json.MarshalIndent(v, "", " ")
+	bs, err := json.Marshal(v)
 	if err != nil {
 		return err.Error()
 	}

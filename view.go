@@ -7,6 +7,10 @@ import (
 	"strings"
 
 	"github.com/gorilla/csrf"
+	"github.com/samber/lo"
+	"github.com/spf13/cast"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 type View interface {
@@ -146,10 +150,105 @@ func FlashDanger(data string) flash     { return flash{data, "danger"} }
 
 type Action struct {
 	Name         string
-	Title        string
+	Title        string // TODO: Label
 	Desc         string
 	Confirmation string
-	URL          string
+	URL          string // form action
 	ReturnURL    string
 	CSRFToken    string
+}
+
+type Filter struct {
+	Label      string     `json:"-"`
+	Arg        string     `json:"arg"`
+	Index      int        `json:"index"`     // 0-based
+	Operation  string     `json:"operation"` // equal, contains
+	Options    [][]string `json:"options"`
+	WidgetType *string    `json:"type"` // select2-tags/datetimepicker/null
+	DBName     string     `json:"-"`
+	Field      *Field     `json:"-"`
+}
+
+func (f *Filter) Apply(db *gorm.DB, q string) *gorm.DB {
+	switch f.Operation {
+	case "empty":
+		if q == "1" {
+			db = db.Where(f.DBName + " IS NULL")
+		} else {
+			db = db.Where(f.DBName + " IS NOT NULL")
+		}
+	case "like":
+		db = db.Where(f.DBName+" LIKE ?", like(q))
+	case "not like":
+		db = db.Where(f.DBName+" NOT LIKE ?", like(q))
+	case "equal":
+		if f.Field.DataType == schema.Bool {
+			db = db.Where(f.DBName+" = ?", f.qbool(q))
+		} else {
+			db = db.Where(f.DBName+" = ?", q)
+		}
+	case "not equal":
+		if f.Field.DataType == schema.Bool {
+			db = db.Where(f.DBName+" <> ?", f.qbool(q))
+		} else {
+			db = db.Where(f.DBName+" <> ?", q)
+		}
+	case "greater":
+		db = db.Where(f.DBName+" > ?", q)
+	case "smaller":
+		db = db.Where(f.DBName+" < ?", q)
+	case "in list":
+		db = db.Where(f.DBName+" IN ?", f.qlist(q))
+	case "not in list":
+		db = db.Where(f.DBName+" NOT IN ?", f.qlist(q))
+	case "between":
+		// 2025-11-19 00:00:00 to 2025-11-21 23:59:59
+		ts := f.qbetween(q)
+		db = db.Where(f.DBName+" BETWEEN ? AND ?", ts[0], ts[1])
+	case "not between":
+		ts := f.qbetween(q)
+		db = db.Where(f.DBName+" NOT BETWEEN ? AND ?", ts[0], ts[1])
+	}
+	return db
+}
+func (f *Filter) qbetween(q string) []string {
+	return strings.Split(q, " to ")
+}
+func (f *Filter) qbool(q string) bool {
+	return q == "1"
+}
+
+func (f *Filter) qlist(q string) any {
+	arr := strings.Split(q, ",")
+	switch f.Field.DataType {
+	case schema.String:
+		return arr
+	case schema.Int:
+		return lo.Map(arr, func(s string, _ int) int { return cast.ToInt(s) })
+	case schema.Uint:
+		return lo.Map(arr, func(s string, _ int) uint { return cast.ToUint(s) })
+	case schema.Float:
+		return lo.Map(arr, func(s string, _ int) float64 { return cast.ToFloat64(s) })
+	}
+	return arr
+}
+
+type InputFilter struct {
+	Label string
+	Index int
+	Query string
+}
+
+// [[27, "Title", "part"]]
+func (a *InputFilter) toJson() any {
+	return []any{a.Index, a.Label, a.Query}
+}
+
+// [[27, "Title", "part"]]
+func activeFilter(inf []*InputFilter) any {
+	arr := []any{}
+	for _, f := range inf {
+		arr = append(arr, f.toJson())
+	}
+	return arr
 }

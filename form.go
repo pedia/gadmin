@@ -3,7 +3,6 @@ package gadm
 import (
 	"encoding/json"
 	"html/template"
-	"os"
 
 	"github.com/spf13/cast"
 	"gorm.io/gorm/schema"
@@ -73,14 +72,6 @@ func jsonify(a any) string {
 		return string(bs)
 	}
 	return ""
-}
-
-var formTemplate *template.Template
-
-func init() {
-	if _, err := os.Stat("templates/form.gotmpl"); err == nil {
-		// formTemplate = template.Must(template.ParseFiles("templates/form.gotmpl"))
-	}
 }
 
 type modelForm struct {

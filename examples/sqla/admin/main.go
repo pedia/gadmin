@@ -25,12 +25,15 @@ func main() {
 		SetFormColumns("name").
 		SetColumnSearchableList("name", "email", "badge").
 		SetColumnEditableList("name", "email", "age", "is_normal", "valid", "type", "long", "badge",
-			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login")
+			"birthday", "activated_at", "created_at", "updated_at", "decimal", "bytes", "favorite", "last_login").
+		SetColumnFilters("name", "valid", "birthday", "age")
 	a.AddView(vat)
 
 	a.AddView(gadm.NewModelView(sqla.Company{}, db, "BelongsTo"))
 	ve := gadm.NewModelView(sqla.Employee{}, db, "BelongsTo").
-		Joins("Company").AddLooupRefer(sqla.Company{}, "name")
+		Joins("Company").
+		AddLookupRefer(sqla.Company{}, "name").
+		SetColumnFilters("name")
 	a.AddView(ve)
 
 	a.AddView(gadm.NewModelView(sqla.CreditCard{}, db, "HasOne"))

@@ -9,7 +9,7 @@
 
 {{ define "tail" }}
     {{ if .filter_groups }}
-      <div id="filter-groups-data" style="display:none;">{{ marshal .filter_groups }}</div>
+      <div id="filter-groups-data" style="display:none;">{{ marshal .filter_groups|safehtml }}</div>
       <div id="active-filters-data" style="display:none;">{{ marshal .active_filters }}</div>
     {{ end }}
     {{ template "form_js" . }}
@@ -64,7 +64,7 @@
 
         {{- if .filters }}
             <li class="nav-item dropdown">
-                {{ template "filter_options" . | arg "btn_class" "dropdown-toggle" | args }}
+                {{ template "filter_options" . }}
             </li>
         {{ end -}}
 

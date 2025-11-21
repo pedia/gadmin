@@ -21,9 +21,9 @@ type Query struct {
 	Search string `form:"search,omitempty"`
 
 	// flt0_35=2024-10-28&flt2_27=Harry&flt3_0=1
-	// filters []
-	args []string
-	base string // base path
+	filters []*InputFilter
+	args    []string
+	base    string // base path
 
 	default_page_size int
 }

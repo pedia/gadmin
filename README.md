@@ -3,11 +3,13 @@
 gadm generates a friendly admin UI for your database with minimal code. It is inspired by Flask-Admin but written for Go and integrates with GORM.
 
 Key goals:
-- Fast admin pages for CRUD and basic relations
+- Easy to edit, filter and search for CRUD and basic relations
+- Write less code
+- Put everything in one admin
 - Auto-generate models and views from a live database
-- Easy to extend and style
+- WebAuthn level safety
 
-![Demo](screenshot.png)
+![Screenshot](screenshot.png)
 
 Quick example
 ```go
